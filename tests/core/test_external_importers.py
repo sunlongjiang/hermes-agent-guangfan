@@ -34,6 +34,7 @@ from evolution.core.external_importers import (
     main,
     ClaudeCodeImporter,
     CopilotImporter,
+    HermesSessionImporter,
     RelevanceFilter,
     VALID_DIFFICULTIES,
     MIN_DATASET_SIZE,
@@ -461,6 +462,126 @@ class TestCopilotHelpers:
             assert pairs == []
         finally:
             events_path.chmod(0o644)  # Restore for cleanup
+
+
+# ── Hermes Session Importer ──────────────────────────────────────────────────
+
+
+class TestHermesSessionImporter:
+    def test_parses_session_json(self, tmp_path):
+        session = {
+            "session_id": "test-session",
+            "messages": [
+                {"role": "user", "content": "Fix the bug in auth.py"},
+                {"role": "assistant", "content": None, "tool_calls": [{"name": "read_file"}]},
+                {"role": "tool", "content": "file contents here"},
+                {"role": "assistant", "content": "I found the issue and fixed it."},
+                {"role": "user", "content": "Now run the tests"},
+                {"role": "assistant", "content": "All 42 tests passed."},
+            ],
+        }
+        (tmp_path / "session_001.json").write_text(json.dumps(session))
+
+        with patch.object(HermesSessionImporter, "SESSION_DIR", tmp_path):
+            msgs = HermesSessionImporter.extract_messages()
+
+        assert len(msgs) == 2
+        assert msgs[0]["task_input"] == "Fix the bug in auth.py"
+        assert msgs[0]["assistant_response"] == "I found the issue and fixed it."
+        assert msgs[0]["source"] == "hermes"
+        assert msgs[1]["task_input"] == "Now run the tests"
+        assert msgs[1]["assistant_response"] == "All 42 tests passed."
+
+    def test_skips_short_messages(self, tmp_path):
+        session = {
+            "messages": [
+                {"role": "user", "content": "hi"},
+                {"role": "assistant", "content": "Hello!"},
+            ],
+        }
+        (tmp_path / "s.json").write_text(json.dumps(session))
+
+        with patch.object(HermesSessionImporter, "SESSION_DIR", tmp_path):
+            msgs = HermesSessionImporter.extract_messages()
+        assert len(msgs) == 0
+
+    def test_filters_secrets(self, tmp_path):
+        session = {
+            "messages": [
+                {"role": "user", "content": "Set ANTHROPIC_API_KEY=sk-ant-api03-xyz in the env"},
+                {"role": "assistant", "content": "Done."},
+            ],
+        }
+        (tmp_path / "s.json").write_text(json.dumps(session))
+
+        with patch.object(HermesSessionImporter, "SESSION_DIR", tmp_path):
+            msgs = HermesSessionImporter.extract_messages()
+        assert len(msgs) == 0
+
+    def test_handles_missing_dir(self, tmp_path):
+        with patch.object(HermesSessionImporter, "SESSION_DIR", tmp_path / "nonexistent"):
+            msgs = HermesSessionImporter.extract_messages()
+        assert msgs == []
+
+    def test_handles_malformed_json(self, tmp_path):
+        (tmp_path / "bad.json").write_text("{not valid json")
+
+        with patch.object(HermesSessionImporter, "SESSION_DIR", tmp_path):
+            msgs = HermesSessionImporter.extract_messages()
+        assert msgs == []
+
+    def test_handles_no_assistant_response(self, tmp_path):
+        session = {
+            "messages": [
+                {"role": "user", "content": "Do something interesting please"},
+            ],
+        }
+        (tmp_path / "s.json").write_text(json.dumps(session))
+
+        with patch.object(HermesSessionImporter, "SESSION_DIR", tmp_path):
+            msgs = HermesSessionImporter.extract_messages()
+        assert len(msgs) == 1
+        assert msgs[0]["assistant_response"] == ""
+
+    def test_respects_limit(self, tmp_path):
+        session = {
+            "messages": [
+                {"role": "user", "content": f"Message number {i} with enough text"} for i in range(10)
+            ],
+        }
+        (tmp_path / "s.json").write_text(json.dumps(session))
+
+        with patch.object(HermesSessionImporter, "SESSION_DIR", tmp_path):
+            msgs = HermesSessionImporter.extract_messages(limit=3)
+        assert len(msgs) == 3
+
+
+# ── Skill Name Matching ──────────────────────────────────────────────────────
+
+
+class TestSkillNameMatching:
+    """Verify that short skill names match via exact full-name check."""
+
+    def test_short_skill_name_matches_exact(self):
+        assert _is_relevant_to_skill(
+            "configure the mcp server settings",
+            "mcp",
+            "Model Context Protocol server management",
+        )
+
+    def test_short_skill_name_tdd(self):
+        assert _is_relevant_to_skill(
+            "set up tdd workflow for the project",
+            "tdd",
+            "Test driven development enforcement",
+        )
+
+    def test_hyphenated_skill_name_matches(self):
+        assert _is_relevant_to_skill(
+            "I need to do a code review on this PR",
+            "code-review",
+            "Review pull requests and provide feedback",
+        )
 
 
 # ── RelevanceFilter (mocked DSPy) ───────────────────────────────────────────

@@ -9,6 +9,7 @@ already use.
 Supported sources:
   - Claude Code (~/.claude/history.jsonl) — user inputs only
   - GitHub Copilot (~/.copilot/session-state/*/events.jsonl) — full conversations
+  - Hermes Agent (~/.hermes/sessions/*.json) — user + assistant + tool context
 
 Usage as standalone CLI:
     python -m evolution.core.external_importers \\
@@ -127,7 +128,12 @@ def _is_relevant_to_skill(text: str, skill_name: str, skill_text: str) -> bool:
     text_lower = text.lower()
     skill_lower = skill_name.lower().replace("-", " ").replace("_", " ")
 
-    # Direct skill name mention (only words > 3 chars to avoid "tdd", "run", etc.)
+    # Exact full skill name match (handles short names like "mcp", "tdd", "git")
+    if skill_lower in text_lower:
+        return True
+
+    # Individual word match (only words > 3 chars to avoid false positives
+    # from short fragments like "run", "use", etc.)
     for word in skill_lower.split():
         if len(word) > 3 and word in text_lower:
             return True
@@ -323,6 +329,91 @@ def _parse_copilot_events(
         console.print(f"[dim]Skipped {session_id}: {e}[/dim]")
 
     return pairs
+
+
+class HermesSessionImporter:
+    """Import conversations from Hermes Agent session files.
+
+    Hermes stores session transcripts as JSON files in ~/.hermes/sessions/.
+    Each file contains an OpenAI-format message list with user, assistant,
+    and tool messages — providing richer signal than Claude Code (user-only)
+    or Copilot (user+assistant without tool context).
+
+    This mines user messages paired with the assistant's final response,
+    giving the LLM judge both the task and how it was actually handled.
+    """
+
+    SESSION_DIR = Path.home() / ".hermes" / "sessions"
+
+    @staticmethod
+    def extract_messages(limit: int = 0) -> list[dict]:
+        """Read user/assistant pairs from Hermes session files.
+
+        Args:
+            limit: Maximum messages to return (0 = no limit).
+
+        Returns:
+            List of dicts with keys: source, task_input, assistant_response,
+            session_id.
+        """
+        if not HermesSessionImporter.SESSION_DIR.exists():
+            return []
+
+        messages = []
+        session_files = sorted(
+            HermesSessionImporter.SESSION_DIR.glob("*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,  # newest first
+        )
+
+        for session_file in session_files:
+            try:
+                data = json.loads(session_file.read_text())
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            msg_list = data.get("messages", [])
+            if not msg_list:
+                continue
+
+            session_id = data.get("session_id", session_file.stem)
+
+            # Walk messages: pair each user message with the next assistant
+            # response (skipping tool messages in between).
+            for i, msg in enumerate(msg_list):
+                if msg.get("role") != "user":
+                    continue
+                user_text = msg.get("content", "")
+                if not user_text or len(user_text) < 10:
+                    continue
+                if _contains_secret(user_text):
+                    continue
+
+                # Find the next assistant response
+                assistant_text = ""
+                for j in range(i + 1, len(msg_list)):
+                    if msg_list[j].get("role") == "assistant":
+                        content = msg_list[j].get("content", "")
+                        if content:
+                            assistant_text = content
+                            break
+                    elif msg_list[j].get("role") == "user":
+                        break  # next user turn, no assistant response found
+
+                if assistant_text and _contains_secret(assistant_text):
+                    continue
+
+                messages.append({
+                    "source": "hermes",
+                    "task_input": user_text,
+                    "assistant_response": assistant_text,
+                    "session_id": session_id,
+                })
+
+                if limit and len(messages) >= limit:
+                    return messages
+
+        return messages
 
 
 # ── Relevance Filtering ───────────────────────────────────────────────────
@@ -541,6 +632,7 @@ def build_dataset_from_external(
     importers = {
         "claude-code": ("Claude Code", ClaudeCodeImporter),
         "copilot": ("Copilot", CopilotImporter),
+        "hermes": ("Hermes Agent", HermesSessionImporter),
     }
 
     for source in sources:
@@ -637,7 +729,7 @@ def _load_skill_text(skill_name: str, skills_dir: Optional[Path] = None) -> tupl
 @click.command()
 @click.option(
     "--source",
-    type=click.Choice(["claude-code", "copilot", "all"]),
+    type=click.Choice(["claude-code", "copilot", "hermes", "all"]),
     default="all",
     help="Which tool to import from",
 )
@@ -660,12 +752,13 @@ def main(source, skill, output, model, max_examples, dry_run):
 
     console.print(f"  Loaded skill: {skill_name} ({len(skill_text):,} chars)")
 
-    sources = [source] if source != "all" else ["claude-code", "copilot"]
+    sources = [source] if source != "all" else ["claude-code", "copilot", "hermes"]
 
     if dry_run:
         importers = {
             "claude-code": ClaudeCodeImporter,
             "copilot": CopilotImporter,
+            "hermes": HermesSessionImporter,
         }
         for src in sources:
             msgs = importers[src].extract_messages()

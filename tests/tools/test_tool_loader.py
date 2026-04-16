@@ -1,4 +1,7 @@
-"""Tests for tool description extraction from hermes-agent tool files."""
+"""Tests for tool description extraction and write-back from hermes-agent tool files."""
+
+import py_compile
+import shutil
 
 import pytest
 from pathlib import Path
@@ -9,6 +12,7 @@ from evolution.tools.tool_loader import (
     ToolDescription,
     discover_tool_files,
     extract_tool_descriptions,
+    write_back_description,
 )
 
 # ── Sample tool file contents for testing 4 description formats ──
@@ -411,6 +415,158 @@ class TestExtractEdgeCases:
         f.write_text("")
         tools = extract_tool_descriptions(f)
         assert tools == []
+
+
+# ── Write-Back Tests ─────────────────────────────────────────────────────────
+
+
+class TestWriteBack:
+    """Test write_back_description() for each description format."""
+
+    def test_single_line_top_level(self, tmp_path):
+        """Write back single-line description, extract again to verify."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_SINGLE_LINE)
+        tools = extract_tool_descriptions(tool_file)
+        new_desc = "EVOLVED: Read file contents with improved clarity."
+        write_back_description(tool_file, tools[0], new_desc)
+        tools_after = extract_tool_descriptions(tool_file)
+        assert tools_after[0].description == new_desc
+        py_compile.compile(str(tool_file), doraise=True)
+
+    def test_paren_concat_top_level(self, tmp_path):
+        """Write back paren_concat description preserving format."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_PAREN_CONCAT)
+        tools = extract_tool_descriptions(tool_file)
+        new_desc = "EVOLVED: Save information to memory for future use."
+        write_back_description(tool_file, tools[0], new_desc)
+        tools_after = extract_tool_descriptions(tool_file)
+        assert tools_after[0].description == new_desc
+        py_compile.compile(str(tool_file), doraise=True)
+
+    def test_triple_quote_top_level(self, tmp_path):
+        """Write back triple-quote description preserving format."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_TRIPLE_QUOTE)
+        tools = extract_tool_descriptions(tool_file)
+        new_desc = "EVOLVED: Manage cron jobs efficiently."
+        write_back_description(tool_file, tools[0], new_desc)
+        tools_after = extract_tool_descriptions(tool_file)
+        assert tools_after[0].description == new_desc
+        py_compile.compile(str(tool_file), doraise=True)
+
+    def test_variable_ref_top_level(self, tmp_path):
+        """Write back variable_ref description by replacing variable definition."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_VARIABLE_REF)
+        tools = extract_tool_descriptions(tool_file)
+        new_desc = "EVOLVED: Run terminal commands safely."
+        write_back_description(tool_file, tools[0], new_desc)
+        tools_after = extract_tool_descriptions(tool_file)
+        assert tools_after[0].description == new_desc
+        py_compile.compile(str(tool_file), doraise=True)
+
+    def test_param_description(self, tmp_path):
+        """Write back param description, verify only target param changed."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_SINGLE_LINE)
+        tools = extract_tool_descriptions(tool_file)
+        original_params = [(p.name, p.description) for p in tools[0].params]
+        new_param_desc = "EVOLVED: Absolute or relative file path."
+        write_back_description(tool_file, tools[0], new_param_desc, param_name="file_path")
+        tools_after = extract_tool_descriptions(tool_file)
+        file_path_param = next(p for p in tools_after[0].params if p.name == "file_path")
+        assert file_path_param.description == new_param_desc
+        # Other params unchanged
+        max_lines_param = next(p for p in tools_after[0].params if p.name == "max_lines")
+        original_max_lines = next(d for n, d in original_params if n == "max_lines")
+        assert max_lines_param.description == original_max_lines
+
+    def test_description_with_quotes_escaped(self, tmp_path):
+        """New description containing double quotes is properly escaped."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_SINGLE_LINE)
+        tools = extract_tool_descriptions(tool_file)
+        new_desc = 'Read a file. Use "utf-8" encoding by default.'
+        write_back_description(tool_file, tools[0], new_desc)
+        tools_after = extract_tool_descriptions(tool_file)
+        assert tools_after[0].description == new_desc
+        py_compile.compile(str(tool_file), doraise=True)
+
+    def test_non_schema_code_unchanged(self, tmp_path):
+        """Write-back does not affect non-schema parts of the file."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_SINGLE_LINE)
+        source_before = tool_file.read_text()
+        tools = extract_tool_descriptions(tool_file)
+        write_back_description(tool_file, tools[0], "EVOLVED description.")
+        source_after = tool_file.read_text()
+        # The registry.register line should be unchanged
+        assert 'registry.register(name="read_file"' in source_after
+        # The import line should be unchanged
+        assert 'from tools.registry import registry' in source_after
+
+
+class TestRoundTrip:
+    """Test extract -> modify -> write back -> extract round-trip."""
+
+    def test_full_roundtrip_preserves_schema(self, tmp_path):
+        """Extract -> modify -> write -> extract: schema structure unchanged."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_SINGLE_LINE)
+        tools_before = extract_tool_descriptions(tool_file)
+        original_params = [p.to_dict() for p in tools_before[0].params]
+        # Modify top-level description
+        write_back_description(tool_file, tools_before[0], "EVOLVED description.")
+        tools_after = extract_tool_descriptions(tool_file)
+        assert tools_after[0].description == "EVOLVED description."
+        # Schema structure unchanged
+        after_params = [p.to_dict() for p in tools_after[0].params]
+        for bp, ap in zip(original_params, after_params):
+            assert bp["name"] == ap["name"]
+            assert bp["type"] == ap["type"]
+            assert bp["required"] == ap["required"]
+            assert bp["enum"] == ap["enum"]
+            # Param descriptions should not change (only changed top-level)
+            assert bp["description"] == ap["description"]
+
+    def test_roundtrip_each_format(self, tmp_path):
+        """Round-trip works for all 4 formats."""
+        samples = {
+            "single": SAMPLE_SINGLE_LINE,
+            "paren": SAMPLE_PAREN_CONCAT,
+            "triple": SAMPLE_TRIPLE_QUOTE,
+            "varref": SAMPLE_VARIABLE_REF,
+        }
+        for label, sample in samples.items():
+            tool_file = tmp_path / f"{label}_tool.py"
+            tool_file.write_text(sample)
+            tools = extract_tool_descriptions(tool_file)
+            assert len(tools) >= 1, f"{label}: no tools extracted"
+            new_desc = f"EVOLVED {label} description."
+            write_back_description(tool_file, tools[0], new_desc)
+            tools_after = extract_tool_descriptions(tool_file)
+            assert tools_after[0].description == new_desc, f"{label}: roundtrip failed"
+            py_compile.compile(str(tool_file), doraise=True)
+
+
+class TestSchemaPreservation:
+    """Verify frozen fields are not affected by write-back."""
+
+    def test_frozen_fields_unchanged(self, tmp_path):
+        """After write-back, frozen fields (name, type, required, enum) are identical."""
+        tool_file = tmp_path / "test_tool.py"
+        tool_file.write_text(SAMPLE_PAREN_CONCAT)
+        tools_before = extract_tool_descriptions(tool_file)
+        write_back_description(tool_file, tools_before[0], "EVOLVED text.")
+        tools_after = extract_tool_descriptions(tool_file)
+        assert tools_after[0].name == tools_before[0].name
+        for pb, pa in zip(tools_before[0].params, tools_after[0].params):
+            assert pb.name == pa.name
+            assert pb.type == pa.type
+            assert pb.required == pa.required
+            assert pb.enum == pa.enum
 
 
 # ── Integration Tests with Real hermes-agent Files ───────────────────────────

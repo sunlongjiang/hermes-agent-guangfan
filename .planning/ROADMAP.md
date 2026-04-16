@@ -47,7 +47,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 02-01-PLAN.md — 数据类定义和工具描述提取（4 种格式 + 集成测试）
-- [ ] 02-02-PLAN.md — Format-preserving 写回和 round-trip 验证
+- [x] 02-02-PLAN.md — Format-preserving 写回和 round-trip 验证
 
 ### Phase 3: Tool Module
 **Goal**: All tool descriptions are wrapped as a single GEPA-optimizable unit where only description text evolves

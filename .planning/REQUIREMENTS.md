@@ -10,7 +10,7 @@ Requirements for Phase 2 (tool description optimization) and Phase 3 (system pro
 ### Tool Loading
 
 - [x] **TOOL-01**: Pipeline can extract tool descriptions from hermes-agent's tools/*.py files via regex parsing
-- [ ] **TOOL-02**: Pipeline can write evolved descriptions back to files preserving schema structure (param names, types, required fields frozen)
+- [x] **TOOL-02**: Pipeline can write evolved descriptions back to files preserving schema structure (param names, types, required fields frozen)
 
 ### Tool Module
 
@@ -103,7 +103,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | TOOL-01 | Phase 2 | Complete |
-| TOOL-02 | Phase 2 | Pending |
+| TOOL-02 | Phase 2 | Complete |
 | TOOL-03 | Phase 3 | Pending |
 | TOOL-04 | Phase 3 | Pending |
 | TOOL-05 | Phase 4 | Pending |

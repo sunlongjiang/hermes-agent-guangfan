@@ -43,7 +43,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. Running the loader extracts all tool descriptions from hermes-agent's tools/*.py files
   2. Writing evolved descriptions back preserves param names, types, and required fields exactly
   3. Round-trip test passes: extract -> modify description text -> write back -> extract again yields the modification
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — 数据类定义和工具描述提取（4 种格式 + 集成测试）
+- [ ] 02-02-PLAN.md — Format-preserving 写回和 round-trip 验证
 
 ### Phase 3: Tool Module
 **Goal**: All tool descriptions are wrapped as a single GEPA-optimizable unit where only description text evolves
@@ -149,7 +153,7 @@ Phases execute in numeric order: 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 1
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Skill Evolution | - | Complete | Pre-existing |
-| 2. Tool Loading | 0/TBD | Not started | - |
+| 2. Tool Loading | 0/2 | Planned | - |
 | 3. Tool Module | 0/TBD | Not started | - |
 | 4. Tool Dataset & Evaluation | 0/TBD | Not started | - |
 | 5. Tool Constraints & CLI | 0/TBD | Not started | - |

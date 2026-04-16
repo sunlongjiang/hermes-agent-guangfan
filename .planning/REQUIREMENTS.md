@@ -102,35 +102,35 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 | TBD | Pending |
-| TOOL-02 | TBD | Pending |
-| TOOL-03 | TBD | Pending |
-| TOOL-04 | TBD | Pending |
-| TOOL-05 | TBD | Pending |
-| TOOL-06 | TBD | Pending |
-| TOOL-07 | TBD | Pending |
-| TOOL-08 | TBD | Pending |
-| TOOL-09 | TBD | Pending |
-| TOOL-10 | TBD | Pending |
-| TOOL-11 | TBD | Pending |
-| PMPT-01 | TBD | Pending |
-| PMPT-02 | TBD | Pending |
-| PMPT-03 | TBD | Pending |
-| PMPT-04 | TBD | Pending |
-| PMPT-05 | TBD | Pending |
-| PMPT-06 | TBD | Pending |
-| PMPT-07 | TBD | Pending |
-| PMPT-08 | TBD | Pending |
-| PMPT-09 | TBD | Pending |
-| PMPT-10 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| TEST-02 | TBD | Pending |
+| TOOL-01 | Phase 2 | Pending |
+| TOOL-02 | Phase 2 | Pending |
+| TOOL-03 | Phase 3 | Pending |
+| TOOL-04 | Phase 3 | Pending |
+| TOOL-05 | Phase 4 | Pending |
+| TOOL-06 | Phase 4 | Pending |
+| TOOL-07 | Phase 4 | Pending |
+| TOOL-08 | Phase 4 | Pending |
+| TOOL-09 | Phase 5 | Pending |
+| TOOL-10 | Phase 5 | Pending |
+| TOOL-11 | Phase 5 | Pending |
+| PMPT-01 | Phase 7 | Pending |
+| PMPT-02 | Phase 7 | Pending |
+| PMPT-03 | Phase 8 | Pending |
+| PMPT-04 | Phase 8 | Pending |
+| PMPT-05 | Phase 9 | Pending |
+| PMPT-06 | Phase 9 | Pending |
+| PMPT-07 | Phase 9 | Pending |
+| PMPT-08 | Phase 10 | Pending |
+| PMPT-09 | Phase 10 | Pending |
+| PMPT-10 | Phase 10 | Pending |
+| TEST-01 | Phase 6 | Pending |
+| TEST-02 | Phase 11 | Pending |
 
 **Coverage:**
 - v1 requirements: 23 total
-- Mapped to phases: 0
-- Unmapped: 23 ⚠️
+- Mapped to phases: 23
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-16*
-*Last updated: 2026-04-16 after initial definition*
+*Last updated: 2026-04-15 after roadmap creation*

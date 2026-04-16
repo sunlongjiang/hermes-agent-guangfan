@@ -71,7 +71,11 @@ Plans:
   2. Synthetic dataset contains 200-400 (task, correct_tool, correct_params) triples with difficulty levels
   3. Dataset includes confuser tasks where 2+ tools overlap but one is clearly better
   4. Cross-tool evaluation rejects candidates where any single tool's selection rate drops >2%
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — ToolSelectionExample/Dataset 数据类 + ToolDatasetBuilder 两步合成生成
+- [ ] 04-02-PLAN.md — tool_selection_metric 二值指标 + CrossToolRegressionChecker 回归检测
 
 ### Phase 5: Tool Constraints & CLI
 **Goal**: Evolved tool descriptions are validated for factual accuracy and size limits, and the full pipeline is runnable via CLI
@@ -158,7 +162,7 @@ Phases execute in numeric order: 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 1
 | 1. Skill Evolution | - | Complete | Pre-existing |
 | 2. Tool Loading | 2/2 | Complete | - |
 | 3. Tool Module | 0/1 | Planned | - |
-| 4. Tool Dataset & Evaluation | 0/TBD | Not started | - |
+| 4. Tool Dataset & Evaluation | 0/2 | Planned | - |
 | 5. Tool Constraints & CLI | 0/TBD | Not started | - |
 | 6. Tool Pipeline Tests | 0/TBD | Not started | - |
 | 7. Prompt Loading | 0/TBD | Not started | - |

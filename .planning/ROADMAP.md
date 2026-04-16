@@ -57,7 +57,10 @@ Plans:
   1. All tool descriptions are exposed as optimizable parameters in one DSPy/GEPA module
   2. Schema structure (param names, types, required) is frozen and cannot be modified by optimization
   3. Module can receive updated description text and produce valid tool definitions
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 03-01-PLAN.md — TDD: ToolModule DSPy 模块（per-tool Predict + selector + schema 冻结 + 测试）
 
 ### Phase 4: Tool Dataset & Evaluation
 **Goal**: Binary tool selection metric and synthetic dataset enable measuring whether evolved descriptions improve agent tool selection
@@ -153,8 +156,8 @@ Phases execute in numeric order: 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 1
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Skill Evolution | - | Complete | Pre-existing |
-| 2. Tool Loading | 0/2 | Planned | - |
-| 3. Tool Module | 0/TBD | Not started | - |
+| 2. Tool Loading | 2/2 | Complete | - |
+| 3. Tool Module | 0/1 | Planned | - |
 | 4. Tool Dataset & Evaluation | 0/TBD | Not started | - |
 | 5. Tool Constraints & CLI | 0/TBD | Not started | - |
 | 6. Tool Pipeline Tests | 0/TBD | Not started | - |

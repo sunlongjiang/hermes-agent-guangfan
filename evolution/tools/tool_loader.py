@@ -517,6 +517,260 @@ def _extract_required_list(dict_text: str) -> list[str]:
     return re.findall(r'"([^"]+)"', req_text)
 
 
+# ── Write-Back ──────────────────────────────────────────────────────────────
+
+
+def write_back_description(
+    file_path: Path,
+    tool: ToolDescription,
+    new_description: str,
+    param_name: Optional[str] = None,
+) -> None:
+    """Replace a description in the source file, preserving format.
+
+    Reads the file, locates the target description within the schema variable,
+    replaces it with new_description formatted to match the original format,
+    and writes the file back.
+
+    Args:
+        file_path: Path to the tool .py file.
+        tool: ToolDescription from extract_tool_descriptions().
+        new_description: The evolved description text.
+        param_name: If set, replace this param's description instead of top-level.
+    """
+    source = file_path.read_text()
+
+    if param_name:
+        target_param = next(p for p in tool.params if p.name == param_name)
+        old_desc = target_param.description
+        fmt = target_param.desc_format
+    else:
+        old_desc = tool.description
+        fmt = tool.desc_format
+
+    if fmt == DescFormat.VARIABLE_REF:
+        source = _write_back_variable_ref(source, tool, new_description)
+    else:
+        # Locate the schema variable in the source
+        schema_start, schema_end = _find_schema_range(source, tool.schema_var_name)
+        if schema_start < 0:
+            raise ValueError(f"Cannot find schema variable {tool.schema_var_name} in {file_path}")
+
+        schema_text = source[schema_start:schema_end + 1]
+
+        if param_name:
+            # Find the param's description within the properties block
+            start, end = _find_param_desc_position(schema_text, param_name)
+        else:
+            # Find the top-level description (before "parameters" key)
+            start, end = _find_top_level_desc_position(schema_text)
+
+        if start < 0:
+            raise ValueError(f"Cannot locate description position in {file_path}")
+
+        # Build replacement string in the original format
+        replacement = _format_description(new_description, fmt)
+
+        # Apply the replacement in the schema text, then splice back into source
+        new_schema = schema_text[:start] + replacement + schema_text[end:]
+        source = source[:schema_start] + new_schema + source[schema_end + 1:]
+
+    file_path.write_text(source)
+
+
+def _find_schema_range(source: str, schema_var_name: str) -> tuple[int, int]:
+    """Find the start and end positions of a schema variable definition.
+
+    Returns:
+        Tuple of (start, end) positions. start is the opening bracket,
+        end is the closing bracket. Returns (-1, -1) if not found.
+    """
+    pattern = re.compile(
+        rf'^{re.escape(schema_var_name)}\s*=\s*([\[{{])',
+        re.MULTILINE,
+    )
+    match = pattern.search(source)
+    if not match:
+        return (-1, -1)
+
+    bracket = match.group(1)
+    bracket_start = match.start(1)
+    open_char = bracket
+    close_char = '}' if bracket == '{' else ']'
+    bracket_end = _find_matching_bracket(source, bracket_start, open_char, close_char)
+    return (bracket_start, bracket_end)
+
+
+def _find_top_level_desc_position(schema_text: str) -> tuple[int, int]:
+    """Find start/end of the top-level description value in schema text.
+
+    Only matches "description" keys that appear before "parameters".
+
+    Returns:
+        (start, end) offsets within schema_text for the value portion.
+    """
+    params_pos = schema_text.find('"parameters"')
+    if params_pos < 0:
+        params_pos = len(schema_text)
+
+    desc_match = re.search(r'"description"\s*:\s*', schema_text)
+    if not desc_match or desc_match.start() >= params_pos:
+        return (-1, -1)
+
+    value_start = desc_match.end()
+    _, _, start, end = _extract_description_at(schema_text, value_start, schema_text)
+    return (start, end)
+
+
+def _find_param_desc_position(schema_text: str, param_name: str) -> tuple[int, int]:
+    """Find start/end of a specific parameter's description value.
+
+    Locates the "properties" block, finds the named parameter within it,
+    then finds its "description" key.
+
+    Returns:
+        (start, end) offsets within schema_text for the value portion.
+    """
+    # Find "properties" block
+    props_match = re.search(r'"properties"\s*:\s*\{', schema_text)
+    if not props_match:
+        return (-1, -1)
+
+    props_brace = schema_text.index('{', props_match.start() + len('"properties"'))
+    props_end = _find_matching_bracket(schema_text, props_brace, '{', '}')
+    if props_end < 0:
+        return (-1, -1)
+
+    # Find the named parameter block within properties
+    param_pattern = re.compile(rf'"{re.escape(param_name)}"\s*:\s*\{{')
+    param_match = param_pattern.search(schema_text, props_brace, props_end)
+    if not param_match:
+        return (-1, -1)
+
+    param_brace = schema_text.index('{', param_match.start() + len(f'"{param_name}"'))
+    param_end = _find_matching_bracket(schema_text, param_brace, '{', '}')
+    if param_end < 0:
+        return (-1, -1)
+
+    # Find "description" within this param block
+    param_text = schema_text[param_brace:param_end + 1]
+    desc_match = re.search(r'"description"\s*:\s*', param_text)
+    if not desc_match:
+        return (-1, -1)
+
+    value_start = desc_match.end()
+    _, _, rel_start, rel_end = _extract_description_at(param_text, value_start, schema_text)
+    # Convert offsets relative to param_text back to schema_text offsets
+    abs_start = param_brace + rel_start
+    abs_end = param_brace + rel_end
+    return (abs_start, abs_end)
+
+
+def _write_back_variable_ref(source: str, tool: ToolDescription, new_description: str) -> str:
+    """Write back by replacing the variable definition's value.
+
+    For VARIABLE_REF format, the schema has "description": VAR_NAME,
+    so we find the VAR_NAME = ... definition and replace its value.
+    """
+    # Find which variable is referenced in the schema
+    schema_start, schema_end = _find_schema_range(source, tool.schema_var_name)
+    if schema_start < 0:
+        raise ValueError(f"Cannot find schema variable {tool.schema_var_name}")
+
+    schema_text = source[schema_start:schema_end + 1]
+
+    # Find "description": VAR_NAME in the schema
+    desc_match = re.search(r'"description"\s*:\s*([A-Z_][A-Z0-9_]*)', schema_text)
+    if not desc_match:
+        raise ValueError("Cannot find variable reference in schema description")
+
+    var_name = desc_match.group(1)
+
+    # Find the variable definition: VAR_NAME = <value>
+    var_pattern = re.compile(
+        rf'^{re.escape(var_name)}\s*=\s*',
+        re.MULTILINE,
+    )
+    var_match = var_pattern.search(source)
+    if not var_match:
+        raise ValueError(f"Cannot find variable definition for {var_name}")
+
+    value_start = var_match.end()
+    _, orig_fmt, start, end = _extract_description_at(source, value_start, source)
+
+    # Format the replacement using the variable's original format
+    replacement = _format_description(new_description, orig_fmt)
+    return source[:start] + replacement + source[end:]
+
+
+def _format_description(text: str, fmt: DescFormat) -> str:
+    """Format a description string according to the original format type.
+
+    Args:
+        text: The new description text (plain string).
+        fmt: The format to use for encoding.
+
+    Returns:
+        Formatted string ready to splice into source code.
+    """
+    if fmt == DescFormat.SINGLE_LINE:
+        escaped = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+        return f'"{escaped}"'
+
+    elif fmt == DescFormat.PAREN_CONCAT:
+        if len(text) <= 80 and '\n' not in text:
+            escaped = text.replace('\\', '\\\\').replace('"', '\\"')
+            return f'"{escaped}"'
+        # Split into lines for multi-line paren concat
+        return _format_paren_concat(text)
+
+    elif fmt == DescFormat.TRIPLE_QUOTE:
+        safe = text.replace('"""', '\\"""')
+        return f'"""{safe}"""'
+
+    else:
+        # Default fallback: single-line
+        escaped = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+        return f'"{escaped}"'
+
+
+def _format_paren_concat(text: str) -> str:
+    """Format text as parenthesized string concatenation.
+
+    Splits text into ~70-char lines wrapped in parentheses.
+    Handles embedded newlines by keeping them as \\n within strings.
+    """
+    # Split on explicit newlines first
+    segments = text.split('\n')
+    lines = []
+    for seg in segments:
+        # If segment is short enough, keep as one piece
+        if len(seg) <= 70:
+            lines.append(seg + '\n' if seg != segments[-1] else seg)
+        else:
+            # Split at word boundaries around 70 chars
+            words = seg.split(' ')
+            current = ""
+            for word in words:
+                if current and len(current) + 1 + len(word) > 70:
+                    lines.append(current + ' ')
+                    current = word
+                else:
+                    current = current + ' ' + word if current else word
+            if current:
+                if seg != segments[-1]:
+                    lines.append(current + '\n')
+                else:
+                    lines.append(current)
+
+    parts = []
+    for line in lines:
+        escaped = line.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+        parts.append(f'        "{escaped}"')
+
+    return '(\n' + '\n'.join(parts) + '\n    )'
+
+
 def _parse_param(
     name: str,
     prop_text: str,

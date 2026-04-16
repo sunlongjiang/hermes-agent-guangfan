@@ -19,6 +19,11 @@
 - ✓ LLM-as-judge fitness scoring — existing
 - ✓ Constraint validation (size, growth, structure) — existing
 - ✓ CLI with Click + Rich console output — existing
+- ✓ Tool loading & discovery (ToolDescription, extract_tool_descriptions) — Validated in Phase 2-3
+- ✓ ToolModule (DSPy module for tool selection) — Validated in Phase 3
+- ✓ Tool selection dataset (ToolSelectionExample, ToolSelectionDataset, ToolDatasetBuilder) — Validated in Phase 4
+- ✓ Binary tool selection metric (tool_selection_metric) — Validated in Phase 4
+- ✓ Cross-tool regression checker (CrossToolRegressionChecker) — Validated in Phase 4
 
 ### Active
 
@@ -83,4 +88,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after initialization*
+*Last updated: 2026-04-16 after Phase 4 completion*

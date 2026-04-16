@@ -74,8 +74,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — ToolSelectionExample/Dataset 数据类 + ToolDatasetBuilder 两步合成生成
-- [ ] 04-02-PLAN.md — tool_selection_metric 二值指标 + CrossToolRegressionChecker 回归检测
+- [x] 04-01-PLAN.md — ToolSelectionExample/Dataset 数据类 + ToolDatasetBuilder 两步合成生成
+- [x] 04-02-PLAN.md — tool_selection_metric 二值指标 + CrossToolRegressionChecker 回归检测
 
 ### Phase 5: Tool Constraints & CLI
 **Goal**: Evolved tool descriptions are validated for factual accuracy and size limits, and the full pipeline is runnable via CLI

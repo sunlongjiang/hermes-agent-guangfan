@@ -653,3 +653,49 @@ class TestRealHermesAgent:
             total_tools += len(tools)
         # At least 30 tools (known ~50 including browser's 10+)
         assert total_tools >= 30
+
+    def test_write_back_memory_tool(self, tmp_path):
+        """Write back to a copy of memory_tool.py, verify round-trip."""
+        path = get_hermes_agent_path()
+        src = path / "tools" / "memory_tool.py"
+        dst = tmp_path / "memory_tool.py"
+        shutil.copy(src, dst)
+
+        tools = extract_tool_descriptions(dst)
+        memory = next(t for t in tools if t.name == "memory")
+        original_params = [p.to_dict() for p in memory.params]
+
+        new_desc = "EVOLVED: " + memory.description[:50]
+        write_back_description(dst, memory, new_desc)
+
+        # Round-trip verification
+        tools_after = extract_tool_descriptions(dst)
+        memory_after = next(t for t in tools_after if t.name == "memory")
+        assert memory_after.description == new_desc
+
+        # Schema structure unchanged
+        after_params = [p.to_dict() for p in memory_after.params]
+        for bp, ap in zip(original_params, after_params):
+            assert bp["name"] == ap["name"]
+            assert bp["type"] == ap["type"]
+            assert bp["required"] == ap["required"]
+
+        # Syntax check
+        py_compile.compile(str(dst), doraise=True)
+
+    def test_write_back_all_tools_no_crash(self, tmp_path):
+        """Write back to copies of all tool files without errors."""
+        path = get_hermes_agent_path()
+        files = discover_tool_files(path)
+        success_count = 0
+        for src in files:
+            dst = tmp_path / src.name
+            shutil.copy(src, dst)
+            tools = extract_tool_descriptions(dst)
+            for tool in tools:
+                new_desc = "EVOLVED: " + tool.description[:30]
+                write_back_description(dst, tool, new_desc)
+                # Verify syntax
+                py_compile.compile(str(dst), doraise=True)
+                success_count += 1
+        assert success_count >= 30

@@ -60,7 +60,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 03-01-PLAN.md — TDD: ToolModule DSPy 模块（per-tool Predict + selector + schema 冻结 + 测试）
+- [x] 03-01-PLAN.md — TDD: ToolModule DSPy 模块（per-tool Predict + selector + schema 冻结 + 测试）
 
 ### Phase 4: Tool Dataset & Evaluation
 **Goal**: Binary tool selection metric and synthetic dataset enable measuring whether evolved descriptions improve agent tool selection

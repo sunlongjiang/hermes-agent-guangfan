@@ -86,7 +86,11 @@ Plans:
   2. Size constraints reject descriptions >500 chars and parameter descriptions >200 chars
   3. `python -m evolution.tools.evolve_tool_descriptions` runs end-to-end with --iterations, --eval-source, --hermes-repo, --dry-run options
   4. Dry-run mode shows proposed changes without writing files
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — ToolFactualChecker 事实准确性检查器 + size constraint 复用验证
+- [ ] 05-02-PLAN.md — evolve_tool_descriptions CLI 端到端管道
 
 ### Phase 6: Tool Pipeline Tests
 **Goal**: Unit tests verify each tool pipeline component works correctly in isolation and together
@@ -163,7 +167,7 @@ Phases execute in numeric order: 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 1
 | 2. Tool Loading | 2/2 | Complete | - |
 | 3. Tool Module | 0/1 | Planned | - |
 | 4. Tool Dataset & Evaluation | 0/2 | Planned | - |
-| 5. Tool Constraints & CLI | 0/TBD | Not started | - |
+| 5. Tool Constraints & CLI | 0/2 | Planned | - |
 | 6. Tool Pipeline Tests | 0/TBD | Not started | - |
 | 7. Prompt Loading | 0/TBD | Not started | - |
 | 8. Prompt Module | 0/TBD | Not started | - |

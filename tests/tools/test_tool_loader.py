@@ -411,3 +411,89 @@ class TestExtractEdgeCases:
         f.write_text("")
         tools = extract_tool_descriptions(f)
         assert tools == []
+
+
+# ── Integration Tests with Real hermes-agent Files ───────────────────────────
+
+HERMES_AVAILABLE = False
+try:
+    from evolution.core.config import get_hermes_agent_path
+    _hermes_path = get_hermes_agent_path()
+    HERMES_AVAILABLE = _hermes_path.exists()
+except (FileNotFoundError, ImportError):
+    pass
+
+
+@pytest.mark.skipif(not HERMES_AVAILABLE, reason="hermes-agent not available")
+class TestRealHermesAgent:
+    """Integration tests against real hermes-agent tool files."""
+
+    def test_discover_finds_tool_files(self):
+        """discover_tool_files returns at least 15 files (22 known)."""
+        path = get_hermes_agent_path()
+        files = discover_tool_files(path)
+        assert len(files) >= 15
+        # Should not include files without registry.register()
+        names = [f.name for f in files]
+        assert "__init__.py" not in names
+        assert "debug_helpers.py" not in names
+
+    def test_extract_memory_tool(self):
+        """memory_tool.py has paren_concat description with 4 params."""
+        path = get_hermes_agent_path()
+        tool_file = path / "tools" / "memory_tool.py"
+        tools = extract_tool_descriptions(tool_file)
+        assert len(tools) >= 1
+        memory = next(t for t in tools if t.name == "memory")
+        assert "persistent memory" in memory.description.lower()
+        assert memory.desc_format == DescFormat.PAREN_CONCAT
+        assert len(memory.params) >= 2
+        # Verify frozen fields
+        action_param = next(p for p in memory.params if p.name == "action")
+        assert action_param.type == "string"
+        assert action_param.enum == ["add", "replace", "remove"]
+        assert action_param.required is True
+
+    def test_extract_terminal_tool_variable_ref(self):
+        """terminal_tool.py uses TERMINAL_TOOL_DESCRIPTION variable reference."""
+        path = get_hermes_agent_path()
+        tool_file = path / "tools" / "terminal_tool.py"
+        tools = extract_tool_descriptions(tool_file)
+        terminal = next(t for t in tools if t.name == "terminal")
+        assert terminal.desc_format == DescFormat.VARIABLE_REF
+        assert "shell commands" in terminal.description.lower()
+        assert len(terminal.params) >= 1
+        cmd_param = next(p for p in terminal.params if p.name == "command")
+        assert cmd_param.required is True
+
+    def test_extract_file_tools_multiple_schemas(self):
+        """file_tools.py has 4 schemas in one file."""
+        path = get_hermes_agent_path()
+        tool_file = path / "tools" / "file_tools.py"
+        tools = extract_tool_descriptions(tool_file)
+        names = [t.name for t in tools]
+        assert "read_file" in names
+        assert "write_file" in names
+        assert "patch" in names
+        assert "search_files" in names
+
+    def test_extract_browser_tool_list_schemas(self):
+        """browser_tool.py uses BROWSER_TOOL_SCHEMAS list with 10+ tools."""
+        path = get_hermes_agent_path()
+        tool_file = path / "tools" / "browser_tool.py"
+        tools = extract_tool_descriptions(tool_file)
+        assert len(tools) >= 10
+        nav = next(t for t in tools if t.name == "browser_navigate")
+        assert "navigate" in nav.description.lower()
+        assert len(nav.params) >= 1
+
+    def test_extract_all_tools_no_crash(self):
+        """All discovered files extract without exceptions."""
+        path = get_hermes_agent_path()
+        files = discover_tool_files(path)
+        total_tools = 0
+        for f in files:
+            tools = extract_tool_descriptions(f)
+            total_tools += len(tools)
+        # At least 30 tools (known ~50 including browser's 10+)
+        assert total_tools >= 30

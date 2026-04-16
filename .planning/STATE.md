@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-04-16T14:10:40.675Z"
-last_activity: 2026-04-16
+stopped_at: Phase 5 complete
+last_updated: "2026-04-16T15:30:00.000Z"
+last_activity: 2026-04-16 -- Phase 05 verified and complete
 progress:
   total_phases: 11
-  completed_phases: 3
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  completed_phases: 4
+  total_plans: 9
+  completed_plans: 7
+  percent: 78
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-16)
 
 **Core value:** 让 GEPA 优化循环能覆盖工具描述和系统提示词，使 hermes-agent 的核心文本制品都能被系统性地自动改进
-**Current focus:** Phase 3 - Tool Module (next)
+**Current focus:** Phase 05 complete, next Phase 06
 
 ## Current Position
 
-Phase: 5 of 11 (tool constraints & cli)
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-04-16
+Phase: 5 of 11 (tool-constraints-cli) — COMPLETE
+Plan: 2 of 2 (all done)
+Status: Phase 05 verified and complete
+Last activity: 2026-04-16 -- Phase 05 verified and complete
 
-Progress: [##░░░░░░░░] 18% (Phase 1-2 complete, 9 phases remaining)
+Progress: [####░░░░░░] 36% (Phase 1-5 complete, 6 phases remaining)
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [##░░░░░░░░] 18% (Phase 1-2 complete, 9 phases remaini
 |-------|-------|-------|----------|
 | 03 | 1 | - | - |
 | 04 | 2 | - | - |
+| 05 | 2 | ~26min | ~13min |
 
 **Recent Trend:**
 
@@ -77,11 +78,11 @@ None yet.
 ### Blockers/Concerns
 
 - Research flag: `gepa` standalone package compatibility with `dspy>=3.0` needs validation before Phase 3 (Tool Module)
-- Research flag: Factual accuracy constraint has no existing pattern -- design needed in Phase 5
+- ~~Research flag: Factual accuracy constraint has no existing pattern -- design needed in Phase 5~~ (resolved: ToolFactualChecker implemented)
 
 ## Session Continuity
 
-Last session: 2026-04-16T14:10:40.668Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-tool-constraints-cli/05-CONTEXT.md
-Next: Phase 3 - Tool Module
+Last session: 2026-04-16T15:30:00.000Z
+Stopped at: Phase 5 complete
+Resume file: .planning/phases/05-tool-constraints-cli/05-VERIFICATION.md
+Next: Phase 06

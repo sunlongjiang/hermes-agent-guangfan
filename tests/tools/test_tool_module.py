@@ -69,9 +69,9 @@ class TestToolModule:
         tools = _make_tool_descriptions()
         module = ToolModule(tools)
 
-        # Mock the selector's __call__ to avoid LLM calls
+        # Mock the selector's forward to avoid LLM calls
         mock_result = dspy.Prediction(selected_tool="memory")
-        with patch.object(module.selector, "__call__", return_value=mock_result):
+        with patch.object(module.selector, "forward", return_value=mock_result):
             result = module.forward("store user preference")
 
         assert isinstance(result, dspy.Prediction)

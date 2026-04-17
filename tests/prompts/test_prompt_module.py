@@ -99,8 +99,8 @@ class TestActiveSection:
         assert len(module.section_predictors) == 1
         assert "skills_guidance" in module.section_predictors
         assert "memory_guidance" not in module.section_predictors
-        # memory_guidance should be back in frozen
-        assert "memory_guidance" in module._frozen_predictors
+        # memory_guidance should be back in frozen instructions
+        assert "memory_guidance" in module._frozen_instructions
 
 
 # ── TestFrozenContext ──────────────────────────────────────────────────────

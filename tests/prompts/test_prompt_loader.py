@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from evolution.prompts.prompt_loader import PromptSection, extract_prompt_sections
+from evolution.prompts.prompt_loader import (
+    PromptSection,
+    extract_prompt_sections,
+    write_back_section,
+)
 
 
 # ── Fixture: realistic prompt_builder.py structure ──────────────────────────
@@ -143,3 +147,114 @@ class TestExtractAllSections:
             "platform_hints.sms",
         }
         assert hint_ids == expected, f"Expected {expected}, got {hint_ids}"
+
+
+# ── Write-back tests ───────────────────────────────────────────────────────
+
+class TestWriteBack:
+    """Test write_back_section round-trip for str and dict value sections."""
+
+    def test_round_trip_str(self, tmp_path):
+        """Extract -> modify str section -> write back -> re-extract."""
+        src = tmp_path / "prompt_builder.py"
+        src.write_text(SAMPLE_PROMPT_BUILDER)
+
+        sections = extract_prompt_sections(src)
+        original = {s.section_id: s.text for s in sections}
+
+        target = next(s for s in sections if s.section_id == "memory_guidance")
+        new_text = "EVOLVED: " + target.text
+
+        write_back_section(src, target, new_text)
+
+        sections2 = extract_prompt_sections(src)
+        result = {s.section_id: s.text for s in sections2}
+
+        assert result["memory_guidance"] == new_text
+        # Other sections unchanged
+        for sid in original:
+            if sid != "memory_guidance":
+                assert result[sid] == original[sid], f"{sid} changed unexpectedly"
+
+    def test_round_trip_platform_hint(self, tmp_path):
+        """Extract -> modify platform hint -> write back -> re-extract."""
+        src = tmp_path / "prompt_builder.py"
+        src.write_text(SAMPLE_PROMPT_BUILDER)
+
+        sections = extract_prompt_sections(src)
+        original = {s.section_id: s.text for s in sections}
+
+        target = next(s for s in sections if s.section_id == "platform_hints.whatsapp")
+        new_text = "EVOLVED: " + target.text
+
+        write_back_section(src, target, new_text)
+
+        sections2 = extract_prompt_sections(src)
+        result = {s.section_id: s.text for s in sections2}
+
+        assert result["platform_hints.whatsapp"] == new_text
+        for sid in original:
+            if sid != "platform_hints.whatsapp":
+                assert result[sid] == original[sid], f"{sid} changed unexpectedly"
+
+    def test_write_back_syntax_valid(self, tmp_path):
+        """After write-back, py_compile succeeds."""
+        import py_compile
+
+        src = tmp_path / "prompt_builder.py"
+        src.write_text(SAMPLE_PROMPT_BUILDER)
+
+        sections = extract_prompt_sections(src)
+        target = next(s for s in sections if s.section_id == "memory_guidance")
+
+        write_back_section(src, target, "New guidance text for memory.")
+
+        # Must not raise
+        py_compile.compile(str(src), doraise=True)
+
+    def test_write_back_isolation(self, tmp_path):
+        """Modifying section A leaves section B byte-for-byte identical."""
+        src = tmp_path / "prompt_builder.py"
+        src.write_text(SAMPLE_PROMPT_BUILDER)
+
+        sections = extract_prompt_sections(src)
+        original = {s.section_id: s.text for s in sections}
+
+        target = next(s for s in sections if s.section_id == "skills_guidance")
+        write_back_section(src, target, "Evolved skills guidance.")
+
+        sections2 = extract_prompt_sections(src)
+        for s in sections2:
+            if s.section_id != "skills_guidance":
+                assert s.text == original[s.section_id], (
+                    f"{s.section_id}: text changed after modifying skills_guidance"
+                )
+
+    def test_multiple_write_backs(self, tmp_path):
+        """Write back two sections (bottom-to-top), both survive."""
+        src = tmp_path / "prompt_builder.py"
+        src.write_text(SAMPLE_PROMPT_BUILDER)
+
+        sections = extract_prompt_sections(src)
+
+        # Pick two sections: one str, one platform hint
+        str_section = next(s for s in sections if s.section_id == "default_agent_identity")
+        hint_section = next(s for s in sections if s.section_id == "platform_hints.sms")
+
+        new_str_text = "EVOLVED identity text."
+        new_hint_text = "EVOLVED SMS hint."
+
+        # Process from bottom of file upward (per Pitfall 4)
+        targets = sorted(
+            [(hint_section, new_hint_text), (str_section, new_str_text)],
+            key=lambda t: t[0].line_range[0],
+            reverse=True,
+        )
+        for section, text in targets:
+            write_back_section(src, section, text)
+
+        sections2 = extract_prompt_sections(src)
+        result = {s.section_id: s.text for s in sections2}
+
+        assert result["default_agent_identity"] == new_str_text
+        assert result["platform_hints.sms"] == new_hint_text

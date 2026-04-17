@@ -125,7 +125,10 @@ Plans:
   1. Each of the 5 prompt sections is exposed as an independently optimizable parameter
   2. When optimizing one section, the other 4 sections are passed through as frozen context
   3. Module supports round-robin optimization (optimize one section at a time across iterations)
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 08-01-PLAN.md — TDD: PromptModule DSPy 模块（per-section Predict + frozen context + round-robin + 测试）
 
 ### Phase 9: Prompt Evaluation
 **Goal**: Behavioral evaluator with scenario-based tests measures whether evolved prompt sections produce correct agent behavior
@@ -173,7 +176,7 @@ Phases execute in numeric order: 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 1
 | 5. Tool Constraints & CLI | 0/2 | Planned | - |
 | 6. Tool Pipeline Tests | 0/TBD | Not started | - |
 | 7. Prompt Loading | 0/1 | Planned | - |
-| 8. Prompt Module | 0/TBD | Not started | - |
+| 8. Prompt Module | 0/1 | Planned | - |
 | 9. Prompt Evaluation | 0/TBD | Not started | - |
 | 10. Prompt Constraints & CLI | 0/TBD | Not started | - |
 | 11. Prompt Pipeline Tests | 0/TBD | Not started | - |

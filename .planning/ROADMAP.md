@@ -112,7 +112,10 @@ Plans:
   1. Loader extracts all 5 sections: DEFAULT_AGENT_IDENTITY, MEMORY_GUIDANCE, SESSION_SEARCH_GUIDANCE, SKILLS_GUIDANCE, PLATFORM_HINTS
   2. Writing evolved sections back preserves surrounding Python code structure
   3. Round-trip test passes: extract -> modify section text -> write back -> extract again yields the modification
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 07-01-PLAN.md — PromptSection dataclass, AST extraction, format-preserving write-back, round-trip tests
 
 ### Phase 8: Prompt Module
 **Goal**: Each prompt section is wrapped as a DSPy-optimizable module with frozen context from other sections
@@ -169,7 +172,7 @@ Phases execute in numeric order: 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 1
 | 4. Tool Dataset & Evaluation | 0/2 | Planned | - |
 | 5. Tool Constraints & CLI | 0/2 | Planned | - |
 | 6. Tool Pipeline Tests | 0/TBD | Not started | - |
-| 7. Prompt Loading | 0/TBD | Not started | - |
+| 7. Prompt Loading | 0/1 | Planned | - |
 | 8. Prompt Module | 0/TBD | Not started | - |
 | 9. Prompt Evaluation | 0/TBD | Not started | - |
 | 10. Prompt Constraints & CLI | 0/TBD | Not started | - |

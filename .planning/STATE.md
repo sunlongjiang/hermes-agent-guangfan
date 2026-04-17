@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 7 complete
-last_updated: "2026-04-17T12:30:00.000Z"
-last_activity: 2026-04-17 -- Phase 07 verified and complete
+stopped_at: Phase 8 complete
+last_updated: "2026-04-17T14:30:00.000Z"
+last_activity: 2026-04-17 -- Phase 08 verified and complete
 progress:
   total_phases: 11
-  completed_phases: 6
-  total_plans: 8
-  completed_plans: 8
+  completed_phases: 7
+  total_plans: 9
+  completed_plans: 9
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-16)
 
 **Core value:** 让 GEPA 优化循环能覆盖工具描述和系统提示词，使 hermes-agent 的核心文本制品都能被系统性地自动改进
-**Current focus:** Phase 07 complete, next Phase 08
+**Current focus:** Phase 08 complete, next Phase 09
 
 ## Current Position
 
-Phase: 7 of 11 (prompt-loading) — COMPLETE
+Phase: 8 of 11 (prompt-module) — COMPLETE
 Plan: 1 of 1 (all done)
-Status: Phase 07 verified and complete
-Last activity: 2026-04-17 -- Phase 07 verified and complete
+Status: Phase 08 verified and complete
+Last activity: 2026-04-17 -- Phase 08 verified and complete
 
-Progress: [######░░░░] 55% (Phase 1-7 complete, 4 phases remaining)
+Progress: [#######░░░] 64% (Phase 1-8 complete, 3 phases remaining)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [######░░░░] 55% (Phase 1-7 complete, 4 phases remaining)
 | 04 | 2 | - | - |
 | 05 | 2 | ~26min | ~13min |
 | 07 | 1 | ~27min | ~27min |
+| 08 | 1 | ~3min | ~3min |
 
 **Recent Trend:**
 
@@ -75,6 +76,7 @@ Recent decisions affecting current work:
 - [Phase 06]: Skipped -- TEST-01 already satisfied by 107 tests created during Phase 2-5 TDD
 
 - [Phase 07]: AST 解析 prompt_builder.py 提取 5 段落，PLATFORM_HINTS 按 key 展开为独立 PromptSection
+- [Phase 08]: PromptModule 用动态 Predict 移动实现 per-section 隔离（DSPy 3.1.3 会递归发现所有 dict 中的 Predict）
 
 ### Pending Todos
 
@@ -87,7 +89,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-17T12:30:00.000Z
-Stopped at: Phase 7 complete
-Resume file: .planning/phases/07-prompt-loading/07-VERIFICATION.md
-Next: Phase 08 - Prompt Module
+Last session: 2026-04-17T14:30:00.000Z
+Stopped at: Phase 8 complete
+Resume file: .planning/phases/08-prompt-module/08-01-SUMMARY.md
+Next: Phase 09 - Prompt Evaluation

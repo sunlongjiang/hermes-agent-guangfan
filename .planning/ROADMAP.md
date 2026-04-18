@@ -151,9 +151,13 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Growth constraint rejects evolved sections that exceed baseline by >20%
   2. LLM-based role preservation check confirms evolved text maintains its functional role
-  3. `python -m evolution.prompts.evolve_prompt_section` runs end-to-end with --section, --iterations, --hermes-repo, --dry-run options
+  3. `python -m evolution.prompts.evolve_prompt_sections` runs end-to-end with --section, --iterations, --hermes-repo, --dry-run options
   4. Dry-run mode shows proposed changes without writing files
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — PromptRoleChecker 角色保持检查器 + growth constraint 复用验证
+- [ ] 10-02-PLAN.md — evolve_prompt_sections CLI 端到端管道
 
 ### Phase 11: Prompt Pipeline Tests
 **Goal**: Unit tests verify each prompt pipeline component works correctly in isolation and together
@@ -182,5 +186,5 @@ Phases execute in numeric order: 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 1
 | 7. Prompt Loading | 0/1 | Planned | - |
 | 8. Prompt Module | 0/1 | Planned | - |
 | 9. Prompt Evaluation | 0/2 | Planned | - |
-| 10. Prompt Constraints & CLI | 0/TBD | Not started | - |
+| 10. Prompt Constraints & CLI | 0/2 | Planned | - |
 | 11. Prompt Pipeline Tests | 0/TBD | Not started | - |

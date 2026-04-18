@@ -64,8 +64,12 @@ class TestPromptBehavioralMetricInit:
         metric = PromptBehavioralMetric(config)
         assert callable(metric)
 
-    def test_call_signature(self):
+    @patch("evolution.prompts.prompt_metric.LLMJudge")
+    def test_call_signature(self, mock_judge_cls):
         """__call__ accepts (example, prediction, trace=None) and returns float."""
+        mock_judge_cls.return_value.score.return_value = FitnessScore(
+            correctness=0.5, procedure_following=0.5, conciseness=0.5, feedback="ok",
+        )
         config = _make_config()
         metric = PromptBehavioralMetric(config)
         example = _make_example()

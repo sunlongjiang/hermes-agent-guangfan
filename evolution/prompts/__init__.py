@@ -11,6 +11,7 @@ from evolution.prompts.prompt_dataset import (
     PromptBehavioralDataset,
     PromptDatasetBuilder,
 )
+from evolution.prompts.prompt_metric import PromptBehavioralMetric
 
 __all__ = [
     "PromptSection",
@@ -20,4 +21,5 @@ __all__ = [
     "PromptBehavioralExample",
     "PromptBehavioralDataset",
     "PromptDatasetBuilder",
+    "PromptBehavioralMetric",
 ]

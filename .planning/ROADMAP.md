@@ -138,7 +138,11 @@ Plans:
   1. Behavioral evaluator checks whether agent exhibits expected behavior for each scenario
   2. Test suite contains 60-80 scenarios across 5 sections (10-20 per section, scaled by importance)
   3. Per-section scoring produces structured actionable feedback that GEPA's reflective analysis can consume
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — TDD: PromptBehavioralExample/Dataset 数据类 + PromptDatasetBuilder 按重要性加权场景生成
+- [ ] 09-02-PLAN.md — TDD: PromptBehavioralMetric callable class（LLMJudge 评分 + 快速启发式 + feedback 传播）
 
 ### Phase 10: Prompt Constraints & CLI
 **Goal**: Evolved prompt sections are validated for growth limits and role preservation, and the full pipeline is runnable via CLI
@@ -177,6 +181,6 @@ Phases execute in numeric order: 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 1
 | 6. Tool Pipeline Tests | 0/TBD | Not started | - |
 | 7. Prompt Loading | 0/1 | Planned | - |
 | 8. Prompt Module | 0/1 | Planned | - |
-| 9. Prompt Evaluation | 0/TBD | Not started | - |
+| 9. Prompt Evaluation | 0/2 | Planned | - |
 | 10. Prompt Constraints & CLI | 0/TBD | Not started | - |
 | 11. Prompt Pipeline Tests | 0/TBD | Not started | - |

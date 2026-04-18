@@ -163,9 +163,9 @@ class TestEvolve:
             hermes_repo="/fake",
         )
 
-        # Verify call order
+        # Verify call order (PromptModule called twice: once for optimization, once for baseline)
         mock_extract.assert_called_once()
-        mock_module_cls.assert_called_once()
+        assert mock_module_cls.call_count == 2
         mock_builder.generate.assert_called_once()
         assert mock_module.set_active_section.call_count >= 1
         mock_gepa.compile.assert_called()
@@ -248,8 +248,11 @@ class TestEvolve:
             hermes_repo="/fake",
         )
 
-        # Only memory_guidance should be set as active
-        mock_module.set_active_section.assert_called_once_with("memory_guidance")
+        # Only memory_guidance should be set as active for GEPA optimization
+        # (baseline module also calls set_active_section during holdout eval)
+        calls = mock_module.set_active_section.call_args_list
+        # First call should be the GEPA target section
+        assert calls[0] == call("memory_guidance")
 
 
 # ── TestModuleImportable ────────────────────────────────────────────────────

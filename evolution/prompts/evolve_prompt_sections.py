@@ -105,7 +105,7 @@ def evolve(
     # ── 2. Extract sections ──────────────────────────────────────────────
     console.print("[bold]Extracting prompt sections...[/bold]")
     prompt_builder_path = (
-        config.hermes_agent_path / "hermes_agent" / "prompt_builder.py"
+        config.hermes_agent_path / "agent" / "prompt_builder.py"
     )
     original_sections = extract_prompt_sections(prompt_builder_path)
 

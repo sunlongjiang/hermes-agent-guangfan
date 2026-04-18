@@ -81,6 +81,16 @@ Deferred to future release. Tracked but not in current roadmap.
 - **PMPT-V2-03**: Benchmark-gated validation (TBLite as hard regression gate)
 - **PMPT-V2-04**: SessionDB behavioral pattern mining for targeted test cases
 
+### v2 Stabilization
+
+- [ ] **V2-STAB-01**: Traceability table updated — all v1 phases marked Complete
+- [ ] **V2-STAB-02**: Both pipelines pass end-to-end dry-run on fresh clone
+
+### v2 New Capabilities
+
+- [ ] **V2-CODE-01**: Darwinian code evolution — at least one hermes-agent code component evolvable
+- [ ] **V2-LOOP-01**: Continuous evolution loop — scheduled optimization with regression gates and PR creation
+
 ## Out of Scope
 
 Explicitly excluded. Documented to prevent scope creep.
@@ -123,14 +133,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PMPT-08 | Phase 10 | Pending |
 | PMPT-09 | Phase 10 | Pending |
 | PMPT-10 | Phase 10 | Pending |
-| TEST-01 | Phase 6 | Pending |
-| TEST-02 | Phase 11 | Pending |
+| TEST-01 | Phase 6 | Complete (skipped) |
+| TEST-02 | Phase 11 | Complete (skipped) |
+| TOOL-V2-01 | Phase 14 | Pending |
+| TOOL-V2-02 | Phase 13 | Pending |
+| TOOL-V2-03 | Phase 15 | Pending |
+| TOOL-V2-04 | Phase 16 | Pending |
+| PMPT-V2-01 | Phase 17 | Pending |
+| PMPT-V2-02 | Phase 18 | Pending |
+| PMPT-V2-03 | Phase 20 | Pending |
+| PMPT-V2-04 | Phase 19 | Pending |
+| V2-STAB-01 | Phase 12 | Pending |
+| V2-STAB-02 | Phase 12 | Pending |
+| V2-CODE-01 | Phase 21 | Pending |
+| V2-LOOP-01 | Phase 22 | Pending |
 
 **Coverage:**
-- v1 requirements: 23 total
-- Mapped to phases: 23
+- v1 requirements: 23 total (all complete)
+- v2 requirements: 14 total
+- Mapped to phases: 37
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-16*
-*Last updated: 2026-04-15 after roadmap creation*
+*Last updated: 2026-04-18 after v2 roadmap creation*

@@ -168,6 +168,123 @@ Plans:
   2. Tests cover prompt module (frozen context passthrough, per-section optimization)
   3. Tests cover behavioral evaluator (scoring known-good and known-bad scenarios)
   4. All tests pass in CI
+**Plans**: Skipped (TDD satisfied)
+
+---
+
+## Milestone v2.0 — Stabilization, Enhancement & Expansion
+
+**Priority order:** Stabilize v1 → Enhance tools/prompts → New capabilities
+
+### Phase 12: v1 Stabilization
+**Goal**: Fix bugs, update traceability, ensure both pipelines run end-to-end reliably
+**Depends on**: Phase 10
+**Requirements**: V2-STAB-01, V2-STAB-02
+**Success Criteria** (what must be TRUE):
+  1. REQUIREMENTS.md traceability table reflects all v1 phases as Complete
+  2. PROJECT.md validated requirements section updated to match actual state
+  3. Both `--dry-run` pipelines succeed on a fresh clone
+  4. `python -m pytest tests/ -v` passes 329+ tests with zero failures
+**Plans**: TBD
+
+### Phase 13: Per-Parameter Description Optimization
+**Goal**: Extend tool description optimization to individual parameter descriptions, not just top-level
+**Depends on**: Phase 12
+**Requirements**: TOOL-V2-02
+**Success Criteria** (what must be TRUE):
+  1. ToolModule exposes per-parameter descriptions as independently optimizable parameters
+  2. GEPA can mutate individual param descriptions while tool-level description stays frozen
+  3. Constraint checks enforce max_param_desc_size (200 chars) per parameter
+**Plans**: TBD
+
+### Phase 14: SessionDB Mining for Tools
+**Goal**: Mine hermes-agent session transcripts for tool misselection patterns as high-value training data
+**Depends on**: Phase 12
+**Requirements**: TOOL-V2-01
+**Success Criteria** (what must be TRUE):
+  1. Importer extracts tool selection ground truth from session transcripts
+  2. Misselection patterns weighted higher in training dataset
+  3. Integration with existing ToolDatasetBuilder as additional data source
+**Plans**: TBD
+
+### Phase 15: Think-Augmented Tool Selection
+**Goal**: Add reasoning step before tool selection to improve accuracy on ambiguous tasks
+**Depends on**: Phase 13
+**Requirements**: TOOL-V2-03
+**Success Criteria** (what must be TRUE):
+  1. ToolModule supports optional ChainOfThought reasoning before selection
+  2. Reasoning step is optimizable by GEPA (prompt text is a parameter)
+  3. A/B comparison shows improvement on ambiguous selection scenarios
+**Plans**: TBD
+
+### Phase 16: Per-Tool Regression Dashboard
+**Goal**: Track individual tool selection rates across optimization runs
+**Depends on**: Phase 14
+**Requirements**: TOOL-V2-04
+**Success Criteria** (what must be TRUE):
+  1. Metrics file records per-tool accuracy before and after optimization
+  2. Rich console dashboard shows selection rate changes per tool
+  3. Regression threshold configurable (default: 2pp drop triggers warning)
+**Plans**: TBD
+
+### Phase 17: Joint Section Optimization
+**Goal**: Optimize all 5 prompt sections simultaneously instead of round-robin
+**Depends on**: Phase 12
+**Requirements**: PMPT-V2-01
+**Success Criteria** (what must be TRUE):
+  1. PromptModule supports all-sections-active mode (all Predicts discoverable)
+  2. GEPA can mutate multiple sections in one pass
+  3. Joint optimization produces equal or better scores than round-robin on holdout
+**Plans**: TBD
+
+### Phase 18: Personality Drift Detection
+**Goal**: Detect tone/personality changes between original and evolved prompt sections
+**Depends on**: Phase 17
+**Requirements**: PMPT-V2-02
+**Success Criteria** (what must be TRUE):
+  1. DriftDetector compares original vs evolved text on tone, formality, personality dimensions
+  2. Constraint gate rejects evolved sections with drift score exceeding threshold
+  3. Drift report included in optimization output
+**Plans**: TBD
+
+### Phase 19: SessionDB Behavioral Mining for Prompts
+**Goal**: Mine session transcripts for behavioral patterns to generate targeted test scenarios
+**Depends on**: Phase 12
+**Requirements**: PMPT-V2-04
+**Success Criteria** (what must be TRUE):
+  1. Importer extracts behavioral examples from real sessions (what section guided which behavior)
+  2. Mined examples augment synthetic dataset with real-world scenarios
+  3. Integration with PromptDatasetBuilder as additional data source
+**Plans**: TBD
+
+### Phase 20: Benchmark-Gated Validation
+**Goal**: Use TBLite as optional hard regression gate after optimization
+**Depends on**: Phase 18
+**Requirements**: PMPT-V2-03
+**Success Criteria** (what must be TRUE):
+  1. Optional `--benchmark` flag triggers TBLite evaluation before accepting evolved sections
+  2. Configurable pass threshold (default: no regression on core capabilities)
+  3. Benchmark results saved to output metrics
+**Plans**: TBD
+
+### Phase 21: Darwinian Code Evolution
+**Goal**: Integrate darwinian-evolver for code-level evolution of hermes-agent components
+**Depends on**: Phase 16, Phase 20
+**Requirements**: V2-CODE-01
+**Success Criteria** (what must be TRUE):
+  1. darwinian-evolver package integrated and tested
+  2. At least one code component (e.g., tool registry) evolvable
+  3. Fitness function combines functional tests + code quality metrics
+**Plans**: TBD
+
+### Phase 22: Continuous Evolution Loop
+**Goal**: Automated pipeline that periodically runs optimization, validates, and creates PRs
+**Depends on**: Phase 21
+**Requirements**: V2-LOOP-01
+**Success Criteria** (what must be TRUE):
+  1. Scheduler runs optimization on configurable interval
+  2. Results validated against regression gates before PR creation
+  3. Human review required before merge (no auto-merge)
 **Plans**: TBD
 
 ## Progress

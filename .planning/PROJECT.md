@@ -27,18 +27,36 @@
 
 ### Active
 
-- [ ] Phase 2: Tool description optimization pipeline
-- [ ] Phase 2: ToolDescriptionModule (DSPy module wrapping tool descriptions)
-- [ ] Phase 2: Tool selection evaluator (task → correct tool scoring)
-- [ ] Phase 2: Cross-tool evaluation (optimize all descriptions jointly)
-- [ ] Phase 2: Tool description constraint validation (500 char limit, factual accuracy)
-- [ ] Phase 2: evolve_tool_descriptions CLI entry point
-- [ ] Phase 3: System prompt section optimization pipeline
-- [ ] Phase 3: PromptSectionModule (DSPy module wrapping prompt sections)
-- [ ] Phase 3: Behavioral evaluator (test prompt section effectiveness)
-- [ ] Phase 3: Per-section and joint optimization
-- [ ] Phase 3: evolve_prompt_section CLI entry point
-- [ ] Tests for Phase 2 and Phase 3 modules
+- [ ] v2: Per-parameter description optimization (TOOL-V2-02)
+- [ ] v2: SessionDB mining for tool/prompt training data (TOOL-V2-01, PMPT-V2-04)
+- [ ] v2: Think-augmented tool selection (TOOL-V2-03)
+- [ ] v2: Joint section optimization (PMPT-V2-01)
+- [ ] v2: Personality drift detection (PMPT-V2-02)
+- [ ] v2: Darwinian code evolution (V2-CODE-01)
+- [ ] v2: Continuous evolution loop (V2-LOOP-01)
+
+### Validated (v1 Complete)
+
+- ✓ Skill evolution pipeline — Phase 1
+- ✓ DSPy module wrapper pattern (SkillModule) — Phase 1
+- ✓ Synthetic dataset builder — Phase 1
+- ✓ Session importers (Claude Code, Copilot, Hermes) — Phase 1
+- ✓ LLM-as-judge fitness scoring — Phase 1
+- ✓ Constraint validation (size, growth, structure) — Phase 1
+- ✓ CLI with Click + Rich console output — Phase 1
+- ✓ Tool loading & discovery (ToolDescription, extract_tool_descriptions) — Phase 2
+- ✓ ToolModule (DSPy module for tool selection) — Phase 3
+- ✓ Tool selection dataset (ToolSelectionExample, ToolDatasetBuilder) — Phase 4
+- ✓ Binary tool selection metric (tool_selection_metric) — Phase 4
+- ✓ Cross-tool regression checker (CrossToolRegressionChecker) — Phase 4
+- ✓ ToolFactualChecker (factual accuracy constraint) — Phase 5
+- ✓ evolve_tool_descriptions CLI entry point — Phase 5
+- ✓ Prompt loading (extract_prompt_sections, write_back_section) — Phase 7
+- ✓ PromptModule (per-section DSPy optimization) — Phase 8
+- ✓ Prompt behavioral dataset (PromptDatasetBuilder, 80 scenarios) — Phase 9
+- ✓ Prompt behavioral metric (PromptBehavioralMetric) — Phase 9
+- ✓ PromptRoleChecker (role preservation constraint) — Phase 10
+- ✓ evolve_prompt_sections CLI entry point — Phase 10
 
 ### Out of Scope
 
@@ -66,8 +84,8 @@
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| 独立管道优先 | 不依赖 hermes-agent 运行时，降低集成复杂度 | — Pending |
-| 复用 core/ 基础设施 | SyntheticDatasetBuilder、LLMJudge、ConstraintValidator 已经足够通用 | — Pending |
+| 独立管道优先 | 不依赖 hermes-agent 运行时，降低集成复杂度 | ✓ Validated |
+| 复用 core/ 基础设施 | SyntheticDatasetBuilder、LLMJudge、ConstraintValidator 已经足够通用 | ✓ Validated |
 | 遵循 PLAN.md 的 Phase 2/3 详细规划 | 规划已经非常详尽，包含具体实现方案 | — Pending |
 
 ## Evolution

@@ -114,25 +114,25 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | TOOL-01 | Phase 2 | Complete |
 | TOOL-02 | Phase 2 | Complete |
-| TOOL-03 | Phase 3 | Pending |
-| TOOL-04 | Phase 3 | Pending |
-| TOOL-05 | Phase 4 | Pending |
-| TOOL-06 | Phase 4 | Pending |
-| TOOL-07 | Phase 4 | Pending |
-| TOOL-08 | Phase 4 | Pending |
-| TOOL-09 | Phase 5 | Pending |
-| TOOL-10 | Phase 5 | Pending |
-| TOOL-11 | Phase 5 | Pending |
-| PMPT-01 | Phase 7 | Pending |
-| PMPT-02 | Phase 7 | Pending |
-| PMPT-03 | Phase 8 | Pending |
-| PMPT-04 | Phase 8 | Pending |
-| PMPT-05 | Phase 9 | Pending |
-| PMPT-06 | Phase 9 | Pending |
-| PMPT-07 | Phase 9 | Pending |
-| PMPT-08 | Phase 10 | Pending |
-| PMPT-09 | Phase 10 | Pending |
-| PMPT-10 | Phase 10 | Pending |
+| TOOL-03 | Phase 3 | Complete |
+| TOOL-04 | Phase 3 | Complete |
+| TOOL-05 | Phase 4 | Complete |
+| TOOL-06 | Phase 4 | Complete |
+| TOOL-07 | Phase 4 | Complete |
+| TOOL-08 | Phase 4 | Complete |
+| TOOL-09 | Phase 5 | Complete |
+| TOOL-10 | Phase 5 | Complete |
+| TOOL-11 | Phase 5 | Complete |
+| PMPT-01 | Phase 7 | Complete |
+| PMPT-02 | Phase 7 | Complete |
+| PMPT-03 | Phase 8 | Complete |
+| PMPT-04 | Phase 8 | Complete |
+| PMPT-05 | Phase 9 | Complete |
+| PMPT-06 | Phase 9 | Complete |
+| PMPT-07 | Phase 9 | Complete |
+| PMPT-08 | Phase 10 | Complete |
+| PMPT-09 | Phase 10 | Complete |
+| PMPT-10 | Phase 10 | Complete |
 | TEST-01 | Phase 6 | Complete (skipped) |
 | TEST-02 | Phase 11 | Complete (skipped) |
 | TOOL-V2-01 | Phase 14 | Pending |
@@ -143,8 +143,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PMPT-V2-02 | Phase 18 | Pending |
 | PMPT-V2-03 | Phase 20 | Pending |
 | PMPT-V2-04 | Phase 19 | Pending |
-| V2-STAB-01 | Phase 12 | Pending |
-| V2-STAB-02 | Phase 12 | Pending |
+| V2-STAB-01 | Phase 12 | Complete |
+| V2-STAB-02 | Phase 12 | Complete |
 | V2-CODE-01 | Phase 21 | Pending |
 | V2-LOOP-01 | Phase 22 | Pending |
 

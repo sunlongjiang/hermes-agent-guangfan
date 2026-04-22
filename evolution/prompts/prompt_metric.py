@@ -46,6 +46,8 @@ class PromptBehavioralMetric:
         example: dspy.Example,
         prediction: dspy.Prediction,
         trace=None,
+        pred_name=None,
+        pred_trace=None,
     ) -> float:
         """Score a prompt section's behavioral output.
 
@@ -54,6 +56,8 @@ class PromptBehavioralMetric:
             prediction: DSPy Prediction with output field.
             trace: If not None, use fast heuristic (optimization loop).
                    If None, use full LLMJudge scoring (final eval).
+            pred_name: GEPA predictor name (unused).
+            pred_trace: GEPA predictor trace (unused).
 
         Returns:
             Float 0.0-1.0 score.

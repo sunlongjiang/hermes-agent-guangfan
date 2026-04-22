@@ -15,7 +15,13 @@ from rich.console import Console
 console = Console()
 
 
-def tool_selection_metric(example: dspy.Example, prediction: dspy.Prediction, trace=None) -> float:
+def tool_selection_metric(
+    example: dspy.Example,
+    prediction: dspy.Prediction,
+    trace=None,
+    pred_name=None,
+    pred_trace=None,
+) -> float:
     """DSPy-compatible metric for tool selection. Returns 0.0 or 1.0.
 
     Exact string match after strip().lower() normalization.
@@ -25,7 +31,9 @@ def tool_selection_metric(example: dspy.Example, prediction: dspy.Prediction, tr
     Args:
         example: DSPy Example with correct_tool field.
         prediction: DSPy Prediction with selected_tool field.
-        trace: Unused, accepted for DSPy compatibility.
+        trace: Unused, accepted for DSPy/GEPA compatibility.
+        pred_name: GEPA predictor name (unused).
+        pred_trace: GEPA predictor trace (unused).
 
     Returns:
         1.0 if tool selection matches, 0.0 otherwise.

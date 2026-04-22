@@ -182,9 +182,11 @@ def evolve(
     start_time = time.time()
 
     try:
+        reflection_lm = dspy.LM(config.optimizer_model, **config.get_lm_kwargs())
         optimizer = dspy.GEPA(
             metric=tool_selection_metric,
-            max_steps=iterations,
+            max_metric_calls=iterations * 50,
+            reflection_lm=reflection_lm,
         )
         optimized_module = optimizer.compile(
             baseline_module,

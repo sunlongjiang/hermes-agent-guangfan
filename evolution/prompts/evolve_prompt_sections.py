@@ -250,9 +250,11 @@ def evolve(
         )
 
         try:
+            reflection_lm = dspy.LM(config.optimizer_model, **config.get_lm_kwargs())
             optimizer = dspy.GEPA(
                 metric=metric,
-                max_steps=iterations,
+                max_metric_calls=iterations * 50,
+                reflection_lm=reflection_lm,
             )
             module = optimizer.compile(
                 module,

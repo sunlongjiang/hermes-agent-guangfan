@@ -81,6 +81,8 @@ def evolve(
     eval_source: str = "synthetic",
     hermes_repo: Optional[str] = None,
     dry_run: bool = False,
+    model: Optional[str] = None,
+    api_base: Optional[str] = None,
 ):
     """Main evolution function -- orchestrates the full prompt section optimization loop.
 
@@ -90,12 +92,17 @@ def evolve(
         eval_source: Dataset source ('synthetic' or 'load').
         hermes_repo: Optional path to hermes-agent repo.
         dry_run: If True, validate setup without running optimization.
+        model: Override model for all LLM calls.
+        api_base: Override API base URL.
     """
 
     # ── 1. Configuration ─────────────────────────────────────────────────
-    config = EvolutionConfig(iterations=iterations)
-    if hermes_repo:
-        config.hermes_agent_path = Path(hermes_repo)
+    config = EvolutionConfig.load(
+        iterations=iterations,
+        hermes_repo=hermes_repo,
+        model=model,
+        api_base=api_base,
+    )
 
     console.print(
         f"\n[bold cyan]Hermes Agent Self-Evolution[/bold cyan]"
@@ -198,7 +205,7 @@ def evolve(
         f"  Sections to optimize: {len(sections_to_optimize)}"
     )
 
-    lm = dspy.LM(config.eval_model)
+    lm = dspy.LM(config.eval_model, **config.get_lm_kwargs())
     dspy.configure(lm=lm)
 
     start_time = time.time()
@@ -489,7 +496,9 @@ def evolve(
     is_flag=True,
     help="Validate setup without running optimization",
 )
-def main(section, iterations, eval_source, hermes_repo, dry_run):
+@click.option("--model", default=None, help="Override model for all LLM calls (e.g. openai/qwen-plus)")
+@click.option("--api-base", default=None, help="Override API base URL")
+def main(section, iterations, eval_source, hermes_repo, dry_run, model, api_base):
     """Evolve hermes-agent prompt sections using DSPy + GEPA optimization."""
     evolve(
         section=section,
@@ -497,6 +506,8 @@ def main(section, iterations, eval_source, hermes_repo, dry_run):
         eval_source=eval_source,
         hermes_repo=hermes_repo,
         dry_run=dry_run,
+        model=model,
+        api_base=api_base,
     )
 
 

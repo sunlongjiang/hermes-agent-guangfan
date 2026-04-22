@@ -84,7 +84,7 @@ class ToolFactualChecker:
         Returns:
             ConstraintResult with passed=True if no false claims detected.
         """
-        lm = dspy.LM(self.config.eval_model)
+        lm = dspy.LM(self.config.eval_model, **self.config.get_lm_kwargs())
 
         with dspy.context(lm=lm):
             result = self.checker(

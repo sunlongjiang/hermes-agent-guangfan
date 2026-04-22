@@ -274,7 +274,7 @@ class PromptDatasetBuilder:
         targets = self._compute_section_targets(sections)
         section_map = {s.section_id: s for s in sections}
 
-        lm = dspy.LM(self.config.judge_model)
+        lm = dspy.LM(self.config.judge_model, **self.config.get_lm_kwargs())
         all_examples: list[PromptBehavioralExample] = []
 
         with dspy.context(lm=lm):

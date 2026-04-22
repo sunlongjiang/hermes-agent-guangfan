@@ -74,6 +74,8 @@ def evolve(
     eval_source: str = "synthetic",
     hermes_repo: Optional[str] = None,
     dry_run: bool = False,
+    model: Optional[str] = None,
+    api_base: Optional[str] = None,
 ):
     """Main evolution function -- orchestrates the full tool description optimization loop.
 
@@ -82,12 +84,17 @@ def evolve(
         eval_source: Dataset source ('synthetic' or 'load').
         hermes_repo: Optional path to hermes-agent repo.
         dry_run: If True, validate setup without running optimization.
+        model: Override model for all LLM calls.
+        api_base: Override API base URL.
     """
 
     # ── 1. Configuration ─────────────────────────────────────────────────
-    config = EvolutionConfig(iterations=iterations)
-    if hermes_repo:
-        config.hermes_agent_path = Path(hermes_repo)
+    config = EvolutionConfig.load(
+        iterations=iterations,
+        hermes_repo=hermes_repo,
+        model=model,
+        api_base=api_base,
+    )
 
     console.print(
         f"\n[bold cyan]Hermes Agent Self-Evolution[/bold cyan]"
@@ -164,7 +171,7 @@ def evolve(
     console.print(f"  Optimizer: GEPA ({iterations} iterations)")
     console.print(f"  Eval model: {config.eval_model}")
 
-    lm = dspy.LM(config.eval_model)
+    lm = dspy.LM(config.eval_model, **config.get_lm_kwargs())
     dspy.configure(lm=lm)
 
     trainset = dataset.to_dspy_examples("train")
@@ -394,13 +401,17 @@ def evolve(
               help="Source for evaluation dataset")
 @click.option("--hermes-repo", default=None, help="Path to hermes-agent repo")
 @click.option("--dry-run", is_flag=True, help="Validate setup without running optimization")
-def main(iterations, eval_source, hermes_repo, dry_run):
+@click.option("--model", default=None, help="Override model for all LLM calls (e.g. openai/qwen-plus)")
+@click.option("--api-base", default=None, help="Override API base URL (e.g. https://dashscope.aliyuncs.com/compatible-mode/v1)")
+def main(iterations, eval_source, hermes_repo, dry_run, model, api_base):
     """Evolve hermes-agent tool descriptions using DSPy + GEPA optimization."""
     evolve(
         iterations=iterations,
         eval_source=eval_source,
         hermes_repo=hermes_repo,
         dry_run=dry_run,
+        model=model,
+        api_base=api_base,
     )
 
 

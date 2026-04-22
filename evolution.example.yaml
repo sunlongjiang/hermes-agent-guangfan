@@ -1,0 +1,47 @@
+# evolution.yaml — LLM backend configuration
+# Copy this file to evolution.yaml and customize for your setup.
+# evolution.yaml is gitignored — your API keys stay local.
+
+# ── Option 1: OpenAI (default, no config needed) ─────────────────────
+# Just set OPENAI_API_KEY env var. No evolution.yaml required.
+
+# ── Option 2: Qwen (通义千问 via DashScope) ──────────────────────────
+# models:
+#   optimizer: "openai/qwen-plus"
+#   eval: "openai/qwen-turbo"
+#   judge: "openai/qwen-plus"
+# api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# api_key: "sk-your-dashscope-key"
+
+# ── Option 3: Claude via third-party proxy ────────────────────────────
+# models:
+#   optimizer: "openai/claude-3-5-sonnet-20241022"
+#   eval: "openai/claude-3-5-haiku-20241022"
+#   judge: "openai/claude-3-5-sonnet-20241022"
+# api_base: "https://your-proxy.example.com/v1"
+# api_key: "sk-your-proxy-key"
+
+# ── Option 4: OpenRouter (multi-model access) ────────────────────────
+# models:
+#   optimizer: "openrouter/anthropic/claude-3.5-sonnet"
+#   eval: "openrouter/google/gemini-2.0-flash-001"
+#   judge: "openrouter/anthropic/claude-3.5-sonnet"
+# api_key: "sk-or-your-openrouter-key"
+# # No api_base needed — DSPy/LiteLLM handles openrouter/ prefix
+
+# ── Option 5: Local model (vLLM, Ollama, etc.) ──────────────────────
+# models:
+#   optimizer: "openai/your-local-model"
+#   eval: "openai/your-local-model"
+#   judge: "openai/your-local-model"
+# api_base: "http://localhost:8000/v1"
+# api_key: "not-needed"
+
+# ── Environment variable overrides ────────────────────────────────────
+# These env vars override evolution.yaml values:
+#   EVOLUTION_API_BASE  — overrides api_base
+#   EVOLUTION_API_KEY   — overrides api_key
+#   EVOLUTION_MODEL     — overrides ALL three models at once
+#
+# CLI flags override everything:
+#   --model openai/qwen-plus --api-base https://...

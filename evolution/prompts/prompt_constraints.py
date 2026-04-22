@@ -85,7 +85,7 @@ class PromptRoleChecker:
         Returns:
             ConstraintResult with passed=True if role is preserved.
         """
-        lm = dspy.LM(self.config.eval_model)
+        lm = dspy.LM(self.config.eval_model, **self.config.get_lm_kwargs())
 
         with dspy.context(lm=lm):
             result = self.checker(

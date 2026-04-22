@@ -296,7 +296,7 @@ class ToolDatasetBuilder:
         )
         all_tools_str = ", ".join(tool_names)
 
-        lm = dspy.LM(self.config.judge_model)
+        lm = dspy.LM(self.config.judge_model, **self.config.get_lm_kwargs())
         all_examples: list[ToolSelectionExample] = []
 
         with dspy.context(lm=lm):

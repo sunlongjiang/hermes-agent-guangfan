@@ -10,6 +10,9 @@ build/
 venv/
 .env
 
+# User config (contains API keys)
+evolution.yaml
+
 # Generated eval datasets (local, not shared)
 datasets/**/*.jsonl
 datasets/**/*.json

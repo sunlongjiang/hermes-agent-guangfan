@@ -1,180 +1,175 @@
-# Project Research Summary
+# Project Research Summary — v2.0 Milestone
 
 **Project:** hermes-agent-self-evolution
-**Domain:** DSPy/GEPA-based multi-parameter text optimization for agent tool descriptions and system prompts
-**Researched:** 2026-04-15
+**Domain:** DSPy/GEPA optimization-pipeline extension (Phase 13–22 on top of stable v1)
+**Researched:** 2026-04-23
 **Confidence:** MEDIUM-HIGH
 
-## Executive Summary
+> Companion files: [STACK.md], [FEATURES.md], [ARCHITECTURE.md], [PITFALLS.md]. This SUMMARY synthesises, does not restate.
 
-This project extends Hermes' Phase 1 single-skill optimization pipeline to Phase 2 (tool descriptions) and Phase 3 (system prompt sections). The core technical challenge is **joint multi-parameter optimization** -- tool descriptions compete with each other for selection, and prompt sections interact holistically. Phase 1's "wrap one text blob in a DSPy Module" pattern does NOT transfer directly. The research conclusively shows that treating Phase 2/3 as "Phase 1 with different text" is the project's biggest risk.
+---
 
-The recommended approach is to use **GEPA's standalone `gepa.optimize()` API** (not DSPy Module wrapping) for both phases. This API directly maps multiple text components as dict keys, supports joint optimization via `component_selector="all"` (Phase 2) or `"round_robin"` (Phase 3), and provides the reflective feedback mechanism that makes GEPA effective. This introduces `gepa` as a new direct dependency but is architecturally cleaner than forcing tool descriptions into DSPy's predictor abstraction.
+## The Three Highest-Leverage Findings
 
-The top risks are: (1) cross-tool interference where improving one description degrades another, (2) semantic drift where GEPA invents false tool capabilities to win selections, (3) system prompt blast radius where a small section change breaks unrelated behaviors, and (4) overfitting to small synthetic datasets. All are preventable with the mitigations documented below, but each requires deliberate implementation -- none will be caught by default.
+### 1. Phase 21 architecture simplifies dramatically — `darwinian-evolver` does NOT exist on PyPI
 
-## Key Findings
+`pip index versions darwinian-evolver` returns "No matching distribution" [STACK]. Closest live package: **`openevolve` 0.2.27 (Apache-2.0)**. Switching to `openevolve` **sidesteps the AGPL boundary entirely**:
 
-### Recommended Stack
+- No subprocess isolation required
+- No separate `.venv-agpl/` needed
+- No CI grep-gate against accidental imports
+- The "license isolation infrastructure" sub-phase that PITFALLS demanded becomes optional [PITFALLS]
 
-No new frameworks needed. DSPy >=3.0 and GEPA remain the core. The key change is using `gepa.optimize()` standalone API instead of `dspy.GEPA` via Module wrapping.
+**Action:** Roadmapper records "Phase 21 substrate = `openevolve`" as Key Decision. Drop `[darwinian]` extra from `pyproject.toml`; replace with `[code]`.
 
-**Core technologies:**
-- **DSPy >=3.0**: Orchestration framework, already integrated and validated in Phase 1
-- **GEPA standalone (`pip install gepa`)**: Multi-component text optimization via `seed_candidate` dict -- directly maps N text blobs as N optimizable components
-- **`component_selector="all"`** (Phase 2): Joint optimization prevents cross-tool description stealing
-- **`component_selector="round_robin"`** (Phase 3): Per-section optimization for lower-coupling prompt sections
+### 2. Phase 15 (Think-Augmented) is an anti-feature as currently scoped — DROP or REDEFINE
 
-**What NOT to use:**
-- Do NOT use DSPy Module predictor pattern for tool descriptions (descriptions are not predictor instructions)
-- Do NOT use MIPROv2 (needs 200+ examples; Phase 3 has only 60-80)
-- Do NOT use `skill_fitness_metric` keyword-overlap heuristic for Phase 2/3 (it's skill-specific and wrong for these domains)
+`ToolModule.selector` is **already** `dspy.ChainOfThought(ToolSelectionSignature)` at `tool_module.py:64` [FEATURES]. Adding "another reasoning step" is no-op or double-CoT that triples cost for noise-level gains [PITFALLS Pitfall 4].
 
-### Expected Features
+Three options ranked:
+- **A (recommended):** DROP entirely. Per-param descriptions (Phase 13) absorb most of what reasoning would compensate for.
+- **B (re-scope):** Expose CoT rationale instruction as separately-optimisable component in GEPA `seed_candidate`.
+- **C (re-scope):** A/B "evaluator parity" check.
 
-**Must have (table stakes):**
-- Joint tool description optimization with cross-tool regression gates
-- Binary tool selection metric (correct tool yes/no, not LLM-as-judge float)
-- Synthetic dataset builder producing 200-400 tool selection triples
-- Factual accuracy preservation (prevent GEPA from inventing capabilities)
-- Per-section behavioral evaluator for system prompt optimization
-- 60-80 behavioral test scenarios across 5 evolvable prompt sections
-- CLI entry points following existing Click+Rich pattern
-- Size/growth constraint validation (already implemented, just wire in)
+**Action:** User decision required before Phase 15 can be planned.
 
-**Should have (differentiators):**
-- SessionDB-mined misselection patterns as high-value training data
-- Confuser task generation (ambiguous tasks where 2+ tools could work)
-- Per-parameter description optimization (not just top-level)
-- Personality/tone drift detection for system prompt changes
-- Benchmark-gated validation (TBLite as hard regression gate)
+### 3. ZERO net new runtime dependencies for Phases 13–20
 
-**Defer (v2+):**
-- Joint section optimization (start per-section only)
-- Think-augmented tool selection (changes agent behavior, not just text)
-- SessionDB behavioral pattern mining
-- Production A/B testing infrastructure
+Verified via filesystem inspection [STACK]:
+- Phase 14/19 SessionDB → stdlib `sqlite3` against `~/.hermes/state.db` (FTS5 already present)
+- Phase 16 dashboard → existing `rich.live.Live` + `rich.table.Table`
+- Phase 18 drift → existing `LLMJudge` (NOT sentence-transformers — saves ~700MB PyTorch + GEPA-reflectable)
+- Phase 20 TBLite → subprocess into `hermes-agent/environments/benchmarks/tblite/tblite_env.py`
 
-### Architecture Approach
+Only Phase 21 adds a runtime dep (`openevolve`, optional extra). v2 is a software-architecture milestone, not a stack expansion.
 
-Both phases follow the existing module-per-domain pattern: `evolution/tools/` and `evolution/prompts/` each get a loader, module, and orchestrator, sharing `evolution/core/`. The critical architectural decision is that tool descriptions are optimized jointly (all descriptions as one optimization unit) while prompt sections are optimized independently then validated jointly.
+---
 
-**Major components (new):**
-1. **`tool_loader.py`** -- Extract tool descriptions from hermes-agent via regex, write evolved versions back
-2. **`tool_module.py`** -- Wrap all tool descriptions as a single GEPA-optimizable unit
-3. **`evolve_tools.py`** -- Orchestration + CLI, binary tool selection metric
-4. **`prompt_loader.py`** -- Extract 5 evolvable prompt sections from `prompt_builder.py`
-5. **`prompt_module.py`** -- Per-section DSPy Module with frozen context passthrough
-6. **`evolve_prompt.py`** -- Orchestration + CLI, per-section then joint validation
+## Recommended Phase Ordering (overrides current ROADMAP)
 
-**Shared core extensions (minimal):**
-- Add config fields to `EvolutionConfig` (tool_selection_weight, behavioral_score_threshold)
-- Add structural constraint checks to `constraints.py` (factual accuracy, section role preservation)
+The original 13→14→15→16→17→18→19→20→21 violates two dependency constraints. Re-ordered:
 
-### Critical Pitfalls
+| Order | Phase | Why this slot | Source |
+|-------|-------|---------------|--------|
+| 0 | **Phase 12.5** (NEW INSERT) — v2 shared infrastructure | 5-param sig validator, loud GEPA→MIPROv2 fallback, per-phase cost projection, v1 regression harness, Claude Code path bug fix | [PITFALLS, STACK] |
+| 1 | Phase 13 — per-param descriptions | Foundational artifact change; needs dashboard right after | [FEATURES] |
+| 2 | Phase 16 — per-tool dashboard | **Move up** — must precede joint optimization risk; surfaces Phase 13 cross-param regressions | [FEATURES, PITFALLS #1, #10] |
+| 3 | Phase 14 — SessionDB tool mining | Independent of 13; can ship parallel | [ARCHITECTURE Wave A] |
+| 4 | Phase 19 — SessionDB prompt behavioural mining | Reuses `SessionDBReader` from 14 | [ARCHITECTURE] |
+| 5 | Phase 18 — drift detection | **Move before 17** — joint section opt without drift gate is reckless | [FEATURES, PITFALLS #5/#6] |
+| 6 | Phase 17 — joint section optimisation | Now safe; round-robin remains default; `--mode=joint` opt-in; fails-closed | [PITFALLS #5] |
+| 7 | Phase 20 — TBLite benchmark gate | Cheap drift filter precedes expensive benchmark; final-gate-only | [PITFALLS #7] |
+| 8 | Phase 15 — think-augmented (DEFER OR REDEFINE) | Re-evaluate after 13 lands | [FEATURES anti-feature] |
+| 9 | Phase 21 — code evolution (`openevolve`) | Needs 16 (visibility) + 20 (final gate) as safety net | [ARCHITECTURE Wave E] |
+| 10 | Phase 22 — continuous loop | Defer past v2 if scope tight; dry-run-default if shipped | [PITFALLS #13] |
 
-1. **Cross-tool interference** -- Optimizing descriptions independently causes "description stealing." Prevention: always evaluate ALL descriptions jointly; reject any candidate where a single tool's selection rate drops >2%.
+**Waves:**
+- Wave A (parallel): 12.5 first; then 13 + 14 in parallel
+- Wave B: 16 (after 14), 19 (after 14)
+- Wave C (sequential, gated): 18 → 17 → 20
+- Wave D (decide first): 15
+- Wave E (heavy/license): 21
+- Wave F (orchestration, optional): 22
 
-2. **Semantic drift / factual hallucination** -- GEPA discovers that lying about capabilities improves selection accuracy. Prevention: freeze factual claims, only allow GEPA to optimize framing/guidance; add factual accuracy constraint check.
+---
 
-3. **System prompt blast radius** -- Small section changes cause unpredictable behavioral shifts elsewhere. Prevention: full behavioral fingerprinting (response length, tool call frequency, tone) before and after; mandatory benchmark gate.
+## Cross-Cutting Decisions the User MUST Make Before Planning Phase 13
 
-4. **Overfitting to small synthetic datasets** -- 10-20 training examples produce narrow optima that don't generalize. Prevention: 200-400 examples for Phase 2, 60-80 for Phase 3; generate splits in separate LLM calls; mix synthetic with SessionDB data.
+Roadmapper should surface these as Key Decisions (not embed silently in plans):
 
-5. **GEPA degrades without execution traces** -- Returning only scalar scores makes GEPA no better than random search. Prevention: pipe chain-of-thought reasoning and tool selection rationale as structured `feedback` to GEPA's reflective analysis.
+1. **Phase 21 substrate** — confirm `openevolve` (Apache-2.0) replaces `darwinian-evolver`. Permanently retires AGPL boundary problem. [STACK §"Phase 21 BLOCKER"]
+2. **Phase 15 disposition** — DROP / re-scope to Option B (rationale prompt) / re-scope to Option C (parity check). [FEATURES anti-feature]
+3. **Insert Phase 12.5 mini-phase?** — recommended yes. Packages 4 shared v2 prerequisites. [PITFALLS #11/#12, ARCHITECTURE §5]
+4. **Claude Code importer fix scope** — patch as part of 12.5 / Phase 14, OR insert Phase 12.x maintenance entry. Existing `ClaudeCodeImporter` silently broken today (path moved to `~/.claude/projects/<encoded-cwd>/<sid>.jsonl`). [STACK]
+5. **PII / secrets policy for SessionDB mining (Phase 14 + 19)** — three-layer sanitisation (regex + NER + entropy) mandatory per PITFALLS #2. May add Microsoft Presidio or spacy as optional dep. Approve `evolution.core.privacy` package + `--i-have-consent` CLI gate + `datasets/private/` gitignored. [PITFALLS #2]
+6. **SessionDB `mode=ro` access pattern** — open via `sqlite3.connect(..., uri=True)` with `mode=ro` for WAL safety. [STACK]
+7. **Phase 17 fails-closed policy** — if joint < round-robin on holdout, ship negative result + keep round-robin default. [PITFALLS #5]
 
-## Implications for Roadmap
+---
 
-### Phase 2: Tool Description Optimization
+## Key Findings by Research File
 
-**Rationale:** Lower risk than system prompts (bounded 500-char strings, binary measurable outcome). Validates that GEPA can optimize non-skill text artifacts. Must come before Phase 3.
+### Stack [STACK]
+- v1 stack sufficient; v2 adds at most 1 runtime dep (`openevolve`, optional)
+- Rejected: `sqlalchemy`, `pandas`, `textual`, `sentence-transformers`, `mlflow/wandb`
+- Hermes `state.db` schema verified: `sessions(system_prompt, ...)` + `messages(tool_calls, tool_name, ...)` + FTS5
+- TBLite internal to hermes-agent — no PyPI dep, just subprocess
+- `pyproject.toml` patches: add `[reporting]` for ReportLab, add `[code]=openevolve`, REMOVE `[darwinian]`
 
-**Delivers:** Evolved tool descriptions that improve agent tool selection accuracy without cross-tool regression.
+### Features [FEATURES]
+- Table stakes (3): Phase 13 per-param, Phase 16 dashboard, Phase 18 drift
+- Differentiators (5): 14, 17, 19, 20, 21
+- Anti-feature (1): 15 as currently scoped
+- Hidden anti-features to NOT absorb: live web UI for dashboard, in-loop TBLite, recursive self-evolution in 21, auto-merge in 22
 
-**Build order:**
-1. `tool_loader.py` (no dependencies, testable immediately)
-2. `tool_module.py` (depends on loader)
-3. Tool selection metric (standalone function)
-4. Synthetic dataset builder extension (200-400 triples)
-5. `evolve_tools.py` orchestrator + CLI
-6. Constraint extensions (factual accuracy check)
+### Architecture [ARCHITECTURE]
+- v1 layout preserved; 4 NEW packages: `sessiondb/`, `dashboard/`, `benchmarks/`, `code/`
+- 2 new files in `tools/` (`per_param_module.py`, optionally `think_module.py`)
+- 2 new files in `prompts/` (`joint_module.py`, `drift_detector.py`)
+- ~17 files added, ~9 modified, v1 tests UNTOUCHED
+- `evolution.yaml` gains 5 sections (sessiondb / dashboard / drift / benchmark / code_evolution)
+- 8 v1 abstractions REUSED, 4 EXTENDED, 11 NEW — two-thirds of v2 ships by composing existing primitives
 
-**Avoids:** Pitfalls 1 (joint eval), 2 (binary metric not LLM judge), 4 (factual accuracy gate)
+### Pitfalls [PITFALLS]
+Top 7 critical pitfalls + concrete prevention each phase plan must encode:
+1. **Phase 13 cross-param coherence** — joint-tool fitness, `param_consistency` LLM constraint, param-count cap, v1 regression gate
+2. **Phase 14/19 PII leakage** — three-layer sanitisation, allowlist extraction, `--i-have-consent`, no-verbatim-copy, TTL
+3. **Phase 21 AGPL contamination** — DEFUSED if `openevolve` chosen; else subprocess + isolated venv + CI grep-gate
+4. **Phase 15 cost blow-up** — drop or hybrid-routing + reasoning-length cap + cost in fitness
+5. **Phase 17 joint-mode credit assignment** — per-section regression gate, round-robin default, fails-closed
+6. **Phase 18 drift calibration** — labelled set BEFORE detector, F1-tuned threshold, pairwise (not pointwise), median-of-3
+7. **Phase 20 TBLite flakiness** — final-gate-only (NOT in GEPA loop), median-of-3, artifact-hash cache, opt-in default
 
-**Estimated cost per optimization run:** $0.50-4.00
+Plus moderate pitfalls 8-13 (schema drift, success/failure balance, dashboard distribution metrics, reflection_lm cost, 5-param signature, continuous-loop idempotency).
 
-### Phase 3: System Prompt Section Evolution
+---
 
-**Rationale:** Depends on Phase 2 proving the GEPA standalone pattern works. Higher risk due to behavioral evaluation complexity and unbounded blast radius.
+## Calibration-First Phases
 
-**Delivers:** Evolved prompt sections that improve agent behavior per-section without personality drift or benchmark regression.
+Two phases must invert "code then calibrate" order:
+- **Phase 18 (drift detector):** 30 paired examples (15 true-drift, 15 false-drift) as Task 1; threshold by F1-maximisation, NOT intuition
+- **Phase 20 (TBLite gate):** small-sample variance experiment to calibrate "median-of-3 + 3pp band" before any candidate hits the gate
 
-**Build order:**
-1. `prompt_loader.py` (independent of Phase 2)
-2. `prompt_module.py` (per-section + context passthrough)
-3. Behavioral metric (LLM-as-judge with binary behavioral checks)
-4. Behavioral test suite (60-80 scenarios across 5 sections)
-5. `evolve_prompt.py` orchestrator + CLI
-6. Constraint extensions (section role preservation)
+These belong as *first* tasks of their phase plans.
 
-**Avoids:** Pitfalls 5 (behavioral fingerprinting), 11 (sequential section optimization), 3 (larger dataset)
-
-**Estimated cost per optimization run:** $1.00-5.00
-
-### Phase Ordering Rationale
-
-- Phase 2 before Phase 3: tool selection is a classification problem (binary correct/incorrect) while behavioral evaluation is inherently fuzzy. Build confidence on the measurable problem first.
-- Phases are architecturally independent (both depend only on `core/`) but sequentially gated by PLAN.md for risk management.
-- The GEPA standalone pattern validated in Phase 2 directly transfers to Phase 3, reducing Phase 3's technical risk.
-
-### Research Flags
-
-**Needs deeper research during planning:**
-- **Phase 2 dataset design:** How to generate high-quality confuser tasks and ensure sufficient diversity. The synthetic-vs-SessionDB data mix ratio needs experimentation.
-- **Phase 3 behavioral metrics:** Defining "correct behavior" for fuzzy sections like AGENT_IDENTITY is harder than tool selection. The LLM-as-judge approach needs careful calibration.
-- **`gepa` package compatibility:** The standalone `gepa` package vs `dspy.GEPA` compatibility is LOW confidence. Must be validated before implementation starts.
-
-**Standard patterns (skip research):**
-- **Loader modules:** Regex extraction from Python source files is well-understood.
-- **CLI entry points:** Follow existing Click+Rich pattern exactly.
-- **Constraint validation:** Existing `ConstraintValidator` dispatch already handles new artifact types.
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | GEPA standalone API well-documented; `component_selector` modes confirmed in official docs |
-| Features | HIGH | Clear table stakes derived from PLAN.md + domain research; good separation of must-have vs defer |
-| Architecture | HIGH | Direct extension of working Phase 1 patterns; codebase already designed for this expansion |
-| Pitfalls | MEDIUM-HIGH | Critical pitfalls well-documented across multiple sources; some prevention strategies are theoretical (no production case studies for tool description optimization via GEPA) |
+| Stack | HIGH | All claims verified by direct filesystem inspection or PyPI lookup. `openevolve` API surface MEDIUM (no live README fetch) |
+| Features | MEDIUM | Architecturally HIGH; behavioural / benchmark items MEDIUM (no live web search) |
+| Architecture | HIGH | Built directly on v1 codebase; integration points verified by reading source |
+| Pitfalls | MEDIUM-HIGH | DSPy GEPA pitfalls verified against commit 262402a; AGPL/PII/benchmark/drift advice based on engineering practice |
 
-**Overall confidence:** MEDIUM-HIGH
+**Overall:** MEDIUM-HIGH
 
-### Gaps to Address
+### Gaps to Address During Phase Planning
+- `openevolve` API surface and GEPA-style reflection compatibility — verify on first Phase 21 plan iteration
+- Hermes `state.db` schema stability — only one snapshot observed; Phase 14 plan must include `schema_version` assertion
+- TBLite per-run variance — needs small-sample experiment in Phase 20 plan Task 1
+- DSPy 3.x `dspy.GEPA` `component_selector` — [VERIFY] whether wrapper exposes same multi-component surface as standalone `gepa.optimize()`
+- Whether commit cdc2f4a's per-component model overrides plumb through to `evolve_*` CLIs — verify in Phase 12.5
 
-- **`gepa` standalone package maturity:** LOW confidence on version compatibility with `dspy>=3.0`. Must run compatibility test before committing to this approach. Fallback: use `dspy.GEPA` with creative Module wrapping.
-- **Factual accuracy constraint implementation:** No existing pattern for this. Need to design the LLM-based fact-check or embedding similarity approach during Phase 2 planning.
-- **Behavioral metric calibration for Phase 3:** Binary behavioral checks are more reliable than float scores, but defining the binary criteria for each section requires domain expertise and iteration.
-- **Cost projections:** The $0.50-5.00/run estimates are based on Phase 1 extrapolation. Actual costs with 200-400 examples and joint evaluation could be higher. Set hard budget caps.
+---
 
 ## Sources
 
-### Primary (HIGH confidence)
-- [DSPy GEPA Overview](https://dspy.ai/api/optimizers/GEPA/overview/) -- optimizer configuration, component_selector modes
-- [GEPA Standalone API Blog](https://gepa-ai.github.io/gepa/blog/2026/02/18/introducing-optimize-anything/) -- seed_candidate dict pattern
-- [GEPA Paper (ICLR 2026 Oral)](https://arxiv.org/pdf/2507.19457) -- theoretical foundation, outperforms MIPROv2 by 10%+
-- [Dropbox DSPy Case Study](https://dropbox.tech/machine-learning/optimizing-dropbox-dash-relevance-judge-with-dspy) -- overfitting failure mode confirmed
+### Primary (HIGH confidence — direct verification)
+- Live filesystem: `~/.hermes/state.db` schema, `~/.claude/projects/<encoded-cwd>/<sid>.jsonl` format, `hermes-agent/environments/benchmarks/tblite/tblite_env.py`
+- v1 codebase: `evolution/tools/tool_module.py:64` (CoT already present), `evolution/core/external_importers.py` (Claude Code path bug), `evolution/core/fitness.py` (LLMJudge), `pyproject.toml`
+- Git history: commit 262402a (5-param GEPA + reflection_lm), cdc2f4a (per-component model override)
+- PyPI: `darwinian-evolver` (NOT FOUND), `openevolve 0.2.27`, `darwinian 0.0.5.4`, `sentence-transformers 5.4.1`, `plotly 6.7.0`, `sqlalchemy 2.0.49`
 
-### Secondary (MEDIUM confidence)
-- [ACL 2025: Joint Tool Optimization](https://github.com/Bingo-W/ToolOptimization) -- cross-tool regression prevention
-- [Modular Prompt Optimization (MPO)](https://arxiv.org/abs/2601.04055) -- section-local textual gradients
-- [Microsoft: Tool-Space Interference](https://www.microsoft.com/en-us/research/blog/tool-space-interference-in-the-mcp-era-designing-for-agent-compatibility-at-scale/) -- cross-tool interference patterns
-- [LLM-as-a-Judge Survey](https://arxiv.org/abs/2411.15594) -- scoring instability, binary vs pointwise
+### Secondary (MEDIUM — v1 research carry-forward)
+- v1 PITFALLS.md / FEATURES.md / SUMMARY.md (collected 2026-04-15 with full web access)
+- DSPy 3.0 documentation as embedded in v1 codebase usage
 
-### Tertiary (LOW confidence)
-- [Contra DSPy and GEPA -- Benjamin Anderson](https://benanderson.work/blog/contra-dspy-gepa/) -- critique of DSPy for agentic workflows (single source)
-- `gepa` standalone package version compatibility with `dspy>=3.0` -- needs validation
+### Tertiary (LOW — needs validation)
+- `openevolve` exact API shape
+- Hermes `state.db` long-term schema stability
+- 2024-25 papers cited in FEATURES marked **[VERIFY]** (ToolACE, MPO, Think-Augmented Function Calling)
 
 ---
-*Research completed: 2026-04-15*
-*Ready for roadmap: yes*
+*Synthesised: 2026-04-23 — ready for v2 roadmap revision once 7 Cross-Cutting Decisions resolved*

@@ -8,6 +8,17 @@
 
 让 GEPA 优化循环能覆盖工具描述和系统提示词——不仅是技能文件——使 hermes-agent 的核心文本制品都能被系统性地自动改进。
 
+## Current Milestone: v2.0 Stabilization, Enhancement & Expansion
+
+**Goal:** 在 v1 稳定基础上扩展工具/提示词优化深度，并新增代码进化与持续学习能力（Phase 12 ✓ 完成；Phase 13-21 待执行）。
+
+**Target features:**
+- 工具优化增强：per-parameter 描述优化、SessionDB 误选挖掘、think-augmented 选择、单工具回归仪表盘（Phase 13-16）
+- 提示词优化增强：5 段联合优化、个性漂移检测、SessionDB 行为挖掘、TBLite 基准门控（Phase 17-20）
+- 新能力扩展：Darwinian 代码进化（Phase 21）
+
+**Phase numbering:** 继续 v1 编号（Phase 13 起），不重置。
+
 ## Requirements
 
 ### Validated
@@ -106,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after Phase 4 completion*
+*Last updated: 2026-04-23 — milestone v2.0 started (Phase 13 next)*

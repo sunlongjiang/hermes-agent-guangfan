@@ -40,6 +40,33 @@ pip install -e ".[dev]"
 export OPENAI_API_KEY="sk-..."
 ```
 
+### Secrets & `evolution.yaml`
+
+`evolution.yaml` holds your LLM backend choice (model, api_base, api_key). It is gitignored. Prefer **env-var references** over literal keys so the file itself never holds a plaintext secret:
+
+```yaml
+# evolution.yaml (recommended pattern)
+models:
+  optimizer: "openai/qwen-plus"
+  eval: "openai/qwen-turbo"
+api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key: "${DASHSCOPE_KEY}"     # expanded via os.path.expandvars at load time
+```
+
+```bash
+export DASHSCOPE_KEY="sk-..."    # set once in your shell profile
+```
+
+A literal `sk-...` in `evolution.yaml` still works, but `EvolutionConfig.load()` will print a warning every run until you migrate it. See `evolution.example.yaml` for all supported backends.
+
+**Pre-commit guard** — install the bundled hook to refuse committing `evolution.yaml` and catch literal keys in any other staged file:
+
+```bash
+ln -s ../../scripts/precommit-check.sh .git/hooks/pre-commit
+```
+
+You can also run it manually: `bash scripts/precommit-check.sh`.
+
 ### Optimize Tool Descriptions
 
 ```bash

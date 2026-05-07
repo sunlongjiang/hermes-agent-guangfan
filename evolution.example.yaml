@@ -1,6 +1,13 @@
 # evolution.yaml — LLM backend configuration
 # Copy this file to evolution.yaml and customize for your setup.
 # evolution.yaml is gitignored — your API keys stay local.
+#
+# SECURITY BEST PRACTICE — prefer env-var references over literal keys:
+#   api_key: "${DASHSCOPE_KEY}"           # ← recommended: expanded at load time
+#   api_key: "sk-abc123..."                # ← discouraged: plaintext on disk, warned loudly
+#
+# Any ${VAR} / $VAR in api_base / api_key / models is expanded via
+# os.path.expandvars. Unset vars expand to "" — failures surface as auth errors.
 
 # ── Option 1: OpenAI (default, no config needed) ─────────────────────
 # Just set OPENAI_API_KEY env var. No evolution.yaml required.
@@ -11,7 +18,7 @@
 #   eval: "openai/qwen-turbo"
 #   judge: "openai/qwen-plus"
 # api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-# api_key: "sk-your-dashscope-key"
+# api_key: "${DASHSCOPE_KEY}"    # export DASHSCOPE_KEY=sk-... in your shell
 
 # ── Option 3: Claude via third-party proxy ────────────────────────────
 # models:
@@ -19,14 +26,14 @@
 #   eval: "openai/claude-3-5-haiku-20241022"
 #   judge: "openai/claude-3-5-sonnet-20241022"
 # api_base: "https://your-proxy.example.com/v1"
-# api_key: "sk-your-proxy-key"
+# api_key: "${CLAUDE_PROXY_KEY}"
 
 # ── Option 4: OpenRouter (multi-model access) ────────────────────────
 # models:
 #   optimizer: "openrouter/anthropic/claude-3.5-sonnet"
 #   eval: "openrouter/google/gemini-2.0-flash-001"
 #   judge: "openrouter/anthropic/claude-3.5-sonnet"
-# api_key: "sk-or-your-openrouter-key"
+# api_key: "${OPENROUTER_API_KEY}"
 # # No api_base needed — DSPy/LiteLLM handles openrouter/ prefix
 
 # ── Option 5: Local model (vLLM, Ollama, etc.) ──────────────────────

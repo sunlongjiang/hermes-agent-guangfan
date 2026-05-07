@@ -1,10 +1,29 @@
 """Configuration and hermes-agent repo discovery."""
 
 import os
+import re
+import sys
 import yaml
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
+
+
+# Matches things that look like real LLM provider keys so we can warn when
+# a literal value (instead of an env-var reference) is baked into evolution.yaml.
+_LITERAL_KEY_RE = re.compile(r"^(sk-|sk_|ghp_|gho_|xox[baprs]-|AKIA[0-9A-Z]{16})")
+
+
+def _expand_env(value):
+    """Expand ${VAR} / $VAR references in a string loaded from YAML.
+
+    Non-strings pass through unchanged. Unknown env vars expand to empty string
+    (matches os.path.expandvars default — surfaced by later callers).
+    """
+    if not isinstance(value, str):
+        return value
+    return os.path.expandvars(value)
+
 
 
 @dataclass
@@ -71,21 +90,26 @@ class EvolutionConfig:
 
         # ── Load from YAML ────────────────────────────────────────────────
         yaml_path = Path(config_path) if config_path else Path("evolution.yaml")
+        yaml_had_literal_key = False
         if yaml_path.exists():
             with open(yaml_path) as f:
                 data = yaml.safe_load(f) or {}
 
             models = data.get("models", {})
             if models.get("optimizer"):
-                config.optimizer_model = models["optimizer"]
+                config.optimizer_model = _expand_env(models["optimizer"])
             if models.get("eval"):
-                config.eval_model = models["eval"]
+                config.eval_model = _expand_env(models["eval"])
             if models.get("judge"):
-                config.judge_model = models["judge"]
+                config.judge_model = _expand_env(models["judge"])
             if data.get("api_base"):
-                config.api_base = data["api_base"]
+                config.api_base = _expand_env(data["api_base"])
             if data.get("api_key"):
-                config.api_key = data["api_key"]
+                raw_key = data["api_key"]
+                # Flag literal keys BEFORE expansion so env-var references are exempt
+                if isinstance(raw_key, str) and "$" not in raw_key and _LITERAL_KEY_RE.match(raw_key):
+                    yaml_had_literal_key = True
+                config.api_key = _expand_env(raw_key)
 
         # ── Environment variable overrides ─────────────────────────────────
         env_base = os.getenv("EVOLUTION_API_BASE")
@@ -113,6 +137,17 @@ class EvolutionConfig:
             config.iterations = overrides["iterations"]
         if overrides.get("hermes_repo"):
             config.hermes_agent_path = Path(overrides["hermes_repo"])
+
+        # ── Literal-key warning (loud, not fatal) ─────────────────────────
+        # Emit once at load time so users see it every run until they migrate
+        # the key to an env-var reference. Skipped when EVOLVE_SUPPRESS_KEY_WARN=1
+        # (CI / test environments that intentionally check key handling).
+        if yaml_had_literal_key and not os.getenv("EVOLVE_SUPPRESS_KEY_WARN"):
+            sys.stderr.write(
+                "⚠️  evolution.yaml contains a literal API key. "
+                "Replace with an env-var reference like api_key: \"${DASHSCOPE_KEY}\" "
+                "to avoid plaintext-on-disk leaks. See README.md § Secrets.\n"
+            )
 
         return config
 

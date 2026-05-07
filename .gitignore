@@ -22,6 +22,9 @@ datasets/**/*.json
 snapshots/
 *.pkl
 
+# Per-run evolution outputs (may contain mined data / evolved artifacts)
+output/
+
 # IDE
 .idea/
 .vscode/

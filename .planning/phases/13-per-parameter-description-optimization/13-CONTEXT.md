@@ -38,6 +38,7 @@
 - **D-13:** cost cap 在 Phase 13 落地（CONCERNS M8）。EvolutionConfig 新增字段 `max_cost_usd: float = 20.0` 和 `reflection_model: Optional[str] = None`。新建 `evolution/core/cost_tracker.py` 累计 `dspy` 调用返回的 token/usage，每次 GEPA 候选评估后检查；超阈值则 abort 并把已评估候选写入 `output/tools/ABORTED_<timestamp>/`。
 - **D-14:** v1 baseline 回归**硬门**在 Phase 13 落地（Pitfall 1 #5）。evolve_tool_params 在进化前强制要求 baseline 分数：默认读取 hermes-agent 原始文件构造的 `ToolModule` + 现有 holdout；可选 `--baseline-run <output-dir>` 指向历史 Phase 5 output，读取 metrics.json 的 evolved_score 作为 v1 基线。判定：per-param evolved holdout < baseline holdout − 0.02（2pp 容差）则 FAIL，写 FAILED_<timestamp>/ 不部署。
 - **D-15:** **不**强制 param-group cap 默认行为——D-08 的 --param-group-size 仅作可选 knob。主要靠 D-13 的 cost cap + GEPA 内置 max_metric_calls 双重约束。Rationale：cap 的 Pitfall 1 #3 主要针对无成本上限场景；有 D-13 时过度 cap 会压缩探索空间。
+- **D-15a (folded todo `loud-gepa-fallback`):** evolve_tool_params 默认 GEPA 失败 → 直接 raise（含原 GEPA error message），不静默回退 MIPROv2；可选 `--allow-miprov2-fallback` CLI flag 显式启用。metrics.json 必含 `optimizer_used: "gepa"|"miprov2"` 字段。原因：MIPROv2 与 GEPA 语义差异显著（无 reflective trace、无 reflection_lm），静默回退会让 evolved artifact 质量不可比对。来源：`.planning/codebase/CONCERNS.md` M2 + `.planning/todos/pending/2026-05-07-loud-gepa-fallback.md`。Phase 5/Phase 10 既有 CLI 的同等改造可顺手做或推后。
 
 ### D4 评估数据与指标
 
@@ -53,6 +54,13 @@
 - ABORTED / FAILED 目录结构细节（可参考 Phase 5 FAILED_ 布局）
 - evolve_tool_params 的 Rich table 展示细节
 
+### Folded Todos
+
+- **`.planning/todos/pending/2026-05-07-loud-gepa-fallback.md`** — 见 D-15a；evolve_tool_params 默认 loud fail + `--allow-miprov2-fallback` opt-in + metrics.json `optimizer_used` 字段。归因 CONCERNS M2。Phase 5/10 既有 CLI 的同等改造由 planner 决定是否在 Phase 13 内顺手做。
+- **`.planning/todos/pending/2026-05-07-persist-per-tool-regression-rates.md`** — 见 D-12；per_tool_baseline_rates / per_tool_evolved_rates 写入 metrics.json。Phase 13 内落地。
+- **`.planning/todos/pending/2026-05-07-max-cost-usd-and-reflection-model.md`** — 见 D-08 / D-13；EvolutionConfig 新字段 + CLI flag + cost_tracker abort。Phase 13 内落地。
+
+
 </decisions>
 
 <canonical_refs>
@@ -62,10 +70,14 @@
 
 ### 研究与约束（必读）
 - `.planning/research/PITFALLS.md` §Pitfall 1 — Per-Parameter Optimization Destroys Coherence；joint fitness、param_consistency、param-count cap、v1 baseline 硬门的原始论证（Phase 13 scope 切分的决策依据）
+- `.planning/codebase/CONCERNS.md` §M2 — 静默 GEPA → MIPROv2 fallback 风险（D-15a 来源）
 - `.planning/codebase/CONCERNS.md` §M3 — Cross-Tool Regression Gate Is Pass/Fail Only；per-tool rate 持久化缺口
 - `.planning/codebase/CONCERNS.md` §M8 — Phase 13 Per-Param Fan-Out Multiplies Optimization Cost；max_cost_usd、reflection_model 的原始建议
 - `.planning/codebase/CONCERNS.md` §L1 — `_format_paren_concat` Unicode / 内嵌引号边缘用例；Phase 13 param 写回量 3-5× 放大需关注
 - `.planning/codebase/CONCERNS.md` §M4 — LLM 输出解析脆弱；param_consistency / joint metric 新增 LLM 调用需考虑
+- `.planning/todos/pending/2026-05-07-loud-gepa-fallback.md` — folded, 见 D-15a
+- `.planning/todos/pending/2026-05-07-persist-per-tool-regression-rates.md` — folded, 见 D-12
+- `.planning/todos/pending/2026-05-07-max-cost-usd-and-reflection-model.md` — folded, 见 D-08 / D-13
 
 ### Phase 13 实现参考
 - `evolution/tools/tool_module.py` — 当前 ToolModule 结构（D-01/D-02 在其上扩展）

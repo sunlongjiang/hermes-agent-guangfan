@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: stabilization-enhancement-expansion
 status: active
-stopped_at: Defining Phase 13 context
-last_updated: "2026-04-23T00:00:00.000Z"
-last_activity: 2026-04-23 -- Milestone v2.0 started (Phase 12 complete; Phase 13 next)
+stopped_at: Phase 13 context gathered
+last_updated: "2026-05-07T08:30:00.000Z"
+last_activity: 2026-05-07 -- Phase 13 context captured; ready for /gsd-plan-phase 13
 progress:
   total_phases: 10
   completed_phases: 1
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-23)
 
 ## Current Position
 
-Phase: 13 of 21 (next) — Phase 12 complete, Phase 13 ready to start
+Phase: 13 of 21 — Phase 13 context captured, ready for planning
 Plan: —
-Status: Defining Phase 13 context
-Last activity: 2026-04-23 -- Milestone v2.0 initialized
+Status: Phase 13 context gathered (2026-05-07)
+Last activity: 2026-05-07 -- /gsd-discuss-phase 13 complete
 
 Progress: [#---------] 10% (1/10 v2 phases done)
 
@@ -62,6 +62,7 @@ Progress: [#---------] 10% (1/10 v2 phases done)
 - [Phase 11]: Skipped -- TEST-02 already satisfied by 83 tests created during Phase 7-10 TDD
 - [Phase 12]: GEPA 5-param metric signature + reflection_lm wired; multi-model backend via evolution.yaml
 - [Phase 12 post-audit 2026-05-07]: Codebase map refresh surfaced 5 HIGH + 9 MED concerns. All 5 HIGH fixed (commits 7500abc `output/` gitignore, 5ed6dbb skill GEPA 5-param, 4887a02 skill CLI honors evolution.yaml, 05cc00d env-var references + pre-commit guard). 9 MED concerns parked as `.planning/todos/pending/*.md` for future pickup.
+- [Phase 13 discuss 2026-05-07]: Gray areas resolved across module structure (two-dim param_predictors, physically isolated tool-level desc), CLI shape (new `evolve_tool_params` entry, existing CLI untouched), scope (joint fitness + param_consistency + per-tool persistence + cost cap all in-scope; v1 baseline hard regression gate; no default param-group cap), eval (reuse Phase 4 dataset, joint 50/50 exact-match, selector outputs tool+params together). Folded todos: loud-gepa-fallback, persist-per-tool-regression-rates, max-cost-usd-and-reflection-model.
 
 ### Test Coverage (v2 baseline after 2026-05-07 fixes)
 
@@ -77,6 +78,6 @@ Progress: [#---------] 10% (1/10 v2 phases done)
 
 ## Session Continuity
 
-Last session: 2026-05-07T07:55:00.000Z
-Stopped at: Phase 12 post-audit fixes complete (H1/H3/H4/H5); 9 MED todos parked; Phase 13 ready
-Next: `/gsd-discuss-phase 13` to gather context for per-parameter description optimization
+Last session: 2026-05-07T08:30:00.000Z
+Stopped at: Phase 13 context captured (13-CONTEXT.md + 13-DISCUSSION-LOG.md committed)
+Next: `/gsd-plan-phase 13` to create PLAN.md for per-parameter description optimization

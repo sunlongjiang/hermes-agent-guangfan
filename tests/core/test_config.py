@@ -206,3 +206,55 @@ def test_skill_fitness_metric_is_5_param():
         f"skill_fitness_metric must accept 5 params for GEPA compat, "
         f"got {len(sig.parameters)}: {list(sig.parameters)}"
     )
+
+
+# ── Phase 13 additions: max_cost_usd + reflection_model ─────────────────────
+
+
+def test_evolution_config_defaults_phase13():
+    cfg = EvolutionConfig()
+    assert cfg.max_cost_usd == 20.0
+    assert cfg.reflection_model is None
+
+
+def test_evolution_config_max_cost_usd_from_yaml(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    yaml_file = tmp_path / "evolution.yaml"
+    yaml_file.write_text("max_cost_usd: 5.5\n")
+    monkeypatch.delenv("EVOLUTION_MAX_COST_USD", raising=False)
+    monkeypatch.delenv("EVOLUTION_REFLECTION_MODEL", raising=False)
+    # load() defaults to ./evolution.yaml — use explicit path via config_path kwarg
+    cfg = EvolutionConfig.load(config_path=str(yaml_file))
+    assert cfg.max_cost_usd == 5.5
+
+
+def test_evolution_config_max_cost_usd_env_overrides_yaml(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    yaml_file = tmp_path / "evolution.yaml"
+    yaml_file.write_text("max_cost_usd: 5.5\n")
+    monkeypatch.setenv("EVOLUTION_MAX_COST_USD", "3.25")
+    cfg = EvolutionConfig.load(config_path=str(yaml_file))
+    assert cfg.max_cost_usd == 3.25
+
+
+def test_evolution_config_max_cost_usd_cli_overrides_env(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    yaml_file = tmp_path / "evolution.yaml"
+    yaml_file.write_text("max_cost_usd: 5.5\n")
+    monkeypatch.setenv("EVOLUTION_MAX_COST_USD", "3.25")
+    cfg = EvolutionConfig.load(config_path=str(yaml_file), max_cost_usd=1.0)
+    assert cfg.max_cost_usd == 1.0
+
+
+def test_evolution_config_reflection_model_env_and_cli(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    yaml_file = tmp_path / "evolution.yaml"
+    yaml_file.write_text("models:\n  reflection: openai/gpt-4.1\n")
+    monkeypatch.delenv("EVOLUTION_REFLECTION_MODEL", raising=False)
+    cfg = EvolutionConfig.load(config_path=str(yaml_file))
+    assert cfg.reflection_model == "openai/gpt-4.1"
+    monkeypatch.setenv("EVOLUTION_REFLECTION_MODEL", "openai/gpt-4o")
+    cfg = EvolutionConfig.load(config_path=str(yaml_file))
+    assert cfg.reflection_model == "openai/gpt-4o"
+    cfg = EvolutionConfig.load(config_path=str(yaml_file), reflection_model="custom/m")
+    assert cfg.reflection_model == "custom/m"

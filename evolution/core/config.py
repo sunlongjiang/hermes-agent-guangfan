@@ -41,6 +41,8 @@ class EvolutionConfig:
     optimizer_model: str = "openai/gpt-4.1"  # Model for GEPA reflections
     eval_model: str = "openai/gpt-4.1-mini"  # Model for LLM-as-judge scoring
     judge_model: str = "openai/gpt-4.1"  # Model for dataset generation
+    # Reflection model for GEPA (D-08/D-13) — falls back to optimizer_model when None
+    reflection_model: Optional[str] = None
 
     # API endpoint configuration
     api_base: Optional[str] = None  # Custom OpenAI-compatible API base URL
@@ -51,6 +53,10 @@ class EvolutionConfig:
     max_tool_desc_size: int = 500  # chars
     max_param_desc_size: int = 200  # chars
     max_prompt_growth: float = 0.2  # 20% max growth over baseline
+
+    # Cost cap for GEPA compile + eval (D-13 / folded todo 2026-05-07-max-cost-usd-and-reflection-model.md)
+    # USD; enforced by evolution/core/cost_tracker.py. Set <= 0 to disable (not recommended).
+    max_cost_usd: float = 20.0
 
     # Eval dataset
     eval_dataset_size: int = 20  # Total examples to generate
@@ -102,6 +108,9 @@ class EvolutionConfig:
                 config.eval_model = _expand_env(models["eval"])
             if models.get("judge"):
                 config.judge_model = _expand_env(models["judge"])
+            # Phase 13: reflection_model lives alongside other model names under `models:`
+            if models.get("reflection"):
+                config.reflection_model = _expand_env(models["reflection"])
             if data.get("api_base"):
                 config.api_base = _expand_env(data["api_base"])
             if data.get("api_key"):
@@ -110,6 +119,12 @@ class EvolutionConfig:
                 if isinstance(raw_key, str) and "$" not in raw_key and _LITERAL_KEY_RE.match(raw_key):
                     yaml_had_literal_key = True
                 config.api_key = _expand_env(raw_key)
+            # Phase 13: max_cost_usd is a top-level yaml key
+            if data.get("max_cost_usd") is not None:
+                try:
+                    config.max_cost_usd = float(data["max_cost_usd"])
+                except (TypeError, ValueError):
+                    pass  # invalid value → keep default; no crash
 
         # ── Environment variable overrides ─────────────────────────────────
         env_base = os.getenv("EVOLUTION_API_BASE")
@@ -123,6 +138,16 @@ class EvolutionConfig:
             config.optimizer_model = env_model
             config.eval_model = env_model
             config.judge_model = env_model
+        # Phase 13: reflection_model + max_cost_usd env overrides
+        env_refl = os.getenv("EVOLUTION_REFLECTION_MODEL")
+        if env_refl:
+            config.reflection_model = env_refl
+        env_cost = os.getenv("EVOLUTION_MAX_COST_USD")
+        if env_cost:
+            try:
+                config.max_cost_usd = float(env_cost)
+            except ValueError:
+                pass  # invalid numeric → keep previous layer
 
         # ── CLI overrides (highest priority) ───────────────────────────────
         if overrides.get("api_base"):
@@ -137,6 +162,14 @@ class EvolutionConfig:
             config.iterations = overrides["iterations"]
         if overrides.get("hermes_repo"):
             config.hermes_agent_path = Path(overrides["hermes_repo"])
+        # Phase 13: reflection_model + max_cost_usd CLI overrides
+        if overrides.get("reflection_model") is not None:
+            config.reflection_model = overrides["reflection_model"]
+        if overrides.get("max_cost_usd") is not None:
+            try:
+                config.max_cost_usd = float(overrides["max_cost_usd"])
+            except (TypeError, ValueError):
+                pass
 
         # ── Literal-key warning (loud, not fatal) ─────────────────────────
         # Emit once at load time so users see it every run until they migrate

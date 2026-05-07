@@ -1,0 +1,47 @@
+=== correct_params value-type distribution ===
+total_examples=324
+empty_dict_count=89
+examples_with_any_params=235
+nested_dict_count=7
+
+[train] {'str': 196, 'dict': 2, 'bool': 4, 'list': 9, 'int': 13, 'float': 1}
+[val] {'str': 81, 'dict': 3, 'int': 6, 'bool': 6, 'list': 7, 'float': 1}
+[holdout] {'str': 86, 'bool': 5, 'int': 7, 'list': 3, 'dict': 2, 'float': 1}
+
+=== overall by type ===
+str_count=363
+int_count=26
+list_count=19
+bool_count=15
+dict_count=7
+float_count=3
+
+=== sample values per type ===
+-- bool --
+  [train] 'full' = False
+  [train] 'full' = True
+  [train] 'full' = True
+-- dict --
+  [train] 'service_data' = {'entity_id': 'light.bedroom_ceiling', 'color_name': 'warm white', 'brightness_pct': 65, 'transition': 2}
+  [train] 'service_data' = {'entity_id': 'lock.front_door'}
+  [val] 'service_data' = {'entity_id': 'light.living_room_ceiling', 'brightness': 180, 'color_temp': 2700, 'transition': 3}
+-- float --
+  [train] 'value' = 0.987
+  [val] 'value' = 0.25
+  [holdout] 'value' = 0.995
+-- int --
+  [train] 'offset' = 49
+  [train] 'limit' = 11
+  [train] 'offset' = 49
+-- list --
+  [train] 'skills' = ['ha_get_state', 'send_message']
+  [train] 'tasks' = [{'goal': 'Check OpenWeatherMap API documentation for free-tier AQI support', 'context': 'Focus only on free tier (no subscription required); look for endpoints or features related to air quality index (AQI) for any city.'}, {'goal': 'Check WeatherAPI.com documentation for free-tier AQI support', 'context': 'Focus only on free tier (no subscription required); look for endpoints or features related to air quality index (AQI) for any city.'}]
+  [train] 'choices' = ['A) Replace the smart door lock battery immediately — prioritizes security despite higher effort.', 'B) Replace the motion sensor battery now, and schedule the lock battery replacement for 7 days from now — balances effort and risk.', "C) Temporarily disable the garage motion sensor to extend the lock's battery life by ~3 weeks, while closely monitoring the lock's status.", 'Other: [Please explain your preference and reasoning]']
+-- str --
+  [train] 'action' = 'add'
+  [train] 'target' = 'user'
+  [train] 'new_text' = 'Prefers snake_case for all Python variable names and in docstrings; dislikes kebab-case in comments.'
+
+=== recommendation ===
+NORMALIZATION_RULE=strip_plus_coerce
+# multi-type (types seen: ['bool', 'dict', 'float', 'int', 'list', 'str']); apply strip + try int/float/bool coerce

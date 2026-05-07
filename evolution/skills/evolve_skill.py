@@ -38,23 +38,42 @@ def evolve(
     iterations: int = 10,
     eval_source: str = "synthetic",
     dataset_path: Optional[str] = None,
-    optimizer_model: str = "openai/gpt-4.1",
-    eval_model: str = "openai/gpt-4.1-mini",
+    optimizer_model: Optional[str] = None,
+    eval_model: Optional[str] = None,
     hermes_repo: Optional[str] = None,
     run_tests: bool = False,
     dry_run: bool = False,
+    model: Optional[str] = None,
+    api_base: Optional[str] = None,
 ):
-    """Main evolution function — orchestrates the full optimization loop."""
+    """Main evolution function — orchestrates the full optimization loop.
 
-    config = EvolutionConfig(
+    Args:
+        skill_name: Skill to evolve (looked up under hermes-agent/skills/).
+        iterations: Number of GEPA optimization iterations.
+        eval_source: Dataset source ('synthetic', 'golden', 'sessiondb').
+        dataset_path: Path to existing eval dataset (when not synthesizing).
+        optimizer_model: Override the optimizer (GEPA reflection) model.
+        eval_model: Override the eval (LLM-judge) model.
+        hermes_repo: Path to hermes-agent checkout.
+        run_tests: Run hermes-agent pytest as a constraint gate.
+        dry_run: Validate setup without optimizing.
+        model: Shorthand override — sets optimizer/eval/judge to the same model.
+        api_base: Custom OpenAI-compatible API base (honored via EvolutionConfig.get_lm_kwargs).
+    """
+
+    config = EvolutionConfig.load(
         iterations=iterations,
-        optimizer_model=optimizer_model,
-        eval_model=eval_model,
-        judge_model=eval_model,  # Use same model for dataset generation
-        run_pytest=run_tests,
+        hermes_repo=hermes_repo,
+        model=model,
+        api_base=api_base,
     )
-    if hermes_repo:
-        config.hermes_agent_path = Path(hermes_repo)
+    if optimizer_model:
+        config.optimizer_model = optimizer_model
+    if eval_model:
+        config.eval_model = eval_model
+        config.judge_model = eval_model
+    config.run_pytest = run_tests
 
     # ── 1. Find and load the skill ──────────────────────────────────────
     console.print(f"\n[bold cyan]🧬 Hermes Agent Self-Evolution[/bold cyan] — Evolving skill: [bold]{skill_name}[/bold]\n")
@@ -90,7 +109,7 @@ def evolve(
             skill_text=skill["raw"],
             sources=["claude-code", "copilot", "hermes"],
             output_path=save_path,
-            model=eval_model,
+            model=config.eval_model,
         )
         if not dataset.all_examples:
             console.print("[red]✗ No relevant examples found from session history[/red]")
@@ -134,11 +153,11 @@ def evolve(
     # ── 4. Set up DSPy + GEPA optimizer ─────────────────────────────────
     console.print(f"\n[bold]Configuring optimizer[/bold]")
     console.print(f"  Optimizer: GEPA ({iterations} iterations)")
-    console.print(f"  Optimizer model: {optimizer_model}")
-    console.print(f"  Eval model: {eval_model}")
+    console.print(f"  Optimizer model: {config.optimizer_model}")
+    console.print(f"  Eval model: {config.eval_model}")
 
     # Configure DSPy
-    lm = dspy.LM(eval_model)
+    lm = dspy.LM(config.eval_model, **config.get_lm_kwargs())
     dspy.configure(lm=lm)
 
     # Create the baseline skill module
@@ -270,8 +289,8 @@ def evolve(
         "skill_name": skill_name,
         "timestamp": timestamp,
         "iterations": iterations,
-        "optimizer_model": optimizer_model,
-        "eval_model": eval_model,
+        "optimizer_model": config.optimizer_model,
+        "eval_model": config.eval_model,
         "baseline_score": avg_baseline,
         "evolved_score": avg_evolved,
         "improvement": improvement,
@@ -301,12 +320,14 @@ def evolve(
 @click.option("--eval-source", default="synthetic", type=click.Choice(["synthetic", "golden", "sessiondb"]),
               help="Source for evaluation dataset")
 @click.option("--dataset-path", default=None, help="Path to existing eval dataset (JSONL)")
-@click.option("--optimizer-model", default="openai/gpt-4.1", help="Model for GEPA reflections")
-@click.option("--eval-model", default="openai/gpt-4.1-mini", help="Model for evaluations")
+@click.option("--optimizer-model", default=None, help="Override model for GEPA reflections")
+@click.option("--eval-model", default=None, help="Override model for evaluations")
 @click.option("--hermes-repo", default=None, help="Path to hermes-agent repo")
 @click.option("--run-tests", is_flag=True, help="Run full pytest suite as constraint gate")
 @click.option("--dry-run", is_flag=True, help="Validate setup without running optimization")
-def main(skill, iterations, eval_source, dataset_path, optimizer_model, eval_model, hermes_repo, run_tests, dry_run):
+@click.option("--model", default=None, help="Override model for all LLM calls (e.g. openai/qwen-plus)")
+@click.option("--api-base", default=None, help="Override API base URL (e.g. https://dashscope.aliyuncs.com/compatible-mode/v1)")
+def main(skill, iterations, eval_source, dataset_path, optimizer_model, eval_model, hermes_repo, run_tests, dry_run, model, api_base):
     """Evolve a Hermes Agent skill using DSPy + GEPA optimization."""
     evolve(
         skill_name=skill,
@@ -318,6 +339,8 @@ def main(skill, iterations, eval_source, dataset_path, optimizer_model, eval_mod
         hermes_repo=hermes_repo,
         run_tests=run_tests,
         dry_run=dry_run,
+        model=model,
+        api_base=api_base,
     )
 
 

@@ -195,7 +195,24 @@ Plans:
   1. ToolModule exposes per-parameter descriptions as independently optimizable parameters
   2. GEPA can mutate individual param descriptions while tool-level description stays frozen
   3. Constraint checks enforce max_param_desc_size (200 chars) per parameter
-**Plans**: TBD
+**Plans:** 8 plans
+
+Plans:
+**Wave 1**
+- [ ] 13-01-PLAN.md — Wave 0 test scaffolding (8 RED test files + mock_lm_with_usage fixture) + correct_params type inspection script
+- [ ] 13-02-PLAN.md — ToolModule sub-Module-per-tool pattern + ToolSelectionWithParamsSignature (D-01/D-02/D-03/D-04/D-05/D-18)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 13-03-PLAN.md — joint_tool_param_metric + ScoreWithFeedback variant (D-10/D-17, Pitfalls 4+7)
+- [ ] 13-04-PLAN.md — ParamConsistencyChecker with fail-closed polarity inversion (D-11, Pitfall 5)
+- [ ] 13-05-PLAN.md — EvolutionConfig.max_cost_usd + reflection_model + cost_tracker module (D-08/D-13, folded-todo closure)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 13-06-PLAN.md — persist_per_tool_rates helper (D-12, folded-todo closure)
+- [ ] 13-07-PLAN.md — V1BaselineGate module with historical + inline fallback (D-14, Pitfall 8)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 13-08-PLAN.md — evolve_tool_params CLI end-to-end pipeline (D-06/D-07/D-08/D-15/D-15a, folded-todo closure)
 
 ### Phase 14: SessionDB Mining for Tools
 **Goal**: Mine hermes-agent session transcripts for tool misselection patterns as high-value training data

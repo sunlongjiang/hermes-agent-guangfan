@@ -1,128 +1,184 @@
 # External Integrations
 
-**Analysis Date:** 2026-04-15
+**Analysis Date:** 2026-05-06
 
-## APIs & External Services
+## Summary
 
-**LLM Providers (via DSPy `dspy.LM()`):**
-- OpenAI API - Primary LLM provider for optimization and evaluation
-  - SDK/Client: `openai>=1.0.0` (used transitively through DSPy)
-  - Auth: `OPENAI_API_KEY` env var (managed by DSPy/LiteLLM)
-  - Models used: `openai/gpt-4.1`, `openai/gpt-4.1-mini`
-  - Usage: `evolution/core/fitness.py` (LLM-as-judge), `evolution/core/dataset_builder.py` (synthetic generation), `evolution/skills/evolve_skill.py` (optimization loop)
-
-- OpenRouter - Alternative LLM routing service
-  - SDK/Client: Accessed via DSPy's LiteLLM integration (no separate SDK)
-  - Auth: `OPENROUTER_API_KEY` env var
-  - Models used: `openrouter/google/gemini-2.5-flash` (default for external importers CLI)
-  - Usage: `evolution/core/external_importers.py` line 739
-
-- Any LiteLLM-compatible provider - DSPy's `dspy.LM()` accepts any LiteLLM model string
-  - Example from Phase 1 validation: MiniMax M2.5 via OpenRouter
-
-**Hermes Agent Repository (filesystem integration):**
-- The hermes-agent repo is read from disk (never modified directly)
-  - Discovery: `evolution/core/config.py` `get_hermes_agent_path()`
-  - Priority: `HERMES_AGENT_REPO` env var > `~/.hermes/hermes-agent` > `../hermes-agent`
-  - Reads: `skills/<category>/<skill>/SKILL.md` files
-  - Implementation: `evolution/skills/skill_module.py` `find_skill()` and `load_skill()`
-
-## Data Storage
-
-**Databases:**
-- None - No database used. All data is file-based.
-
-**File Storage:**
-- Local filesystem only
-  - Eval datasets: `datasets/skills/<skill-name>/train.jsonl`, `val.jsonl`, `holdout.jsonl`
-  - Eval datasets: `datasets/tools/` (placeholder, not yet used)
-  - Evolution output: `output/<skill-name>/<timestamp>/` containing `evolved_skill.md`, `baseline_skill.md`, `metrics.json`
-  - Reports: `reports/phase1_validation_report.pdf`
-
-**Caching:**
-- None at application level. DSPy may cache LLM calls internally.
-
-## Authentication & Identity
-
-**Auth Provider:**
-- None - CLI tool, no user authentication
-- LLM API keys managed via environment variables (standard for OpenAI/LiteLLM)
-
-## External Data Sources (Session Importers)
-
-The external importers in `evolution/core/external_importers.py` read local files from other AI tools:
-
-**Claude Code:**
-- Source: `~/.claude/history.jsonl`
-- Format: JSONL with `display`, `timestamp`, `project`, `sessionId` fields
-- Reads: User messages only (no assistant responses available)
-- Implementation: `ClaudeCodeImporter` class (line 157)
-
-**GitHub Copilot:**
-- Source: `~/.copilot/session-state/<session-id>/events.jsonl`
-- Format: JSONL stream of `user.message` / `assistant.message` events
-- Also reads: `~/.copilot/session-state/<session-id>/workspace.yaml` for project context
-- Implementation: `CopilotImporter` class (line 210)
-
-**Hermes Agent Sessions:**
-- Source: `~/.hermes/sessions/*.json`
-- Format: JSON with OpenAI-format message list (user, assistant, tool roles)
-- Implementation: `HermesSessionImporter` class (line 334)
-
-**Hermes Skills (standalone CLI mode):**
-- Source: `~/.hermes/skills/<skill-name>/SKILL.md`
-- Used by: `_load_skill_text()` in `evolution/core/external_importers.py` line 696
-
-## Monitoring & Observability
-
-**Error Tracking:**
-- None - Errors printed to console via `rich.console.Console`
-
-**Logs:**
-- Console output only via `rich` library (colored output, progress bars, tables)
-- No structured logging framework
-
-## CI/CD & Deployment
-
-**Hosting:**
-- Not deployed as a service. CLI tool run locally.
-
-**CI Pipeline:**
-- None detected (no `.github/workflows/`, no CI config files)
-
-**Deployment model:**
-- Evolution results are saved locally to `output/` directory
-- Designed to create PRs against hermes-agent repo (`config.create_pr = True` in `evolution/core/config.py` line 44) but PR creation is not yet implemented in code
-
-## Environment Configuration
-
-**Required env vars:**
-- LLM API key (one of): `OPENAI_API_KEY` or `OPENROUTER_API_KEY` (depends on chosen model string)
-- `HERMES_AGENT_REPO` (optional) - Path to hermes-agent repo if not at standard location
-
-**Optional env vars:**
-- Any LiteLLM-supported provider env vars (e.g., `ANTHROPIC_API_KEY`)
-
-**Secrets location:**
-- `.env` file is in `.gitignore` but no `.env` file exists currently
-- All secrets managed via environment variables
-
-## Webhooks & Callbacks
-
-**Incoming:**
-- None
-
-**Outgoing:**
-- None (PR creation is planned but not yet implemented)
-
-## Security Features
-
-**Secret Detection in Imported Data:**
-- `evolution/core/external_importers.py` lines 45-70 define `SECRET_PATTERNS` regex
-- Checks for: API keys (Anthropic, OpenRouter, OpenAI, GitHub, Slack, Notion, AWS), Bearer tokens, PEM private keys, password/secret/token assignments
-- Applied via `_contains_secret()` to all imported session messages before including in datasets
-- Task inputs capped at 2000 chars (`_validate_eval_example()` line 111)
+This is a CLI optimization tool, not a deployed service. It has **no inbound HTTP**, no databases, no message queues, no auth providers, no monitoring SDKs, and no CI/CD. The only network integration is **outbound LLM API calls** (routed through DSPy/LiteLLM). The only stateful external dependency is the **`hermes-agent` repository** read from the local filesystem.
 
 ---
 
-*Integration audit: 2026-04-15*
+## LLM Inference (Only Runtime API Integration)
+
+All calls go through `dspy.LM(model, api_base=..., api_key=...)` via LiteLLM, so any OpenAI-compatible endpoint works. Wired through `EvolutionConfig.get_lm_kwargs()` at `evolution/core/config.py:51-58`.
+
+### OpenAI
+
+- **Defaults:** `openai/gpt-4.1` (optimizer), `openai/gpt-4.1-mini` (eval), `openai/gpt-4.1` (judge) — `evolution/core/config.py:22-24`
+- **Auth:** `OPENAI_API_KEY` env var (consumed transitively by DSPy/LiteLLM)
+- **SDK:** `openai>=1.0.0` declared in `pyproject.toml`, used transitively only
+
+### OpenRouter
+
+- **Default for session importers:** `openrouter/google/gemini-2.5-flash` — `evolution/core/external_importers.py:739`
+- **Auth:** `OPENROUTER_API_KEY` env var
+- **No `api_base` needed** — LiteLLM routes the `openrouter/` prefix automatically
+
+### Qwen / DashScope (Currently Active)
+
+- **`evolution.yaml`** sets `openai/qwen-max` (optimizer) + `openai/qwen-plus` (eval) against `https://dashscope.aliyuncs.com/compatible-mode/v1`
+- The `openai/` prefix triggers OpenAI-compatible mode in LiteLLM; `api_base` redirects to DashScope
+
+### Other Documented Backends (`evolution.example.yaml`)
+
+- Claude via OpenAI-compatible proxy
+- OpenRouter multi-model
+- Local vLLM/Ollama at `http://localhost:8000/v1`
+
+---
+
+## External Repository (Read-Only Filesystem Dependency)
+
+**`hermes-agent`** — discovered by `get_hermes_agent_path()` at `evolution/core/config.py:120-145`.
+
+**Resolution chain (first match wins):**
+1. `HERMES_AGENT_REPO` env var (path is `expanduser`'d)
+2. `~/.hermes/hermes-agent` (standard install location)
+3. `../hermes-agent` (sibling directory)
+
+Raises `FileNotFoundError` (`config.py:142-145`) if none exist.
+
+**Read access:** Tool source files (`hermes-agent/tools/*.py`), prompt builder (`hermes-agent/agent/prompt_builder.py`), tests (`hermes-agent/tests/`).
+
+**Write access:** Yes — `evolution/tools/tool_loader.py:578` (`write_back_description`) and `evolution/prompts/prompt_loader.py:182` write back to hermes-agent. **CLAUDE.md states "read-only access" but this is a documentation contract, not enforced by code.** See CONCERNS.md M6.
+
+**Test invocation:** `evolution/core/constraints.py` may invoke `pytest` against this repo when `run_pytest=True` (benchmark gating).
+
+---
+
+## Data Storage
+
+**No databases.** No PostgreSQL, no Redis, no SQLite, no message queues, no caches.
+
+**Local filesystem only:**
+- Datasets: `datasets/skills/<name>/{train,val,holdout}.jsonl`, `datasets/tools/`, `datasets/prompts/`
+- Evolution outputs: `output/<phase>/<timestamp>/` — gitignore status: see CONCERNS.md H4
+- Reports: `reports/`
+
+---
+
+## Auth / Identity
+
+- **None for end users** — this is a CLI tool, no login flows
+- **LLM provider auth** via env vars or the `api_key` field in `evolution.yaml`
+- **No `.env` auto-loading** — the codebase does not import `python-dotenv`; users must export vars themselves
+
+---
+
+## Monitoring / Observability
+
+- **No error tracking SDK** (no Sentry, Datadog, Honeycomb, etc.)
+- **No `logging` module usage** anywhere in `evolution/`
+- All output via `rich.console.Console` markup and `rich.progress.Progress`
+- Bare `print()` only in `generate_report.py`
+- Per-run JSON metrics dumped under `output/`; no external metrics service
+
+---
+
+## CI/CD
+
+**None detected.** Verified absent:
+- No `.github/workflows/`
+- No `.gitlab-ci.yml`, `.circleci/`, `azure-pipelines.yml`, `bitbucket-pipelines.yml`, `Jenkinsfile`, `.travis.yml`
+
+**Distribution:** PEP 517 sdist/wheel via setuptools; install with `pip install .` (or `.[dev]` / `.[darwinian]`).
+
+---
+
+## Session Importers (Filesystem Integrations with External AI Tools)
+
+All in `evolution/core/external_importers.py`; all read-only, all expose static `extract_messages()` returning normalized dicts.
+
+### Claude Code
+
+- **Class:** `ClaudeCodeImporter` (lines 157-209)
+- **Source:** `~/.claude/history.jsonl` (`HISTORY_PATH` constant, line 165)
+- **Format:** Flat JSONL of user inputs only (no assistant turns)
+- **Tagged:** `"source": "claude-code"` (line 197)
+
+### GitHub Copilot
+
+- **Class:** `CopilotImporter` (lines 210-332)
+- **Source:** `~/.copilot/session-state/<id>/events.jsonl` (`SESSION_DIR` constant, line 222)
+- **Format:** Event stream JSONL with sibling `workspace.yaml` parsed by `_read_copilot_workspace` (line 260)
+- **Tagged:** `"source": "copilot"` (lines 299, 321)
+
+### Hermes Agent
+
+- **Class:** `HermesSessionImporter` (line 334+)
+- **Source:** `~/.hermes/sessions/*.json` (`SESSION_DIR` constant, lines 359-364)
+- **Format:** Per-session JSON with full conversation history
+
+### CLI Dispatch
+
+- Entry point: `evolution/core/external_importers.py:729-785`
+- Flags: `--source [claude-code|copilot|hermes|all] --skill <name> --model <model>`
+- Default model for relevance scoring: `openrouter/google/gemini-2.5-flash`
+
+### Secret Hygiene
+
+All messages screened by `_contains_secret()` against `SECRET_PATTERNS` and silently dropped on match before reaching the LLM. See CONCERNS.md M5 for coverage gaps.
+
+---
+
+## Environment Variables
+
+### Required (one of)
+
+- `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, or any provider key consumed transitively by DSPy/LiteLLM
+- Alternatively, set `api_key` in `evolution.yaml`
+
+### Optional (all read in `evolution/core/config.py`)
+
+- `HERMES_AGENT_REPO` (line 128) — overrides hermes-agent discovery
+- `EVOLUTION_API_BASE` (line 91) — overrides `evolution.yaml` `api_base`
+- `EVOLUTION_API_KEY` (line 94) — overrides `evolution.yaml` `api_key`
+- `EVOLUTION_MODEL` (line 97) — Phase 12 single-model override (sets optimizer + eval + judge)
+
+### Secret Storage Locations
+
+- `evolution.yaml` — gitignored; preferred for `api_key`. **Plaintext on disk** (see CONCERNS.md H5)
+- Shell env / `.env` — `.env` is gitignored but is **not auto-loaded** by the project
+
+---
+
+## Webhooks / Callbacks
+
+- **None incoming** — no HTTP server runs as part of this project
+- **None outgoing** beyond LLM API calls
+
+---
+
+## Files referenced
+
+- `pyproject.toml`
+- `evolution.yaml`
+- `evolution.example.yaml`
+- `.gitignore`
+- `evolution/core/config.py`
+- `evolution/core/external_importers.py`
+- `evolution/core/dataset_builder.py`
+- `evolution/core/fitness.py`
+- `evolution/core/constraints.py`
+- `evolution/skills/evolve_skill.py`
+- `evolution/skills/skill_module.py`
+- `evolution/tools/evolve_tool_descriptions.py`
+- `evolution/tools/tool_module.py`
+- `evolution/tools/tool_loader.py`
+- `evolution/prompts/evolve_prompt_sections.py`
+- `evolution/prompts/prompt_loader.py`
+- `generate_report.py`
+
+---
+
+*Integrations analysis: 2026-05-06*

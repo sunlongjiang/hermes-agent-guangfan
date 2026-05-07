@@ -1,186 +1,271 @@
-# Codebase Structure
+# Directory Structure
 
-**Analysis Date:** 2026-04-15
+**Analysis Date:** 2026-05-06
 
-## Directory Layout
+## Top-Level Layout
 
 ```
 hermes-agent-self-evolution/
-├── evolution/                  # Main Python package — all evolution logic
-│   ├── __init__.py             # Package root, exports __version__
-│   ├── core/                   # Shared infrastructure (config, data, fitness, constraints)
-│   │   ├── __init__.py         # Re-exports EvolutionConfig, get_hermes_agent_path
-│   │   ├── config.py           # EvolutionConfig dataclass + repo discovery
-│   │   ├── constraints.py      # ConstraintValidator — hard-gate checks
-│   │   ├── dataset_builder.py  # EvalExample, EvalDataset, SyntheticDatasetBuilder
-│   │   ├── external_importers.py  # Session importers (Claude Code, Copilot, Hermes) + CLI
-│   │   └── fitness.py          # FitnessScore, LLMJudge, skill_fitness_metric
-│   ├── skills/                 # Phase 1: Skill evolution (IMPLEMENTED)
-│   │   ├── __init__.py
-│   │   ├── evolve_skill.py     # Main CLI + evolve() orchestrator
-│   │   └── skill_module.py     # SkillModule (DSPy Module), load/find/reassemble helpers
-│   ├── tools/                  # Phase 2: Tool description evolution (PLACEHOLDER)
-│   │   └── __init__.py
-│   ├── prompts/                # Phase 3: System prompt evolution (PLACEHOLDER)
-│   │   └── __init__.py
-│   ├── code/                   # Phase 4: Code evolution (PLACEHOLDER)
-│   │   └── __init__.py
-│   └── monitor/                # Phase 5: Continuous improvement (PLACEHOLDER)
-│       └── __init__.py
-├── datasets/                   # Eval dataset storage (JSONL, gitignored)
-│   ├── skills/                 # Per-skill eval datasets
-│   │   └── .gitkeep
-│   └── tools/                  # Per-tool eval datasets
-│       └── .gitkeep
-├── tests/                      # Pytest test suite
-│   ├── __init__.py
-│   ├── core/                   # Tests for evolution/core/
-│   │   ├── __init__.py
-│   │   ├── test_constraints.py
-│   │   └── test_external_importers.py
-│   └── skills/                 # Tests for evolution/skills/
-│       ├── __init__.py
-│       └── test_skill_module.py
-├── reports/                    # Generated reports (PDFs)
-│   └── phase1_validation_report.pdf
-├── generate_report.py          # Standalone report generator (uses ReportLab)
-├── pyproject.toml              # Project metadata, dependencies, pytest config
-├── PLAN.md                     # Full project plan (40KB)
-├── README.md                   # Project overview and quick start
-└── .gitignore                  # Ignores datasets/*.jsonl, .venv, .env, snapshots, IDE
+├── .claude/                   # Claude Code project configs
+├── .planning/                 # GSD planning artifacts (see below)
+├── .venv/                     # Local CPython 3.13.3 virtualenv (gitignored)
+├── .gitignore
+├── .idea/                     # JetBrains project config (gitignored-by-convention)
+├── CLAUDE.md                  # Agent instructions (project-level)
+├── PLAN.md                    # Top-level v1 plan snapshot (legacy — pre-GSD)
+├── README.md                  # User-facing pipeline docs + usage
+├── pyproject.toml             # Single source of truth for deps/build/pytest config
+├── evolution.yaml             # Multi-model backend config (gitignored, contains keys)
+├── evolution.example.yaml     # Safe template for evolution.yaml
+├── generate_report.py         # Standalone PDF report script (outside evolution/ pkg)
+├── evolution/                 # Main Python package — the pipeline code
+├── tests/                     # Test tree (mirrors evolution/)
+├── datasets/                  # Cached eval datasets (gitignored .jsonl)
+├── output/                    # Per-run evolution artifacts (NOT gitignored — see CONCERNS H4)
+└── reports/                   # Manual PDF reports from generate_report.py
 ```
-
-## Directory Purposes
-
-**`evolution/`:**
-- Purpose: All evolution logic as a single installable Python package
-- Contains: Core infrastructure + phase-specific subpackages
-- Key files: `evolution/__init__.py` (version), `evolution/core/` (shared), `evolution/skills/` (Phase 1)
-
-**`evolution/core/`:**
-- Purpose: Shared infrastructure used by all evolution phases
-- Contains: Configuration, dataset building, fitness evaluation, constraint validation, external importers
-- Key files: `config.py`, `dataset_builder.py`, `external_importers.py`, `fitness.py`, `constraints.py`
-
-**`evolution/skills/`:**
-- Purpose: Phase 1 implementation — evolve SKILL.md files
-- Contains: DSPy module wrapper, skill loader, main CLI orchestrator
-- Key files: `evolve_skill.py` (entry point), `skill_module.py` (DSPy module)
-
-**`evolution/tools/`, `evolution/prompts/`, `evolution/code/`, `evolution/monitor/`:**
-- Purpose: Placeholder packages for Phases 2-5
-- Contains: Only `__init__.py` with docstring
-- Key files: None yet — these are empty stubs
-
-**`datasets/`:**
-- Purpose: Store evaluation datasets per skill/tool (JSONL files)
-- Contains: `skills/` and `tools/` subdirectories, both empty with `.gitkeep`
-- Generated: Yes — created by dataset builders and importers
-- Committed: No — JSONL/JSON files are gitignored
-
-**`tests/`:**
-- Purpose: Pytest test suite mirroring `evolution/` structure
-- Contains: Unit tests for core and skills modules
-- Key files: `tests/core/test_constraints.py`, `tests/core/test_external_importers.py`, `tests/skills/test_skill_module.py`
-
-**`reports/`:**
-- Purpose: Generated PDF validation reports
-- Contains: Phase 1 validation report
-- Generated: Yes — via `generate_report.py`
-- Committed: Yes — the PDF is tracked in git
-
-## Key File Locations
-
-**Entry Points:**
-- `evolution/skills/evolve_skill.py`: Main CLI for skill evolution (`python -m evolution.skills.evolve_skill`)
-- `evolution/core/external_importers.py`: CLI for session import (`python -m evolution.core.external_importers`)
-- `generate_report.py`: Standalone report generator (`python generate_report.py`)
-
-**Configuration:**
-- `pyproject.toml`: Project metadata, dependencies, pytest config
-- `evolution/core/config.py`: Runtime configuration (`EvolutionConfig` dataclass)
-- `.gitignore`: Defines what is not committed (datasets, snapshots, venv)
-
-**Core Logic:**
-- `evolution/core/dataset_builder.py`: Eval dataset generation and management
-- `evolution/core/external_importers.py`: Session importers + relevance filtering (largest file, 785 lines)
-- `evolution/core/fitness.py`: Fitness scoring (LLM-as-judge + heuristic)
-- `evolution/core/constraints.py`: Constraint validation gates
-- `evolution/skills/skill_module.py`: DSPy module wrapper for skills
-
-**Testing:**
-- `tests/core/test_constraints.py`: Constraint validator tests
-- `tests/core/test_external_importers.py`: External importer tests (comprehensive)
-- `tests/skills/test_skill_module.py`: Skill module tests
-
-## Naming Conventions
-
-**Files:**
-- Snake case for all Python files: `evolve_skill.py`, `dataset_builder.py`
-- Test files prefixed with `test_`: `test_constraints.py`, `test_external_importers.py`
-- Constants files are uppercase: `SKILL.md`, `PLAN.md`
-
-**Directories:**
-- Snake case for Python packages: `evolution/core/`, `evolution/skills/`
-- Lowercase for data directories: `datasets/`, `reports/`
-- Test directories mirror source structure: `tests/core/` mirrors `evolution/core/`
-
-**Modules:**
-- Each `__init__.py` has a docstring describing the package's purpose/phase
-- Core `__init__.py` re-exports key symbols: `EvolutionConfig`, `get_hermes_agent_path`
-
-## Where to Add New Code
-
-**New Evolution Phase (e.g., Phase 2 - Tool Descriptions):**
-- Implementation: `evolution/tools/` (stub already exists)
-- Add modules following the Phase 1 pattern:
-  - `evolution/tools/tool_module.py` — DSPy module wrapping tool descriptions
-  - `evolution/tools/evolve_tool.py` — CLI orchestrator
-- Tests: `tests/tools/test_tool_module.py`
-- Datasets: `datasets/tools/<tool_name>/` (directory exists)
-
-**New Core Infrastructure:**
-- Implementation: `evolution/core/<module_name>.py`
-- Tests: `tests/core/test_<module_name>.py`
-- Re-export in `evolution/core/__init__.py` if it's a key public symbol
-
-**New Session Importer:**
-- Add a new class in `evolution/core/external_importers.py` following the `ClaudeCodeImporter` / `CopilotImporter` / `HermesSessionImporter` pattern
-- Register in the `importers` dict in `build_dataset_from_external()` (line 632)
-- Add to CLI `--source` choices (line 731)
-
-**New Constraint:**
-- Add method to `ConstraintValidator` in `evolution/core/constraints.py`
-- Call it from `validate_all()` method
-- Add test class in `tests/core/test_constraints.py`
-
-**New Fitness Dimension:**
-- Add field to `FitnessScore` dataclass in `evolution/core/fitness.py`
-- Update `composite` property weights
-- Add field to `LLMJudge.JudgeSignature`
-
-**Utilities/Helpers:**
-- If specific to a phase: add to that phase's package
-- If shared across phases: add to `evolution/core/`
-
-## Special Directories
-
-**`output/` (not in repo):**
-- Purpose: Evolution run outputs (evolved skills, metrics, baselines)
-- Generated: Yes — created at runtime by `evolve_skill.py`
-- Committed: No — not in .gitignore but not tracked
-- Structure: `output/<skill_name>/<timestamp>/` with `evolved_skill.md`, `baseline_skill.md`, `metrics.json`
-
-**`snapshots/` (not in repo):**
-- Purpose: DSPy optimization snapshots (pickled state)
-- Generated: Yes — by DSPy during optimization
-- Committed: No — explicitly gitignored
-
-**`.venv/`:**
-- Purpose: Python virtual environment
-- Generated: Yes
-- Committed: No
 
 ---
 
-*Structure analysis: 2026-04-15*
+## `evolution/` Package
+
+```
+evolution/
+├── __init__.py
+├── core/                      # Shared infrastructure (used by all pipelines)
+│   ├── __init__.py
+│   ├── config.py              # EvolutionConfig + get_hermes_agent_path + YAML/env/CLI override layer
+│   ├── constraints.py         # ConstraintValidator + ConstraintResult (size/growth/non-empty/structure)
+│   ├── dataset_builder.py     # EvalExample, EvalDataset, SyntheticDatasetBuilder, GoldenDatasetLoader
+│   ├── external_importers.py  # ClaudeCode/Copilot/Hermes session importers + RelevanceFilter + CLI
+│   └── fitness.py             # FitnessScore + LLMJudge + skill_fitness_metric (heuristic proxy)
+│
+├── skills/                    # Phase 1 — skill SKILL.md evolution
+│   ├── __init__.py
+│   ├── evolve_skill.py        # CLI entry point `python -m evolution.skills.evolve_skill`
+│   └── skill_module.py        # SkillModule(dspy.Module) wrapping a single SKILL.md
+│
+├── tools/                     # Phases 2-5 — tool description evolution
+│   ├── __init__.py
+│   ├── tool_loader.py         # AST+regex extraction, ToolDescription/ToolParam dataclasses, write-back
+│   ├── tool_module.py         # ToolModule(dspy.Module) — one dspy.Predict per tool description
+│   ├── tool_dataset.py        # ToolSelectionExample/Dataset, ToolDatasetBuilder (synthetic + confuser)
+│   ├── tool_metric.py         # tool_selection_metric (binary), CrossToolRegressionChecker
+│   ├── tool_constraints.py    # ToolFactualChecker (LLM-based accuracy gate)
+│   └── evolve_tool_descriptions.py  # CLI entry point
+│
+├── prompts/                   # Phases 7-10 — prompt_builder.py section evolution
+│   ├── __init__.py
+│   ├── prompt_loader.py       # AST extraction of 5 sections + write-back preserving structure
+│   ├── prompt_module.py       # PromptModule(dspy.Module) — per-section optimization with frozen context
+│   ├── prompt_dataset.py      # Behavioral scenarios per section (80 total across 5 sections)
+│   ├── prompt_metric.py       # PromptBehavioralMetric — heuristic + full-LLM scoring paths
+│   ├── prompt_constraints.py  # PromptRoleChecker (LLM role preservation gate)
+│   └── evolve_prompt_sections.py   # CLI entry point
+│
+├── code/                      # Phase 21 placeholder (Darwinian code evolution) — empty package
+│   └── __init__.py
+└── monitor/                   # Phase 22 placeholder (continuous evolution loop) — empty package
+    └── __init__.py
+```
+
+### Key locations
+
+- **CLI entry points** (always `evolve_*.py`): `evolution/skills/evolve_skill.py`, `evolution/tools/evolve_tool_descriptions.py`, `evolution/prompts/evolve_prompt_sections.py`, `evolution/core/external_importers.py` (session import CLI)
+- **DSPy module wrappers**: `evolution/skills/skill_module.py`, `evolution/tools/tool_module.py`, `evolution/prompts/prompt_module.py` — each inherits `dspy.Module`; the wrapped text artifact becomes a GEPA-optimizable parameter
+- **Dataset classes**: per-pipeline builders in each subpackage; shared base patterns in `evolution/core/dataset_builder.py`
+- **Fitness/metric**: `evolution/core/fitness.py` provides `LLMJudge` + heuristic `skill_fitness_metric`; tool/prompt pipelines each have domain-specific metric modules
+- **Constraints**: shared base `ConstraintValidator` in `evolution/core/constraints.py`; per-pipeline LLM-based checkers in `tool_constraints.py` / `prompt_constraints.py`
+- **Config**: single dataclass `EvolutionConfig` in `evolution/core/config.py` with `.load()` classmethod implementing YAML → env → CLI precedence
+
+---
+
+## `tests/` Tree
+
+Mirrors the `evolution/` layout. Tests are NOT co-located with source.
+
+```
+tests/
+├── __init__.py
+├── core/
+│   ├── __init__.py
+│   ├── test_constraints.py             # 16 tests
+│   └── test_external_importers.py      # 116 tests (largest suite)
+├── skills/
+│   ├── __init__.py
+│   └── test_skill_module.py            # 7 tests
+├── tools/
+│   ├── __init__.py
+│   ├── test_evolve_tool_descriptions.py  # 4 tests (CLI surface)
+│   ├── test_tool_constraints.py          # 21 tests
+│   ├── test_tool_dataset.py              # 16 tests
+│   ├── test_tool_loader.py               # 40 tests (real-hermes skip-gated)
+│   ├── test_tool_metric.py               # 17 tests
+│   └── test_tool_module.py               # 9 tests
+└── prompts/
+    ├── __init__.py
+    ├── test_evolve_prompt_sections.py  # 6 tests (CLI surface)
+    ├── test_prompt_constraints.py      # 25 tests
+    ├── test_prompt_dataset.py          # 15 tests
+    ├── test_prompt_loader.py           # 9 tests
+    ├── test_prompt_metric.py           # 14 tests
+    └── test_prompt_module.py           # 14 tests
+```
+
+Total: 15 test files, 329 tests. See `TESTING.md` for detailed coverage.
+
+**Coverage gap directories:** no `tests/skills/test_evolve_skill.py`, no `tests/core/test_config.py`, no `tests/core/test_dataset_builder.py`, no `tests/core/test_fitness.py` — see CONCERNS L2 / `TESTING.md` § Coverage gaps.
+
+---
+
+## `.planning/` (GSD Artifacts)
+
+```
+.planning/
+├── PROJECT.md                 # Project vision, validated/active/out-of-scope requirements
+├── REQUIREMENTS.md            # Full requirement list + traceability matrix (phase → requirement)
+├── ROADMAP.md                 # Phase plan with success criteria (v1 milestone + v2.0 milestone)
+├── STATE.md                   # Current position (milestone/phase/plan), progress bars, session continuity
+├── config.json                # GSD workflow toggles
+├── codebase/                  # ← This set of documents (STACK/ARCHITECTURE/STRUCTURE/CONVENTIONS/TESTING/INTEGRATIONS/CONCERNS)
+├── research/                  # v2 research artifacts (STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md, SUMMARY.md)
+└── phases/                    # Per-phase plan/research/context/verification folders
+    ├── 02-tool-loading/
+    ├── 03-tool-module/
+    ├── 04-tool-dataset-evaluation/
+    ├── 05-tool-constraints-cli/
+    ├── 06-tool-pipeline-tests/     # SKIPPED — no source files
+    ├── 07-prompt-loading/
+    ├── 08-prompt-module/
+    ├── 09-prompt-evaluation/
+    ├── 10-prompt-constraints-cli/
+    ├── 11-prompt-pipeline-tests/   # SKIPPED — no source files
+    └── 12-v1-stabilization/
+```
+
+**Phase numbering:** Continuous across milestones — v2.0 starts at Phase 13 (not reset). Phase 01 is the Phase 1 skill pipeline (complete, predates this .planning directory structure).
+
+Each active phase folder contains some subset of:
+- `<NN>-CONTEXT.md` — discussion artifact (decisions for downstream agents)
+- `<NN>-RESEARCH.md` — how-to-implement research
+- `<NN>-<MM>-PLAN.md` — one plan per sub-task (0-indexed within phase)
+- `<NN>-<MM>-SUMMARY.md` — execution summary
+- `<NN>-VALIDATION.md` — Nyquist validation report
+- `<NN>-VERIFICATION.md` — goal-backward verification
+- `<NN>-REVIEW.md` / `<NN>-REVIEW-FIX.md` — code review and fixes
+
+---
+
+## Runtime / Output Directories
+
+```
+datasets/
+├── skills/<skill-name>/       # Cached skill eval datasets (train/val/holdout.jsonl)
+├── tools/                     # Cached tool selection datasets
+└── prompts/                   # Cached prompt behavioral datasets
+```
+
+All `*.jsonl` files under `datasets/` are gitignored (`datasets/**/*.jsonl`).
+
+```
+output/                        # ⚠️ NOT in .gitignore — see CONCERNS.md H4
+├── skills/<skill-name>/<YYYYMMDD_HHMMSS>/   # Per-run artifacts
+├── tools/<YYYYMMDD_HHMMSS>/
+└── prompts/<YYYYMMDD_HHMMSS>/
+```
+
+Each run directory contains:
+- `evolved_*.json` — the evolved artifact (tool descriptions, skill text, prompt sections)
+- `metrics.json` — baseline_score, evolved_score, iterations, elapsed_seconds, constraints_passed
+- `diff.txt` — unified diff between baseline and evolved text
+- Occasionally `FAILED_<timestamp>/` directories with failure metadata
+
+```
+reports/
+└── <name>.pdf                 # Manual PDF reports from generate_report.py
+```
+
+---
+
+## Naming Conventions (Cross-Repo)
+
+### Source modules
+
+- `snake_case.py` for all Python modules: `dataset_builder.py`, `evolve_skill.py`, `external_importers.py`
+- Test files: `test_<source-module>.py` (1:1 with source)
+- CLI entry points: `evolve_<artifact>.py` (e.g. `evolve_skill.py`, `evolve_tool_descriptions.py`, `evolve_prompt_sections.py`)
+- Standalone scripts at repo root: `snake_case.py` (e.g. `generate_report.py`)
+
+### Functions and variables
+
+- `snake_case` for all functions, methods, variables
+- `_private` underscore prefix for module-internal helpers
+- Static methods and class methods follow the same pattern
+
+### Constants
+
+- `UPPER_SNAKE_CASE`: `SECRET_PATTERNS`, `VALID_DIFFICULTIES`, `MIN_DATASET_SIZE`, `HISTORY_PATH`, `SESSION_DIR`
+- Numeric underscores for readability: `15_000`, `20_000`
+
+### Classes and types
+
+- `PascalCase`: `EvolutionConfig`, `ConstraintValidator`, `ConstraintResult`, `EvalExample`, `SyntheticDatasetBuilder`, `ToolDescription`, `ToolParam`
+- DSPy `Signature` classes are nested as **inner classes** of their consuming class (e.g. `class GenerateTestCases(dspy.Signature)` inside `SyntheticDatasetBuilder`)
+
+### Phase artifact naming
+
+- Phase folders: `<NN>-<kebab-case-slug>/` where `NN` is zero-padded phase number
+- Plan files: `<NN>-<MM>-PLAN.md` (MM = plan index within phase)
+
+---
+
+## Where Phase 13 Work Lands
+
+**Extension target:** `evolution/tools/` subpackage (not a new subdirectory).
+
+Per-parameter description optimization (TOOL-V2-02) extends these existing files:
+
+| File | Extension |
+|------|-----------|
+| `evolution/tools/tool_module.py` | Add per-parameter `dspy.Predict` alongside the existing per-tool predictors |
+| `evolution/tools/tool_dataset.py` | Extend `ToolSelectionExample` usage to exercise `correct_params` |
+| `evolution/tools/tool_metric.py` | Add per-param accuracy subscore; `CrossToolRegressionChecker` may gain persistence |
+| `evolution/tools/tool_constraints.py` | Wire `max_param_desc_size` (200 chars) per-param check (already supported in base `_check_size`) |
+| `evolution/tools/evolve_tool_descriptions.py` | Add `--granularity tool|param|both` flag (per v2 research FEATURES.md) |
+| `evolution/tools/tool_loader.py` | `ToolParam.description` field already exists; `write_back_description(param_name=...)` already supports per-param write |
+
+**No new top-level directories** — Phase 13 is a fan-out within the existing tools pipeline.
+
+---
+
+## Files Referenced
+
+- `/Users/slj/项目/hermes-agent-self-evolution/pyproject.toml`
+- `/Users/slj/项目/hermes-agent-self-evolution/CLAUDE.md`
+- `/Users/slj/项目/hermes-agent-self-evolution/README.md`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/core/config.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/core/constraints.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/core/dataset_builder.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/core/external_importers.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/core/fitness.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/skills/evolve_skill.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/skills/skill_module.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/tools/evolve_tool_descriptions.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/tools/tool_constraints.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/tools/tool_dataset.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/tools/tool_loader.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/tools/tool_metric.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/tools/tool_module.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/prompts/evolve_prompt_sections.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/prompts/prompt_constraints.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/prompts/prompt_dataset.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/prompts/prompt_loader.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/prompts/prompt_metric.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/evolution/prompts/prompt_module.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/generate_report.py`
+- `/Users/slj/项目/hermes-agent-self-evolution/.planning/ROADMAP.md`
+- `/Users/slj/项目/hermes-agent-self-evolution/.planning/research/FEATURES.md`
+
+---
+
+*Structure analysis: 2026-05-06*

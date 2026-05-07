@@ -1,11 +1,19 @@
-"""Binary tool selection metric and cross-tool regression detection.
+"""Tool selection metrics and cross-tool regression detection.
 
 Provides:
 - tool_selection_metric(): DSPy-compatible 0/1 metric for GEPA optimization
 - CrossToolRegressionChecker: Post-optimization gate detecting per-tool regression
+
+Phase 13 additions:
+- joint_tool_param_metric(): joint tool + param exact-match metric (D-10, D-17).
+  Use as acceptance gate / holdout scorer (returns plain float).
+- joint_tool_param_metric_with_feedback(): GEPA-facing ScoreWithFeedback variant
+  (Pitfall 7 mitigation). Returns dspy.Prediction(score, feedback) for attribute-
+  safe consumption by reflection_lm. Do NOT use for acceptance / holdout scoring.
 """
 
 import dspy
+import json
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
@@ -185,3 +193,244 @@ class CrossToolRegressionChecker:
             regressed_tools=regressed_tools,
             message=message,
         )
+
+
+# ── Joint Tool-Param Metric (Phase 13: D-10, D-17) ───────────────────────────
+
+
+# Normalization rule sourced from Wave 0 dataset inspection
+# (see .planning/phases/13-per-parameter-description-optimization/
+# 13-correct-params-type-inspection.txt). Value distribution showed 6 value
+# types (str=363, int=26, list=19, bool=15, dict=7, float=3), so the
+# recommendation is `strip_plus_coerce`: strip whitespace on strings AND try
+# cross-type numeric coercion (e.g. "123" vs 123, "true" vs True) so LLM
+# stringified outputs do not spuriously break exact-match against typed
+# correct_params values.
+_NORMALIZATION_RULE = "strip_plus_coerce"
+
+
+def _coerce_scalar(v):
+    """Try to coerce a string scalar to its natural type (int/float/bool).
+
+    Returns the coerced value if the conversion is unambiguous; otherwise
+    returns the stripped string. Only used when _NORMALIZATION_RULE ==
+    "strip_plus_coerce". Non-string, non-bool inputs are returned unchanged.
+
+    Bools are preserved distinctly from ints per PEP 285 (isinstance order
+    matters: check bool BEFORE int since bool is a subclass of int).
+    """
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return v
+    if not isinstance(v, str):
+        return v
+    s = v.strip()
+    # bool-ish strings
+    lowered = s.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    # int first (so "1" becomes int 1, not float 1.0)
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        pass
+    return s
+
+
+def _normalize_param_value(v):
+    """Light normalization for joint-metric param value comparison.
+
+    Policy (evidence-based from 13-01 Wave 0 inspection output
+    NORMALIZATION_RULE=strip_plus_coerce):
+    - Strings: str.strip(), then attempt int/float/bool coerce if policy allows.
+    - Containers (list / dict): recursively normalize element values to handle
+      e.g. `{"service_data": {"brightness": "180"}}` vs {"brightness": 180}`.
+    - bool / int / float / None: returned as-is.
+
+    When _NORMALIZATION_RULE == "strip_only", only string stripping occurs; no
+    type coercion. The "strip_plus_coerce" branch is the Phase 13 default
+    because the dataset has 6 value types and LLMs frequently stringify
+    numeric outputs.
+    """
+    if isinstance(v, str):
+        if _NORMALIZATION_RULE == "strip_plus_coerce":
+            return _coerce_scalar(v)
+        return v.strip()
+    if isinstance(v, list):
+        return [_normalize_param_value(item) for item in v]
+    if isinstance(v, dict):
+        return {k: _normalize_param_value(val) for k, val in v.items()}
+    return v
+
+
+def _parse_selected_params_json(raw) -> Optional[dict]:
+    """Parse a selected_params value into a dict, or None on malformed input.
+
+    Returns:
+        dict if the raw string parses to a JSON object (or the input is
+        already a dict); None on any parse failure / non-object / non-dict
+        result. None signals "do not award param_match credit" (Pitfall 7 +
+        T-13-08 mitigation): malformed LLM output is explicitly penalized
+        rather than silently awarded partial credit.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        try:
+            return dict(raw)
+        except (TypeError, ValueError):
+            return None
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def _param_match_score(
+    predicted_params: Optional[dict], correct_params: dict
+) -> float:
+    """Return 1.0 iff dict-equal after normalization; 0.0 otherwise.
+
+    Pitfall 4 mitigation: strip + coerce normalization applied to both sides
+    so trailing whitespace, stringified numerics, and case-varied bool
+    literals in LLM output do not spuriously break exact match.
+    """
+    if predicted_params is None:
+        return 0.0
+    if set(predicted_params.keys()) != set(correct_params.keys()):
+        return 0.0
+    for k, v_correct in correct_params.items():
+        v_pred = predicted_params.get(k)
+        if _normalize_param_value(v_correct) != _normalize_param_value(v_pred):
+            return 0.0
+    return 1.0
+
+
+def joint_tool_param_metric(
+    example: dspy.Example,
+    prediction: dspy.Prediction,
+    trace=None,
+    pred_name=None,
+    pred_trace=None,
+) -> float:
+    """Joint tool + param metric (D-10, D-17).
+
+    Returns:
+        float in [0.0, 1.0]: 0.5 * tool_match + 0.5 * param_match, both
+        exact-match after strip+lower normalization (tool_match) or
+        strip+coerce value comparison (param_match).
+
+    Contract (D-10):
+        - tool_match = 1.0 iff selected_tool.strip().lower() == correct_tool.strip().lower()
+        - param_match = 1.0 iff parsed selected_params dict-equals correct_params
+          after strip_plus_coerce normalization
+        - Malformed JSON in selected_params -> param_match = 0.0 (Pitfall 7)
+        - Signature is GEPA's 5-param form (gepa.py:368 binding check).
+
+    Args:
+        example: DSPy Example with correct_tool and correct_params fields.
+        prediction: DSPy Prediction with selected_tool (str) and
+            selected_params (JSON string) fields.
+        trace: Unused, accepted for DSPy/GEPA compatibility.
+        pred_name: GEPA predictor name (unused).
+        pred_trace: GEPA predictor trace (unused).
+
+    Returns:
+        Composite score in [0.0, 1.0].
+    """
+    selected_tool = (getattr(prediction, "selected_tool", "") or "").strip().lower()
+    correct_tool = (getattr(example, "correct_tool", "") or "").strip().lower()
+    tool_match = 1.0 if selected_tool == correct_tool else 0.0
+
+    correct_params = getattr(example, "correct_params", {}) or {}
+    raw = getattr(prediction, "selected_params", "")
+    predicted = _parse_selected_params_json(raw)
+    param_match = _param_match_score(predicted, correct_params)
+
+    return 0.5 * tool_match + 0.5 * param_match
+
+
+def joint_tool_param_metric_with_feedback(
+    example: dspy.Example,
+    prediction: dspy.Prediction,
+    trace=None,
+    pred_name=None,
+    pred_trace=None,
+) -> dspy.Prediction:
+    """GEPA-facing metric returning ScoreWithFeedback (Pitfall 7 mitigation).
+
+    Returns:
+        dspy.Prediction with:
+            - score (float): identical to joint_tool_param_metric()'s return.
+            - feedback (str): short human-readable reason string that GEPA's
+              reflection_lm uses when proposing new param descriptions.
+
+    Why dspy.Prediction and not a bare dict:
+        DSPy 3.1.3's GEPA reflection code paths use attribute access
+        (`result.score`, `result.feedback`) on the metric return. A bare
+        `{"score": ..., "feedback": ...}` dict would require subscript
+        access and is NOT guaranteed compatible across all GEPA 3.1.3
+        internals. `dspy.Prediction` exposes both attribute AND dict-style
+        access, so it is the safe cross-path return type.
+
+    Important:
+        Do NOT use this for acceptance / holdout scoring -- use
+        joint_tool_param_metric (plain float) instead. Mixing the two in
+        cross-tool regression gates would break the CrossToolRegressionChecker
+        contract (expects float input).
+
+    Info-disclosure stance (T-13-09 mitigation): feedback only names keys and
+    summarizes diff class ("missing keys", "wrong values"); does NOT echo the
+    full correct_params dict verbatim. Accepted risk for Phase 13 single-user
+    CLI; Phase 22 continuous loop will need tighter redaction.
+    """
+    score = joint_tool_param_metric(
+        example, prediction, trace, pred_name, pred_trace
+    )
+    correct_tool = (getattr(example, "correct_tool", "") or "").strip().lower()
+    selected_tool = (getattr(prediction, "selected_tool", "") or "").strip().lower()
+    correct_params = getattr(example, "correct_params", {}) or {}
+    raw = getattr(prediction, "selected_params", "")
+    predicted = _parse_selected_params_json(raw)
+
+    fb_parts: list[str] = []
+    if selected_tool != correct_tool:
+        fb_parts.append(
+            f"Wrong tool: picked '{selected_tool}', expected '{correct_tool}'."
+        )
+    if predicted is None:
+        fb_parts.append(
+            "selected_params was not valid JSON; return a JSON object like "
+            "'{\"pattern\":\"foo\"}'."
+        )
+    else:
+        # Normalize both sides once for mismatch analysis.
+        norm_correct = {k: _normalize_param_value(v) for k, v in correct_params.items()}
+        norm_predicted = {k: _normalize_param_value(v) for k, v in predicted.items()}
+        if norm_predicted != norm_correct:
+            missing = sorted(set(norm_correct) - set(norm_predicted))
+            extra = sorted(set(norm_predicted) - set(norm_correct))
+            bad_val = sorted(
+                k for k in set(norm_correct) & set(norm_predicted)
+                if norm_correct[k] != norm_predicted[k]
+            )
+            fb_parts.append(
+                f"Param mismatch -- missing keys: {missing}; extra keys: {extra};"
+                f" wrong values for keys: {bad_val}."
+            )
+    if not fb_parts:
+        fb_parts.append("Perfect match.")
+
+    return dspy.Prediction(score=float(score), feedback=" ".join(fb_parts))

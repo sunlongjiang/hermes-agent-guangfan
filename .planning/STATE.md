@@ -61,16 +61,22 @@ Progress: [#---------] 10% (1/10 v2 phases done)
 - [Phase 10]: PromptRoleChecker + evolve_prompt_sections CLI 端到端管道
 - [Phase 11]: Skipped -- TEST-02 already satisfied by 83 tests created during Phase 7-10 TDD
 - [Phase 12]: GEPA 5-param metric signature + reflection_lm wired; multi-model backend via evolution.yaml
+- [Phase 12 post-audit 2026-05-07]: Codebase map refresh surfaced 5 HIGH + 9 MED concerns. All 5 HIGH fixed (commits 7500abc `output/` gitignore, 5ed6dbb skill GEPA 5-param, 4887a02 skill CLI honors evolution.yaml, 05cc00d env-var references + pre-commit guard). 9 MED concerns parked as `.planning/todos/pending/*.md` for future pickup.
 
-### Test Coverage (v1 baseline)
+### Test Coverage (v2 baseline after 2026-05-07 fixes)
 
 - Tool tests: 107 (tests/tools/)
 - Prompt tests: 83 (tests/prompts/)
-- Core tests: 139 (tests/)
-- **Total: 329 tests, all passing**
+- Core tests: 139 + 24 new config tests (tests/)
+- Skill tests: 7 (tests/skills/)
+- **Total: 353 tests, all passing** (329 baseline + 24 config-layer gates)
+
+### Pending Todos
+
+9 MED-severity concerns parked as structured todos. Query with `node $HOME/.claude/get-shit-done/bin/gsd-tools.cjs list-todos`. Surfaced automatically by `todo match-phase` during future `/gsd-discuss-phase` runs. Phase 13 matches (score ≥ 0.6): persist-per-tool-regression-rates, max-cost-usd-and-reflection-model, loud-gepa-fallback. Phase 14 matches (score ≥ 0.6): expand-secret-patterns, enforce-readonly-hermes-agent, jsonl-skip-bad-lines, max-cost-usd-and-reflection-model, persist-per-tool-regression-rates.
 
 ## Session Continuity
 
-Last session: 2026-04-23T00:00:00.000Z
-Stopped at: Milestone v2.0 initialized; Phase 13 ready
+Last session: 2026-05-07T07:55:00.000Z
+Stopped at: Phase 12 post-audit fixes complete (H1/H3/H4/H5); 9 MED todos parked; Phase 13 ready
 Next: `/gsd-discuss-phase 13` to gather context for per-parameter description optimization

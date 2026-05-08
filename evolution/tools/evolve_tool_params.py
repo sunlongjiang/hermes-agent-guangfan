@@ -356,7 +356,16 @@ def _evaluate_holdout(
             try:
                 total += float(score)
             except (TypeError, ValueError):
-                pass
+                # WR-08: production LM should never return a non-numeric
+                # score; this branch is purely test-mock accommodation.
+                # Surface it as a yellow warning so a real-world non-numeric
+                # leak is at least visible (the run continues — failing
+                # would be too aggressive given the volume of holdout
+                # examples and the existence of test mocks).
+                console.print(
+                    f"[yellow]non-numeric holdout score dropped: "
+                    f"{score!r} (treated as 0.0)[/yellow]"
+                )
             n += 1
             tool_pairs.append(
                 (

@@ -192,8 +192,20 @@ def _score_module_on_holdout(
             try:
                 total += float(score)
             except (TypeError, ValueError):
-                # Mock metrics in unit tests may return non-numeric; treat as 0.
-                pass
+                # WR-08: production LM should never return a non-numeric
+                # score. This branch is purely test-mock accommodation.
+                # v1_baseline_gate has no Console here by design (the
+                # module is filesystem-side-effect free per its
+                # docstring), so we cannot log via rich. Use stderr so a
+                # real-world non-numeric leak is at least visible to a
+                # human reading the run output. The contribution stays
+                # 0.0 (n still increments) — failing would be too
+                # aggressive given the existence of test mocks.
+                import sys as _sys
+                _sys.stderr.write(
+                    f"⚠️  v1_baseline_gate non-numeric holdout score "
+                    f"dropped: {score!r} (treated as 0.0)\n"
+                )
             n += 1
     return total / max(1, n)
 

@@ -1,0 +1,22 @@
+{
+  "session_id": "session_20260508_malformed_msg",
+  "messages": [
+    {
+      "role": "user",
+      "content": "normal user turn"
+    },
+    {
+      "content": "missing role field — extractor must skip"
+    },
+    {
+      "role": "assistant",
+      "content": "tool_calls is not a list on purpose",
+      "tool_calls": "NOT-AN-ARRAY"
+    },
+    {
+      "role": "user",
+      "content": "another normal user turn"
+    }
+  ],
+  "tools": []
+}

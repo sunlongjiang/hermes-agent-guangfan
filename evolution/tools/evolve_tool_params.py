@@ -320,10 +320,30 @@ def _evaluate_holdout(
     param_pairs: list[tuple[str, str]] = []
     with dspy.context(lm=lm):
         for ex in holdout:
+            # BL-04: only catch the actual concern (MagicMock holdout
+            # examples in unit tests may lack a real .task_description).
+            # Production LM errors (timeout / rate limit / malformed
+            # completion / network) raise the SAME exception on the retry
+            # because ex.task_description is unchanged — so the retry
+            # doubles cost on failure, masks the first error, and
+            # eventually re-raises uncaught, tearing down the pipeline.
             try:
-                pred = module(task_description=ex.task_description)
-            except Exception:
-                pred = module(task_description=getattr(ex, "task_description", ""))
+                task = ex.task_description
+            except AttributeError:
+                task = getattr(ex, "task_description", "")
+            try:
+                pred = module(task_description=task)
+            except Exception as e:
+                console.print(
+                    f"[yellow]holdout example skipped due to LM error: "
+                    f"{type(e).__name__}: {e}[/yellow]"
+                )
+                # Skip this example entirely: do NOT count toward denominator
+                # (n) and do NOT append to tool_pairs / param_pairs. This
+                # way one bad example does not silently dilute the average,
+                # but a single transient failure also does not abort the
+                # whole holdout loop.
+                continue
             score = joint_tool_param_metric(ex, pred)
             try:
                 total += float(score)

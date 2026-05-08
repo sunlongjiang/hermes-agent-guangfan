@@ -167,12 +167,27 @@ def _score_module_on_holdout(
     ctx = dspy.context(lm=lm) if lm is not None else _NullCtx()
     with ctx:
         for ex in holdout_examples:
+            # BL-04: only catch AttributeError (MagicMock holdout examples
+            # in unit tests may lack a real .task_description). A real LM
+            # error (timeout / rate limit / malformed completion / network)
+            # raised on the first call would raise again on the retry with
+            # an identical argument, re-raising uncaught and aborting the
+            # whole holdout. Skip the example instead so a single transient
+            # failure does not tear down the inline baseline.
             try:
-                pred = module(task_description=ex.task_description)
+                task = ex.task_description
+            except AttributeError:
+                task = getattr(ex, "task_description", "")
+            try:
+                pred = module(task_description=task)
             except Exception:
-                # MagicMock holdout examples in unit tests may not have
-                # a real task_description attribute; defensively fall through.
-                pred = module(task_description=getattr(ex, "task_description", ""))
+                # Inline baseline path: this module is intentionally
+                # filesystem-side-effect free (no Console / no logging
+                # framework configured) per its docstring. Skip the
+                # example WITHOUT incrementing n so a sequence of failures
+                # does not silently dilute the average to 0.0 (which would
+                # trivially pass the inline-baseline gate; see WR-09).
+                continue
             score = joint_tool_param_metric(ex, pred)
             try:
                 total += float(score)

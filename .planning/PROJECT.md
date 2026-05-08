@@ -10,7 +10,7 @@
 
 ## Current Milestone: v2.0 Stabilization, Enhancement & Expansion
 
-**Goal:** 在 v1 稳定基础上扩展工具/提示词优化深度，并新增代码进化与持续学习能力（Phase 12 ✓ 完成；Phase 13-21 待执行）。
+**Goal:** 在 v1 稳定基础上扩展工具/提示词优化深度，并新增代码进化与持续学习能力（Phase 12, 13 ✓ 完成；Phase 14-21 待执行）。
 
 **Target features:**
 - 工具优化增强：per-parameter 描述优化、SessionDB 误选挖掘、think-augmented 选择、单工具回归仪表盘（Phase 13-16）
@@ -117,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-23 — milestone v2.0 started (Phase 13 next)*
+*Last updated: 2026-05-08 — Phase 13 (per-parameter description optimization) complete; Phase 14 (sessiondb-mining-for-tools) next*

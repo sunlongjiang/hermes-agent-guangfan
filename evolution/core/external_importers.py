@@ -23,8 +23,10 @@ Usage from evolve_skill.py:
 """
 
 import json
+import math
 import re
 import random
+from collections import Counter
 from pathlib import Path
 from typing import Optional
 
@@ -54,6 +56,8 @@ SECRET_PATTERNS = re.compile(
     r'|ntn_\S+'               # Notion integration tokens
     r'|AKIA[0-9A-Z]{16}'      # AWS access key IDs
     r'|Bearer\s+\S{20,}'      # Bearer auth headers (20+ char tokens)
+    r'|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'  # JWT tokens (D-15)
+    r'|(?:aws[_-]?(?:access|secret)|AKIA)[\s\S]{0,40}[A-Za-z0-9/+=]{32,}'  # AWS-secret proximity (D-15)
     r'|-----BEGIN\s+(RSA\s+)?PRIVATE\sKEY-----'  # PEM private keys
     r'|ANTHROPIC_API_KEY'      # Known env var names (exact match)
     r'|OPENAI_API_KEY'
@@ -75,9 +79,46 @@ VALID_DIFFICULTIES = {"easy", "medium", "hard"}
 MIN_DATASET_SIZE = 3  # Minimum examples needed to produce a meaningful split
 
 
+def _shannon_entropy(s: str) -> float:
+    """Compute Shannon entropy in bits per char.
+
+    Empty / single-char strings return 0.0. Used by _contains_secret as a
+    Layer 1 heuristic (D-15) to flag long high-entropy base64-like tokens
+    that don't match any known prefix.
+
+    Args:
+        s: The string to analyze.
+
+    Returns:
+        Shannon entropy in bits/char. 0.0 for strings shorter than 2 chars.
+    """
+    if len(s) < 2:
+        return 0.0
+    counts = Counter(s)
+    n = len(s)
+    return -sum((c / n) * math.log2(c / n) for c in counts.values())
+
+
+# Module-level threshold per D-15 (RESEARCH §A2 calibration target).
+# 4.0 is the conservative default; raise to 4.3+ if calibration shows
+# SHA256/UUID hex false-positives in real session data.
+_SECRET_ENTROPY_THRESHOLD = 4.0
+
+
 def _contains_secret(text: str) -> bool:
-    """Check if text contains potential API keys or tokens."""
-    return bool(SECRET_PATTERNS.search(text))
+    """Check if text contains potential API keys or tokens.
+
+    Layer 1: pattern match against known secret prefixes/formats.
+    Layer 2 (D-15): Shannon entropy heuristic over ≥24-char base64-like
+    tokens — flag if entropy > _SECRET_ENTROPY_THRESHOLD.
+    """
+    if SECRET_PATTERNS.search(text):
+        return True
+    # Entropy heuristic — only on long base64-ish runs, not whole text.
+    for tok in re.findall(r'[A-Za-z0-9_/+=-]{24,}', text):
+        if _shannon_entropy(tok) > _SECRET_ENTROPY_THRESHOLD:
+            return True
+    return False
 
 
 def _validate_eval_example(

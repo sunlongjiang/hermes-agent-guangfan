@@ -811,8 +811,15 @@ def _evolve_impl(
         "val_examples": len(valset),
         "holdout_examples": len(holdout),
         "elapsed_seconds": round(elapsed, 3),
+        # WR-03: persist the actually-applied filter (tool names that
+        # survived _filter_tools — empties stripped, unknowns dropped, in
+        # the order discovered) rather than re-parsing the raw CLI string.
+        # The original re-parse `tools_filter.split(",")` produced
+        # entries like ["memory", "", "terminal"] that disagreed with the
+        # filter actually applied, breaking downstream metrics.json
+        # consumers (e.g. Phase 16 dashboard).
         "tools_filter": (
-            [s.strip() for s in tools_filter.split(",")] if tools_filter else None
+            [t.name for t in all_tools] if tools_filter else None
         ),
         "constraint_failures": 0,
         "param_consistency_failures": 0,

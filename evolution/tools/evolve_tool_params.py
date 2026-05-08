@@ -825,12 +825,24 @@ def _evolve_impl(
 
     # 11b. Factual checker (defense in depth — top-level frozen, but cheap).
     factual_checker = ToolFactualChecker(config)
+    # BL-02 fix: ToolFactualChecker.check_all() skips evolved tools whose
+    # name has no match in original_tools (see tool_constraints.py:135-138),
+    # so we cannot positionally zip(evolved_tools, factual_results). Instead
+    # mirror that filter here so we can attach the correct tool name to each
+    # failure. ConstraintResult.constraint_name is the constraint TYPE
+    # ('factual_accuracy'), never the tool name — using it as `tool` (as the
+    # original code did) labelled every failure as 'factual_accuracy', losing
+    # all per-tool triage information.
+    original_name_set = {t.name for t in original_tools}
+    matched_evolved_for_factual = [
+        ev for ev in evolved_tools if ev.name in original_name_set
+    ]
     factual_results = factual_checker.check_all(original_tools, evolved_tools)
-    for r in factual_results:
+    for evolved, r in zip(matched_evolved_for_factual, factual_results):
         if not r.passed:
             constraint_failures.append(
                 {
-                    "tool": getattr(r, "constraint_name", "factual_accuracy"),
+                    "tool": evolved.name,
                     "param": None,
                     "constraint": "factual_accuracy",
                     "message": r.message,
@@ -843,12 +855,19 @@ def _evolve_impl(
         evolved_tools=evolved_tools,
         frozen_tool_descs=baseline_module._frozen_tool_desc,
     )
-    consistency_failures = [r for r in consistency_results if not r.passed]
-    metrics["param_consistency_failures"] = len(consistency_failures)
-    for r in consistency_failures:
+    # BL-02 fix: ParamConsistencyChecker.check_all() iterates evolved_tools
+    # in order with no skip (tool_constraints.py:300-307), so positional zip
+    # is safe here. Previous code wrote `tool: None` for every consistency
+    # failure even though the tool name was available — losing triage info.
+    metrics["param_consistency_failures"] = sum(
+        1 for r in consistency_results if not r.passed
+    )
+    for evolved, r in zip(evolved_tools, consistency_results):
+        if r.passed:
+            continue
         constraint_failures.append(
             {
-                "tool": None,
+                "tool": evolved.name,
                 "param": None,
                 "constraint": "param_consistency",
                 "message": r.message,

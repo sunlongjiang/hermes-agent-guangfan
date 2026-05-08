@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Stabilization, Enhancement & Expansion
 status: executing
-stopped_at: Phase 13 context captured (13-CONTEXT.md + 13-DISCUSSION-LOG.md committed)
-last_updated: "2026-05-08T04:02:37.268Z"
+stopped_at: Completed 13-07-PLAN.md (V1 baseline hard-gate, D-14)
+last_updated: "2026-05-08T04:35:00.000Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 11
   completed_phases: 0
   total_plans: 8
-  completed_plans: 6
-  percent: 75
+  completed_plans: 7
+  percent: 88
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-23)
 ## Current Position
 
 Phase: 13 (per-parameter-description-optimization) — EXECUTING
-Plan: 2 of 8
-Status: Ready to execute
+Plan: 8 of 8 (13-07 complete; 13-08 remaining = CLI assembly)
+Status: 13-07 complete; ready for 13-08 (final CLI plan)
 Last activity: 2026-05-08
 
-Progress: [████████░░] 75%
+Progress: [█████████░] 88%
 
 ## Milestone v2.0 Phase Map
 
@@ -63,6 +63,7 @@ Progress: [████████░░] 75%
 - [Phase 12]: GEPA 5-param metric signature + reflection_lm wired; multi-model backend via evolution.yaml
 - [Phase 12 post-audit 2026-05-07]: Codebase map refresh surfaced 5 HIGH + 9 MED concerns. All 5 HIGH fixed (commits 7500abc `output/` gitignore, 5ed6dbb skill GEPA 5-param, 4887a02 skill CLI honors evolution.yaml, 05cc00d env-var references + pre-commit guard). 9 MED concerns parked as `.planning/todos/pending/*.md` for future pickup.
 - [Phase 13 discuss 2026-05-07]: Gray areas resolved across module structure (two-dim param_predictors, physically isolated tool-level desc), CLI shape (new `evolve_tool_params` entry, existing CLI untouched), scope (joint fitness + param_consistency + per-tool persistence + cost cap all in-scope; v1 baseline hard regression gate; no default param-group cap), eval (reuse Phase 4 dataset, joint 50/50 exact-match, selector outputs tool+params together). Folded todos: loud-gepa-fallback, persist-per-tool-regression-rates, max-cost-usd-and-reflection-model.
+- [Phase 13-07 2026-05-08]: V1 baseline hard-gate landed in `evolution/tools/v1_baseline_gate.py` — `check_v1_baseline_gate` returns `ConstraintResult` (per Wave 0 contract); `compute_v1_baseline` resolves baseline source as historical (Phase 5 metrics.json:evolved_score, type-safe loader rejects bool/string/OOR/malformed) → inline (rerun joint metric on baseline ToolModule + holdout) → missing (degraded). `V1BaselineGate` facade for 13-08 CLI metrics.json shape. Plan-vs-test signature conflict resolved by honoring tests as canonical source; `evolve_tool_params.py` shell module re-exports the gate symbols (13-08 will replace shell with full Click CLI, exports preserved). Wave 0 RED tests now GREEN.
 
 ### Test Coverage (v2 baseline after 2026-05-07 fixes)
 
@@ -78,6 +79,6 @@ Progress: [████████░░] 75%
 
 ## Session Continuity
 
-Last session: 2026-05-08T03:04:03.358Z
-Stopped at: Phase 13 context captured (13-CONTEXT.md + 13-DISCUSSION-LOG.md committed)
-Next: `/gsd-plan-phase 13` to create PLAN.md for per-parameter description optimization
+Last session: 2026-05-08T04:35:00.000Z
+Stopped at: Completed 13-07-PLAN.md (V1 baseline hard-gate, D-14)
+Next: `/gsd-plan-phase 13-08` to create PLAN.md for evolve_tool_params CLI assembly

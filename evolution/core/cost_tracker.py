@@ -127,7 +127,11 @@ class CostTracker:
 
     Args:
         max_usd: Budget ceiling. `exceeded()` is True when spent > max.
-            Set to <= 0 to disable enforcement (not recommended; still polls).
+            Set to <= 0 to disable enforcement (not recommended).
+            WR-01: when enforcement is disabled, `exceeded()` short-circuits
+            to False WITHOUT polling — callers that want telemetry in the
+            disabled-cap mode must invoke `poll()` directly. (Earlier
+            docstring claimed "still polls"; this was inaccurate.)
     """
 
     def __init__(self, max_usd: float):
@@ -236,7 +240,13 @@ class CostTracker:
         return total_usd
 
     def exceeded(self) -> bool:
-        """Return True when current spent > max_usd. Refreshes via poll()."""
+        """Return True when current spent > max_usd. Refreshes via poll().
+
+        WR-01: when max_usd <= 0 (enforcement disabled), this short-circuits
+        to False WITHOUT polling. That matches the class docstring but not
+        naive "still polls for telemetry" expectations — callers wanting
+        the current spend in the disabled-cap mode must call poll() directly.
+        """
         if self.max_usd <= 0:
             return False
         return self.poll() > self.max_usd

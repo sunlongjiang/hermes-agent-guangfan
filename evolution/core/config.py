@@ -124,7 +124,13 @@ class EvolutionConfig:
                 try:
                     config.max_cost_usd = float(data["max_cost_usd"])
                 except (TypeError, ValueError):
-                    pass  # invalid value → keep default; no crash
+                    # WR-02: invalid value → keep default; warn so users
+                    # don't silently lose their intended config setting.
+                    sys.stderr.write(
+                        f"⚠️  evolution.yaml max_cost_usd="
+                        f"{data['max_cost_usd']!r} is not a number; "
+                        f"falling back to default {config.max_cost_usd}.\n"
+                    )
 
         # ── Environment variable overrides ─────────────────────────────────
         env_base = os.getenv("EVOLUTION_API_BASE")
@@ -147,7 +153,12 @@ class EvolutionConfig:
             try:
                 config.max_cost_usd = float(env_cost)
             except ValueError:
-                pass  # invalid numeric → keep previous layer
+                # WR-02: invalid numeric → keep previous layer; warn.
+                sys.stderr.write(
+                    f"⚠️  EVOLUTION_MAX_COST_USD={env_cost!r} is not a "
+                    f"number; keeping previous value "
+                    f"{config.max_cost_usd}.\n"
+                )
 
         # ── CLI overrides (highest priority) ───────────────────────────────
         if overrides.get("api_base"):
@@ -169,7 +180,14 @@ class EvolutionConfig:
             try:
                 config.max_cost_usd = float(overrides["max_cost_usd"])
             except (TypeError, ValueError):
-                pass
+                # WR-02: Click already validates --max-cost-usd as float,
+                # so this branch is mostly defense in depth against
+                # programmatic callers. Still warn rather than swallow.
+                sys.stderr.write(
+                    f"⚠️  max_cost_usd override="
+                    f"{overrides['max_cost_usd']!r} is not a number; "
+                    f"keeping previous value {config.max_cost_usd}.\n"
+                )
 
         # ── Literal-key warning (loud, not fatal) ─────────────────────────
         # Emit once at load time so users see it every run until they migrate

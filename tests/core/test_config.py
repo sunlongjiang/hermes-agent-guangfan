@@ -246,6 +246,41 @@ def test_evolution_config_max_cost_usd_cli_overrides_env(tmp_path, monkeypatch):
     assert cfg.max_cost_usd == 1.0
 
 
+# ── WR-02: invalid max_cost_usd must warn, not silently drop ────────────────
+
+
+def test_wr02_invalid_yaml_max_cost_usd_warns_stderr(tmp_path, monkeypatch, capsys):
+    """WR-02: a non-numeric YAML max_cost_usd must emit a stderr warning.
+
+    Pre-fix the three except blocks silently `pass`ed on TypeError/ValueError,
+    so a typo like `max_cost_usd: "twenty"` was discarded with the default
+    20.0 used instead — no signal to the user that their config was ignored.
+    """
+    monkeypatch.chdir(tmp_path)
+    yaml_file = tmp_path / "evolution.yaml"
+    yaml_file.write_text('max_cost_usd: "twenty"\n')
+    monkeypatch.delenv("EVOLUTION_MAX_COST_USD", raising=False)
+    cfg = EvolutionConfig.load(config_path=str(yaml_file))
+    # Behavior preserved: fall back to default.
+    assert cfg.max_cost_usd == 20.0
+    captured = capsys.readouterr()
+    # Must mention max_cost_usd and the bogus value in stderr.
+    assert "max_cost_usd" in captured.err
+    assert "twenty" in captured.err
+
+
+def test_wr02_invalid_env_max_cost_usd_warns_stderr(tmp_path, monkeypatch, capsys):
+    """WR-02: a non-numeric EVOLUTION_MAX_COST_USD must emit a stderr warning."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("EVOLUTION_MAX_COST_USD", "not-a-number")
+    cfg = EvolutionConfig.load()
+    # Behavior preserved: fall back to previous layer.
+    assert cfg.max_cost_usd == 20.0
+    captured = capsys.readouterr()
+    assert "EVOLUTION_MAX_COST_USD" in captured.err
+    assert "not-a-number" in captured.err
+
+
 def test_evolution_config_reflection_model_env_and_cli(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     yaml_file = tmp_path / "evolution.yaml"

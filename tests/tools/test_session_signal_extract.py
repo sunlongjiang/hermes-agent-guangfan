@@ -1,54 +1,101 @@
-"""Wave 0 RED test scaffolding for Phase 14 session-signal extractors.
+"""Wave 1 GREEN tests for Phase 14 session-signal extractors.
 
-Covers 14-VALIDATION.md rows 1-4 (B/A/C extractor + parser tolerance). All
-test bodies are placeholders (`pytest.skip`) until Wave 1+ implements
-`evolution/tools/session_miner.py`. The test function names are load-bearing:
-the planner's per-task `<automated>` verify commands reference them directly.
+Covers 14-VALIDATION.md rows 1-4 (B/A/C extractor + parser tolerance).
+The test function names are load-bearing: the planner's per-task
+`<automated>` verify commands reference them directly.
 """
 
+import json
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-import pytest
+import dspy
+
+from evolution.core.config import EvolutionConfig
+from evolution.tools.session_miner import SessionToolMiner
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "sessions"
 
 
-def test_parse_assistant_with_tool_calls():
-    """Parser tolerates reasoning_details / multi tool_calls / missing role.
+def _load(name: str) -> dict:
+    return json.loads((FIXTURE_DIR / name).read_text())
 
-    Reads malformed_msg.json + error_retry_b.json; asserts the extractor
-    does not raise on non-array tool_calls and silently skips messages
-    missing the `role` field (RESEARCH Pitfall 1).
-    """
-    pytest.skip("Wave 1+ 实现 — 见 14-02-PLAN.md / 14-03-PLAN.md")
+
+def test_parse_assistant_with_tool_calls():
+    """Parser tolerates malformed messages (missing role / non-array tool_calls)."""
+    miner = SessionToolMiner(EvolutionConfig(), signals=["error_retry"])
+    data = _load("malformed_msg.json")
+    # Should not raise despite the message with missing role and non-array tool_calls
+    cands = miner._extract_error_retry(
+        data["messages"], "malformed.json", current_tool_names=set()
+    )
+    assert isinstance(cands, list)
+
+    # error_retry_b.json should also parse without exceptions
+    data2 = _load("error_retry_b.json")
+    cands2 = miner._extract_error_retry(
+        data2["messages"],
+        "error_retry.json",
+        current_tool_names={"legacy_grep", "search_files"},
+    )
+    assert isinstance(cands2, list)
 
 
 def test_b_error_retry():
-    """B (error_retry) extractor produces a candidate from error_retry_b.json.
-
-    Expected behaviour: candidate.original_tool == 'legacy_grep',
-    candidate.correct_tool == 'search_files', signal == 'error_retry'
-    (RESEARCH Pitfall 2 — tolerates exit_code!=0 OR truthy `error` string).
-    """
-    pytest.skip("Wave 1+ 实现 — 见 14-03-PLAN.md")
+    """B (error_retry) extractor produces 1 candidate from error_retry_b.json."""
+    miner = SessionToolMiner(EvolutionConfig(), signals=["error_retry"])
+    data = _load("error_retry_b.json")
+    cands = miner._extract_error_retry(
+        data["messages"],
+        "error_retry.json",
+        current_tool_names={"legacy_grep", "search_files"},
+    )
+    assert len(cands) == 1, f"expected 1 candidate, got {len(cands)}"
+    c = cands[0]
+    assert c.originally_used_tool == "legacy_grep"
+    assert c.signal == "error_retry"
+    assert "list files" in c.task.lower()
 
 
 def test_a_user_correction(mock_lm_with_usage):
-    """A (user_correction) extractor matches keyword list + calls LLM 二判.
-
-    Reads user_correction_a.json; asserts keyword regex catches '应该用' and
-    the LLM 二判 mock is invoked. candidate.original_tool == 'terminal',
-    candidate.correct_tool == 'search_files'.
-    """
-    pytest.skip("Wave 1+ 实现 — 见 14-03-PLAN.md")
+    """A (user_correction) extractor catches '应该用 X' + LLM 二判 returns True."""
+    miner = SessionToolMiner(EvolutionConfig(), signals=["user_correction"])
+    data = _load("user_correction_a.json")
+    # Patch the user_correction_judge to return is_correction=True
+    with patch.object(miner, "user_correction_judge") as mock_judge:
+        mock_judge.return_value = dspy.Prediction(is_correction=True)
+        cands = miner._extract_user_correction(
+            data["messages"],
+            "user_correction.json",
+            current_tool_names={"terminal", "search_files"},
+        )
+    assert len(cands) >= 1, f"expected ≥1 candidate, got {len(cands)}"
+    c = cands[0]
+    assert c.originally_used_tool == "terminal"
+    assert c.signal == "user_correction"
+    mock_judge.assert_called()
 
 
 def test_c_oracle_disagreement(mock_lm_with_usage):
-    """C (oracle_disagreement) extractor produces a candidate when baseline
-    ToolModule mock returns a different tool than the session actually used.
-
-    Reads oracle_disagreement_c.json; mocked ToolModule returns 'read_file'
-    while the session used 'terminal'; extractor emits a candidate
-    for LLM judge evaluation.
+    """C (oracle_disagreement) extractor emits a candidate when baseline
+    ToolModule recommends a different tool than the session used.
     """
-    pytest.skip("Wave 1+ 实现 — 见 14-03-PLAN.md")
+    baseline = MagicMock()
+    baseline.return_value = dspy.Prediction(
+        selected_tool="read_file", selected_params="{}"
+    )
+    miner = SessionToolMiner(
+        EvolutionConfig(),
+        signals=["oracle_disagreement"],
+        baseline_module=baseline,
+    )
+    data = _load("oracle_disagreement_c.json")
+    cands = miner._extract_oracle_disagreement(
+        data["messages"],
+        "oracle.json",
+        current_tool_names={"terminal", "read_file"},
+    )
+    assert len(cands) >= 1, f"expected ≥1 candidate, got {len(cands)}"
+    c = cands[0]
+    assert c.originally_used_tool == "terminal"
+    assert c.signal == "oracle_disagreement"

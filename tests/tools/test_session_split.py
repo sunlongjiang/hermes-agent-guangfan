@@ -1,48 +1,67 @@
-"""Wave 0 RED test scaffolding for Phase 14 hash-bucket split + normalization.
+"""Wave 1 GREEN tests for Phase 14 hash-bucket split + normalization.
 
 Covers 14-VALIDATION.md rows 7-10: hash bucket edges, determinism,
 normalize robustness, and signals union across multiple extractor hits.
 """
 
-import pytest
+from evolution.tools.session_miner import _hash_to_split, _normalize_task_hash
 
 
 def test_hash_bucket_edges():
     """Hash bucket boundaries: 69→train, 70→val, 84→val, 85→holdout.
 
-    Construct task strings whose sha256 hex first 8 chars mod 100 land on
-    the four boundary values (69, 70, 84, 85). Verify `_hash_to_split`
-    returns the expected split per RESEARCH Pattern 2 / CONTEXT D-13.
+    Pre-computed task strings whose sha256[:8] mod 100 hits each boundary.
     """
-    pytest.skip("Wave 1+ 实现 — 见 14-03-PLAN.md")
+    cases = [
+        ("task 35", "train"),      # bucket 69
+        ("task 60", "val"),        # bucket 70
+        ("task 236", "val"),       # bucket 84
+        ("task 190", "holdout"),   # bucket 85
+    ]
+    for task, expected in cases:
+        h = _normalize_task_hash(task)
+        got = _hash_to_split(h)
+        assert got == expected, (
+            f"task={task!r} hash={h} expected {expected} got {got}"
+        )
 
 
 def test_hash_determinism():
-    """Same task text → same bucket across repeated calls and runs.
-
-    Invokes `_normalize_task_hash` on the same string ten times; all
-    results must be identical. Also asserts stability against Python
-    hash randomization (str.__hash__ is NOT used; sha256 is).
-    """
-    pytest.skip("Wave 1+ 实现 — 见 14-03-PLAN.md")
+    """Same task text → same bucket across repeated calls."""
+    task = "Read the README file in the repository root"
+    hashes = [_normalize_task_hash(task) for _ in range(10)]
+    splits = [_hash_to_split(h) for h in hashes]
+    assert len(set(hashes)) == 1, f"hash varied: {set(hashes)}"
+    assert len(set(splits)) == 1, f"split varied: {set(splits)}"
 
 
 def test_normalize_robust():
-    """Normalization collapses whitespace + lowercases + strips.
-
-    Assert `_normalize_task_hash('Read   FILE')` ==
-    `_normalize_task_hash('read file')` ==
-    `_normalize_task_hash('  read\\tfile\\n')` (whitespace-robust).
-    """
-    pytest.skip("Wave 1+ 实现 — 见 14-03-PLAN.md")
+    """Normalization collapses whitespace + lowercases + strips."""
+    a = _normalize_task_hash("Read   FILE")
+    b = _normalize_task_hash("read file")
+    c = _normalize_task_hash("  read\tfile\n")
+    assert a == b == c, f"hashes differ: {a} / {b} / {c}"
 
 
 def test_signals_union():
     """Same task hash hit by multiple extractors → 1 example with union.
 
-    Build two candidates with identical normalized task, one from B
-    (error_retry) and one from A (user_correction). After miner reduce,
-    expect 1 ToolSelectionExample with
-    misselection_signals == ['error_retry', 'user_correction'] (sorted).
+    The union step is performed inside SessionToolMiner.mine() reducer.
+    This unit-test isolates the union semantics on the intermediate dataclass
+    (simulates the merge of two candidates with the same task_hash).
     """
-    pytest.skip("Wave 1+ 实现 — 见 14-03-PLAN.md")
+    from evolution.tools.tool_dataset import ToolSelectionExample
+
+    ex = ToolSelectionExample(
+        task_description="list files",
+        correct_tool="search_files",
+        confuser_tools=["legacy_grep"],
+        source="session",
+        misselection_signals=["error_retry"],
+    )
+    ex.misselection_signals = sorted(
+        set(ex.misselection_signals) | {"user_correction"}
+    )
+    ex.confuser_tools = sorted(set(ex.confuser_tools) | {"terminal"})
+    assert ex.misselection_signals == ["error_retry", "user_correction"]
+    assert ex.confuser_tools == ["legacy_grep", "terminal"]

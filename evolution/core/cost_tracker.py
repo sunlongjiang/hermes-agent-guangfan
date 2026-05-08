@@ -179,6 +179,16 @@ class CostTracker:
         track_usage. Callers outside tests SHOULD prefer
         dspy.configure(track_usage=True) + real LM invocations.
 
+        Merge semantics (WR-06: documented split):
+          - Token fields (`prompt_tokens`, `completion_tokens`,
+            `total_tokens`) ACCUMULATE across multiple calls.
+          - All other fields use LAST-WRITE-WINS — a `model` field set on
+            the first inject is silently overwritten by the second. No
+            tests currently exercise non-token fields; if you need
+            stronger semantics for them, add an explicit conflict check
+            here rather than relying on the legacy last-write-wins
+            behavior.
+
         Args:
             usage_by_lm: {lm_name: {"prompt_tokens": int, "completion_tokens": int, ...}}
                 matching UsageTracker.get_total_tokens() shape.

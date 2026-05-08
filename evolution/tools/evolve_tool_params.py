@@ -240,6 +240,14 @@ def _load_dataset(
     """
     dataset_path = Path("datasets") / "tools"
     if eval_source == "synthetic":
+        # WR-07: dataset.save() unconditionally overwrites whatever lives
+        # under datasets/tools/. Warn (don't gate) so back-to-back
+        # synthetic + load runs do not silently clobber a curated dataset.
+        if dataset_path.exists() and any(dataset_path.iterdir()):
+            console.print(
+                f"[yellow]⚠ --eval-source synthetic will overwrite "
+                f"{dataset_path}/ (existing contents will be replaced).[/yellow]"
+            )
         builder = ToolDatasetBuilder(config)
         dataset = builder.generate(all_tools)
         dataset.save(dataset_path)

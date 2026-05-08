@@ -222,14 +222,14 @@ Plans:
   1. Importer extracts tool selection ground truth from session transcripts
   2. Misselection patterns weighted higher in training dataset
   3. Integration with existing ToolDatasetBuilder as additional data source
-**Plans:** 6 plans
+**Plans:** 3/6 plans executed
 
 Plans:
 **Wave 0**
-- [ ] 14-01-PLAN.md — 测试脚手架（9 测试文件 + 7 session fixture JSON）覆盖 28 测试函数 + Wave 0 缺口
+- [x] 14-01-PLAN.md — 测试脚手架（9 测试文件 + 7 session fixture JSON）覆盖 28 测试函数 + Wave 0 缺口
 **Wave 1** (并行: 02 + 03)
-- [ ] 14-02-PLAN.md — ToolSelectionExample.misselection_signals 字段 (D-02) + 旧 JSONL 向后兼容
-- [ ] 14-03-PLAN.md — Privacy gate v2: SECRET_PATTERNS + JWT/AWS 正则 + Shannon 熵 (D-15, T-14-02)
+- [x] 14-02-PLAN.md — ToolSelectionExample.misselection_signals 字段 (D-02) + 旧 JSONL 向后兼容
+- [x] 14-03-PLAN.md — Privacy gate v2: SECRET_PATTERNS + JWT/AWS 正则 + Shannon 熵 (D-15, T-14-02)
 **Wave 2**
 - [ ] 14-04-PLAN.md — session_miner.py 核心: 3 extractor + ConfirmMisselection + hash bucket + dedup union + train duplication (D-01..D-13/D-17/D-18, T-14-01/T-14-03)
 **Wave 3**

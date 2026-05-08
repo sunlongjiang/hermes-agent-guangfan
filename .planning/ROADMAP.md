@@ -222,7 +222,20 @@ Plans:
   1. Importer extracts tool selection ground truth from session transcripts
   2. Misselection patterns weighted higher in training dataset
   3. Integration with existing ToolDatasetBuilder as additional data source
-**Plans**: TBD
+**Plans:** 6 plans
+
+Plans:
+**Wave 0**
+- [ ] 14-01-PLAN.md — 测试脚手架（9 测试文件 + 7 session fixture JSON）覆盖 28 测试函数 + Wave 0 缺口
+**Wave 1** (并行: 02 + 03)
+- [ ] 14-02-PLAN.md — ToolSelectionExample.misselection_signals 字段 (D-02) + 旧 JSONL 向后兼容
+- [ ] 14-03-PLAN.md — Privacy gate v2: SECRET_PATTERNS + JWT/AWS 正则 + Shannon 熵 (D-15, T-14-02)
+**Wave 2**
+- [ ] 14-04-PLAN.md — session_miner.py 核心: 3 extractor + ConfirmMisselection + hash bucket + dedup union + train duplication (D-01..D-13/D-17/D-18, T-14-01/T-14-03)
+**Wave 3**
+- [ ] 14-05-PLAN.md — mine_tool_sessions.py CLI: 12 flags + consent gate + Rich Table summary + metrics.json (D-06..D-08/D-12/D-16, T-14-04)
+**Wave 4** *(blocked on Wave 3 + manual checkpoint)*
+- [ ] 14-06-PLAN.md — evolve_tool_*.py --session-source flag (D-09/D-14) + 44-session real-data dry-run smoke + entropy threshold calibration
 
 ### Phase 15: Think-Augmented Tool Selection
 **Goal**: Add reasoning step before tool selection to improve accuracy on ambiguous tasks

@@ -44,6 +44,9 @@ class ToolSelectionExample:
         confuser_tools: Tools that could plausibly be confused with correct_tool.
         reason: Explanation of why correct_tool is the right choice.
         source: Provenance: 'synthetic', 'golden', etc.
+        misselection_signals: List of signal sources that flagged this example as
+            a misselection candidate. Subset of {"error_retry", "user_correction",
+            "oracle_disagreement"} (D-02). Empty for synthetic / golden examples.
     """
     task_description: str
     correct_tool: str
@@ -52,6 +55,7 @@ class ToolSelectionExample:
     confuser_tools: list[str] = field(default_factory=list)
     reason: str = ""
     source: str = "synthetic"
+    misselection_signals: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Serialize all fields to a dict."""
@@ -63,6 +67,7 @@ class ToolSelectionExample:
             "confuser_tools": self.confuser_tools,
             "reason": self.reason,
             "source": self.source,
+            "misselection_signals": self.misselection_signals,
         }
 
     @classmethod

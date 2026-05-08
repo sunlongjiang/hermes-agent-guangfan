@@ -462,6 +462,14 @@ def _write_aborted_dir(
 
     evaluated_candidates = int(getattr(optimizer, "_evaluated_candidates", 0) or 0)
 
+    # WR-05: mkdir explicitly BEFORE write_aborted_json. Today
+    # write_aborted_json internally runs output_dir.mkdir(parents=True,
+    # exist_ok=True), so the double-mkdir was harmless — but this local
+    # write_text() call (for partial_diff.txt) relies on the directory
+    # existing. Making _our_ mkdir the first step removes the implicit
+    # ordering dependency on write_aborted_json's side-effect.
+    abort_dir.mkdir(parents=True, exist_ok=True)
+
     tracker.write_aborted_json(
         abort_dir,
         evaluated_candidates=evaluated_candidates,
@@ -471,7 +479,6 @@ def _write_aborted_dir(
         optimizer_used="gepa",
     )
 
-    abort_dir.mkdir(parents=True, exist_ok=True)
     (abort_dir / "partial_diff.txt").write_text(
         _generate_param_diff(original_tools, partial_evolved),
         encoding="utf-8",

@@ -434,3 +434,44 @@ def joint_tool_param_metric_with_feedback(
         fb_parts.append("Perfect match.")
 
     return dspy.Prediction(score=float(score), feedback=" ".join(fb_parts))
+
+
+# ── Per-Tool Rate Persistence (Phase 13: D-12) ───────────────────────────────
+
+
+def persist_per_tool_rates(
+    metrics: dict,
+    baseline_rates: dict[str, float],
+    evolved_rates: dict[str, float],
+) -> dict:
+    """Merge per-tool rate dicts into a metrics dict (for metrics.json).
+
+    Closes folded todo 2026-05-07-persist-per-tool-regression-rates.md.
+    Extends CONCERNS §M3's pass/fail-only gate with full per-tool rate
+    persistence so Phase 16's dashboard has raw data to aggregate.
+
+    The function:
+    - Does NOT mutate its inputs (returns a shallow copy of metrics).
+    - Coerces every rate value to float for safe json.dumps serialization.
+    - Sorts keys in both rate dicts alphabetically for stable diffs across runs.
+
+    Args:
+        metrics: The in-progress metrics dict that will be serialized to
+            metrics.json by the CLI (13-08).
+        baseline_rates: Per-tool accuracy BEFORE optimization
+            (CrossToolRegressionChecker.compute_per_tool_rates output).
+        evolved_rates: Per-tool accuracy AFTER optimization (same shape).
+
+    Returns:
+        A new dict equal to `metrics` plus two keys:
+            - per_tool_baseline_rates: {tool: float}
+            - per_tool_evolved_rates: {tool: float}
+    """
+    out = dict(metrics)  # shallow copy — callers may reuse `metrics` afterwards
+    out["per_tool_baseline_rates"] = {
+        k: float(v) for k, v in sorted((baseline_rates or {}).items())
+    }
+    out["per_tool_evolved_rates"] = {
+        k: float(v) for k, v in sorted((evolved_rates or {}).items())
+    }
+    return out

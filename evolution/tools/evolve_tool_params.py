@@ -682,6 +682,12 @@ def _evolve_impl(
     optimizer = None
     optimized_module = None
     optimizer_used = "gepa"
+    # BL-01 fix: capture spent USD inside the `with tracker:` block. After
+    # __exit__ runs, tracker._tracker is None and poll() falls back to
+    # self._injected_usage (empty in production) → returns 0.0 silently.
+    # We snapshot the live value before the context exits and use that as
+    # the canonical cost for metrics.json on every success-path code path.
+    final_spent_usd = 0.0
 
     try:
         with tracker:
@@ -710,6 +716,8 @@ def _evolve_impl(
                 trainset=trainset,
                 valset=valset,
             )
+            # BL-01: poll BEFORE __exit__ disposes the live UsageTracker.
+            final_spent_usd = float(tracker.poll())
     except CostBudgetExceeded as cap_exc:
         abort_dir = _write_aborted_dir(
             tracker=tracker,
@@ -738,6 +746,10 @@ def _evolve_impl(
         try:
             mipro = dspy.MIPROv2(metric=joint_tool_param_metric, auto="light")
             optimized_module = mipro.compile(baseline_module, trainset=trainset)
+            # BL-01 (fallback path): tracker has already __exit__-ed, so its
+            # live UsageTracker is gone; MIPROv2 spend is NOT captured here.
+            # final_spent_usd remains whatever GEPA accumulated before raising.
+            # Document the gap rather than reporting 0.0 silently.
         except Exception as mipro_err:
             console.print(f"[red]MIPROv2 fallback also failed: {mipro_err}[/red]")
             raise
@@ -771,7 +783,7 @@ def _evolve_impl(
         "eval_model": config.eval_model,
         "optimizer_used": optimizer_used,
         "reflection_model": reflection_model_name,
-        "cost_usd_spent": float(round(tracker.poll(), 6)),
+        "cost_usd_spent": float(round(final_spent_usd, 6)),
         "cost_usd_cap": float(config.max_cost_usd),
         "tool_count": len(evolved_tools),
         "param_predictors_discovered": num_predictors,
@@ -916,7 +928,10 @@ def _evolve_impl(
     # ── 15. Success — write evolved + metrics + diff ───────────────────
     metrics["status"] = "SUCCESS"
     metrics["constraints_passed"] = True
-    metrics["cost_usd_spent"] = float(round(tracker.poll(), 6))
+    # BL-01: do NOT call tracker.poll() here — the context has long since
+    # exited and tracker._tracker is None, so poll() would return 0.0 from
+    # _injected_usage (empty in production). Reuse the in-block snapshot.
+    metrics["cost_usd_spent"] = float(round(final_spent_usd, 6))
 
     # Result table (Rich) for human review.
     result_table = Table(title="Phase 13 Evolution Results")

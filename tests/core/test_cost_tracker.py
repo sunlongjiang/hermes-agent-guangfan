@@ -152,3 +152,72 @@ def test_poll_side_empty_usage_warning():
             with pytest.warns(RuntimeWarning):
                 for _ in range(5):
                     tracker.poll()
+
+
+def test_poll_after_exit_returns_zero_regression():
+    """BL-01 regression: poll() after __exit__ silently loses live UsageTracker state.
+
+    This is the underlying defect that BL-01 forced evolve_tool_params to work
+    around. Documenting it here as a regression test makes the contract
+    explicit: callers MUST snapshot tracker.poll() BEFORE the context exits.
+
+    Inside the `with`:
+        - injected usage is visible, poll() returns >0.
+
+    After __exit__:
+        - the live UsageTracker is gone (set to None);
+        - poll() falls back to self._injected_usage; since
+          _inject_usage_for_test was called inside the context, the injection
+          state IS still readable, so poll() should still report the injected
+          spend (proving the architectural seam can be used by callers).
+        - the regression we guard against is poll() returning 0.0 in
+          production where _injected_usage is empty -- the docstring on
+          CostTracker.poll() and the BL-01 fix in evolve_tool_params.py
+          together encode "snapshot in-block, do not poll() after exit".
+    """
+    pytest.importorskip("dspy")
+    from evolution.core.cost_tracker import CostTracker
+
+    tracker = CostTracker(max_usd=100.0)
+    with tracker:
+        tracker._inject_usage_for_test(
+            {
+                "openai/gpt-4.1-mini": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 200,
+                    "total_tokens": 1200,
+                }
+            }
+        )
+        in_block_spent = tracker.poll()
+        assert in_block_spent > 0, "sanity: in-block poll should see injection"
+
+    # Post-exit: tracker._tracker is None.
+    assert tracker._tracker is None, (
+        "CostTracker.__exit__ must drop the live UsageTracker; if this changes, "
+        "the BL-01 fix in evolve_tool_params._evolve_impl can be simplified."
+    )
+
+    # Post-exit poll: in this test, _injected_usage is non-empty (injection
+    # survives __exit__), so poll() can still re-derive a number. The
+    # PRODUCTION regression is that _injected_usage is empty AND _tracker
+    # is None — under those conditions poll() returns the previously-set
+    # spent_usd or 0.0. We exercise that branch separately:
+    fresh_tracker = CostTracker(max_usd=100.0)
+    with fresh_tracker:
+        # No injection at all — simulates a real run that never polled inside.
+        pass
+    # Now both _tracker is None AND _injected_usage is empty. poll() must
+    # return whatever spent_usd was last (default 0.0). This is the silent
+    # zero that masked actual API spend in BL-01.
+    assert fresh_tracker._tracker is None
+    assert fresh_tracker._injected_usage == {}
+    post_exit_spent = fresh_tracker.poll()
+    assert post_exit_spent == 0.0, (
+        f"With no injection and no live tracker, post-exit poll() returns "
+        f"the last self.spent_usd (default 0.0). Got {post_exit_spent}. "
+        f"This is the BL-01 silent-zero behavior: callers using live LM "
+        f"calls (no injection) MUST snapshot poll() inside the `with` block "
+        f"to capture real spend before __exit__ disposes the UsageTracker."
+    )
+

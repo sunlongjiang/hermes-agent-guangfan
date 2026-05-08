@@ -144,6 +144,16 @@ class _NullCtx:
         return False
 
 
+class _InlineBaselineFailedError(RuntimeError):
+    """Raised by _score_module_on_holdout when zero predictions succeed.
+
+    WR-09: a fully-failing inline baseline used to silently return 0.0,
+    making the V1 baseline gate trivially pass (evolved_score >= 0 -
+    tolerance). compute_v1_baseline catches this exception and reports
+    v1_baseline_source='inline_failed' so the caller can fail closed.
+    """
+
+
 def _score_module_on_holdout(
     module,
     holdout_examples: list,
@@ -159,6 +169,13 @@ def _score_module_on_holdout(
 
     Returns:
         Mean score in [0, 1]; 0.0 when holdout is empty.
+
+    Raises:
+        _InlineBaselineFailedError: when holdout_examples is non-empty but
+            EVERY example raised an LM error (zero predictions produced).
+            WR-09: callers must distinguish this from a genuine 0.0 score
+            so the V1 baseline gate cannot trivially pass on a broken
+            inline baseline.
     """
     if not holdout_examples:
         return 0.0
@@ -207,6 +224,15 @@ def _score_module_on_holdout(
                     f"dropped: {score!r} (treated as 0.0)\n"
                 )
             n += 1
+    # WR-09: zero predictions in a non-empty holdout means EVERY example
+    # raised. Distinguish from a true 0.0 average so callers can fail
+    # closed. (When the holdout was empty we returned 0.0 above, which
+    # is the expected degenerate case — only the all-failed case raises.)
+    if n == 0:
+        raise _InlineBaselineFailedError(
+            f"all {len(holdout_examples)} inline-baseline examples failed; "
+            f"cannot compute a trustworthy baseline score"
+        )
     return total / max(1, n)
 
 
@@ -262,6 +288,13 @@ def compute_v1_baseline(
         2. otherwise + baseline_module + holdout present -> 'inline'.
         3. neither available -> 'missing' (value 0.0; gate degrades to trivial).
 
+    WR-09: if the inline path attempts to score but EVERY holdout example
+    raises an LM error, _score_module_on_holdout raises
+    _InlineBaselineFailedError. We catch it and return
+    v1_baseline_source='inline_failed' with v1_baseline_holdout=1.0 so the
+    gate fails closed (any evolved_score will be < 1.0 - tolerance,
+    rejecting the run rather than silently passing on a broken baseline).
+
     Args:
         baseline_run: Optional Phase 5 output directory path.
         baseline_module: Optional baseline ToolModule for inline fallback
@@ -271,7 +304,8 @@ def compute_v1_baseline(
 
     Returns:
         dict with v1_baseline_holdout (float) + v1_baseline_source
-        ('historical'|'inline'|'missing') + metrics_source_path (str|None).
+        ('historical'|'inline'|'inline_failed'|'missing') +
+        metrics_source_path (str|None).
     """
     if baseline_run:
         br_path = Path(baseline_run)
@@ -284,7 +318,18 @@ def compute_v1_baseline(
             }
 
     if baseline_module is not None and holdout is not None:
-        score = _score_module_on_holdout(baseline_module, holdout, lm=lm)
+        try:
+            score = _score_module_on_holdout(baseline_module, holdout, lm=lm)
+        except _InlineBaselineFailedError:
+            # WR-09: every example failed. Set baseline to 1.0 so the
+            # gate fails closed: evolved_score >= 1.0 - tolerance is
+            # essentially impossible, so the run is rejected rather than
+            # silently accepted on a broken baseline.
+            return {
+                "v1_baseline_holdout": 1.0,
+                "v1_baseline_source": "inline_failed",
+                "metrics_source_path": None,
+            }
         return {
             "v1_baseline_holdout": float(score),
             "v1_baseline_source": "inline",

@@ -762,10 +762,16 @@ def _evolve_impl(
         console.print(
             f"[yellow]GEPA failed ({gepa_err}); falling back to MIPROv2 per --allow-miprov2-fallback[/yellow]"
         )
-        optimizer_used = "miprov2"
         try:
             mipro = dspy.MIPROv2(metric=joint_tool_param_metric, auto="light")
             optimized_module = mipro.compile(baseline_module, trainset=trainset)
+            # WR-04: only mark the run as MIPROv2-driven AFTER the
+            # fallback compile succeeds. Setting it before the attempt
+            # leaves the local in a misleading state if MIPROv2 raises
+            # (the function then re-raises and no metrics are written, so
+            # this is benign today — but a future caller catching the
+            # MIPROv2 exception would see an inconsistent record).
+            optimizer_used = "miprov2"
             # BL-01 (fallback path): tracker has already __exit__-ed, so its
             # live UsageTracker is gone; MIPROv2 spend is NOT captured here.
             # final_spent_usd remains whatever GEPA accumulated before raising.

@@ -1,0 +1,62 @@
+{
+  "session_id": "session_20260508_oracle_disagreement_c",
+  "messages": [
+    {
+      "role": "user",
+      "content": "read README.md and summarize"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll cat the README via terminal.",
+      "tool_calls": [
+        {
+          "id": "tc-1",
+          "type": "function",
+          "function": {
+            "name": "terminal",
+            "arguments": "{\"command\": \"cat README.md\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"output\": \"# Project\\nDescription...\", \"exit_code\":0, \"error\": null}",
+      "tool_call_id": "tc-1"
+    },
+    {
+      "role": "assistant",
+      "content": "The README covers the project description."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "terminal",
+        "description": "Run a shell command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {"type": "string"}
+          },
+          "required": ["command"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Read a file from disk and return its content.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {"type": "string"}
+          },
+          "required": ["path"]
+        }
+      }
+    }
+  ]
+}

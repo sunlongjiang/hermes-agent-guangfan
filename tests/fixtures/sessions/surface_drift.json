@@ -1,0 +1,44 @@
+{
+  "session_id": "session_20260508_surface_drift",
+  "messages": [
+    {
+      "role": "user",
+      "content": "inspect something via the old tool"
+    },
+    {
+      "role": "assistant",
+      "content": "Using legacy_tool_v0 since this session predates the current hermes tool surface.",
+      "tool_calls": [
+        {
+          "id": "tc-1",
+          "type": "function",
+          "function": {
+            "name": "legacy_tool_v0",
+            "arguments": "{\"target\": \"foo\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"output\": \"legacy ok\", \"exit_code\":0, \"error\": null}",
+      "tool_call_id": "tc-1"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "legacy_tool_v0",
+        "description": "Historical tool that no longer exists in the current hermes-agent surface.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "target": {"type": "string"}
+          },
+          "required": ["target"]
+        }
+      }
+    }
+  ]
+}

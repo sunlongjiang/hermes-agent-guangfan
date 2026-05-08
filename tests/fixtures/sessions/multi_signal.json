@@ -1,0 +1,82 @@
+{
+  "session_id": "session_20260508_multi_signal",
+  "messages": [
+    {
+      "role": "user",
+      "content": "list files"
+    },
+    {
+      "role": "assistant",
+      "content": "Trying legacy_grep first.",
+      "tool_calls": [
+        {
+          "id": "tc-1",
+          "type": "function",
+          "function": {
+            "name": "legacy_grep",
+            "arguments": "{\"pattern\": \"*\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"output\": \"\", \"exit_code\":1, \"error\": \"fail: legacy_grep not available\"}",
+      "tool_call_id": "tc-1"
+    },
+    {
+      "role": "user",
+      "content": "应该用 search_files，不要用 legacy_grep"
+    },
+    {
+      "role": "assistant",
+      "content": "Good point — legacy_grep returned 'exit_code': 1, switching to search_files.",
+      "tool_calls": [
+        {
+          "id": "tc-2",
+          "type": "function",
+          "function": {
+            "name": "search_files",
+            "arguments": "{\"pattern\": \"*\", \"target\": \"files\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"output\": \"a.py\\nb.py\", \"exit_code\":0, \"error\": null}",
+      "tool_call_id": "tc-2"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "legacy_grep",
+        "description": "Deprecated grep tool.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {"type": "string"}
+          },
+          "required": ["pattern"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_files",
+        "description": "Search for files.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {"type": "string"},
+            "target": {"type": "string"}
+          },
+          "required": ["pattern"]
+        }
+      }
+    }
+  ]
+}

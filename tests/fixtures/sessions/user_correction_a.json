@@ -1,0 +1,82 @@
+{
+  "session_id": "session_20260508_user_correction_a",
+  "messages": [
+    {
+      "role": "user",
+      "content": "find a TODO in the codebase"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll run a terminal grep.",
+      "tool_calls": [
+        {
+          "id": "tc-1",
+          "type": "function",
+          "function": {
+            "name": "terminal",
+            "arguments": "{\"command\": \"grep -rn TODO .\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"output\": \"./foo.py:12: TODO: implement\", \"exit_code\":0, \"error\": null}",
+      "tool_call_id": "tc-1"
+    },
+    {
+      "role": "user",
+      "content": "不对，应该用 search_files，它更快更稳"
+    },
+    {
+      "role": "assistant",
+      "content": "明白，改用 search_files。",
+      "tool_calls": [
+        {
+          "id": "tc-2",
+          "type": "function",
+          "function": {
+            "name": "search_files",
+            "arguments": "{\"pattern\": \"TODO\", \"target\": \"files\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"output\": \"./foo.py\\n./bar.py\", \"exit_code\":0, \"error\": null}",
+      "tool_call_id": "tc-2"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "terminal",
+        "description": "Run a shell command in the current repo.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {"type": "string"}
+          },
+          "required": ["command"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_files",
+        "description": "Search for files matching a pattern.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {"type": "string"},
+            "target": {"type": "string"}
+          },
+          "required": ["pattern"]
+        }
+      }
+    }
+  ]
+}

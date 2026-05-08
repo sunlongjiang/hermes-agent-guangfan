@@ -1,0 +1,78 @@
+{
+  "session_id": "session_20260508_error_retry_b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "list files in the repo root"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me try with legacy_grep first.",
+      "tool_calls": [
+        {
+          "id": "tc-1",
+          "type": "function",
+          "function": {
+            "name": "legacy_grep",
+            "arguments": "{\"pattern\": \"*\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"output\": \"\", \"exit_code\":1, \"error\": \"command not found: legacy_grep\"}",
+      "tool_call_id": "tc-1"
+    },
+    {
+      "role": "assistant",
+      "content": "That failed with 'exit_code': 1. Let me use search_files instead.",
+      "tool_calls": [
+        {
+          "id": "tc-2",
+          "type": "function",
+          "function": {
+            "name": "search_files",
+            "arguments": "{\"pattern\": \"*\", \"target\": \"files\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"output\": \"a.py\\nb.py\", \"exit_code\":0, \"error\": null}",
+      "tool_call_id": "tc-2"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "legacy_grep",
+        "description": "Legacy grep wrapper; deprecated.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {"type": "string"}
+          },
+          "required": ["pattern"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_files",
+        "description": "Search for files matching a pattern under the repo.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {"type": "string"},
+            "target": {"type": "string"}
+          },
+          "required": ["pattern"]
+        }
+      }
+    }
+  ]
+}

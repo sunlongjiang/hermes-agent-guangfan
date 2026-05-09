@@ -67,7 +67,7 @@ from evolution.tools.tool_loader import (
     ToolDescription,
 )
 from evolution.tools.tool_module import ToolModule
-from evolution.tools.tool_dataset import ToolDatasetBuilder, ToolSelectionDataset
+from evolution.tools.tool_dataset import ToolDatasetBuilder, ToolSelectionDataset, ToolSelectionExample
 from evolution.tools.tool_metric import (
     joint_tool_param_metric,
     joint_tool_param_metric_with_feedback,
@@ -80,6 +80,7 @@ from evolution.tools.v1_baseline_gate import (
     check_v1_baseline_gate,
     compute_v1_baseline,
 )
+from evolution.tools.session_miner import _load_jsonl_skip_bad, _normalize_task_hash
 
 
 __all__ = [
@@ -218,10 +219,43 @@ def _load_tool_descriptions(hermes_agent_path: Path) -> list[ToolDescription]:
     return out
 
 
+def _union_session_into_dataset(dataset, session_source) -> None:
+    """In-place union — synth first, session overrides on hash collision (D-14).
+
+    B1 contract: caller must pass an in-memory ToolSelectionDataset object
+    (NOT a path). Caller is responsible for invoking this AFTER
+    `dataset = ToolSelectionDataset.load(...)` / synthesis and BEFORE
+    `dataset.to_dspy_examples(...)`. Mutates dataset.train/val/holdout
+    in-place. Does NOT re-apply train multiplier (Pitfall 5 — mine_tool_sessions
+    has already pre-duplicated train.jsonl).
+    """
+    from pathlib import Path as _SessPath
+
+    sess_dir = _SessPath(session_source)
+    console.print(f"[bold cyan]Phase 14 (D-09 / D-14):[/] union session dataset from {sess_dir}")
+    for split_name in ("train", "val", "holdout"):
+        sess_rows, skipped = _load_jsonl_skip_bad(sess_dir / f"{split_name}.jsonl")
+        if skipped:
+            console.print(f"  {split_name}.jsonl skipped {skipped} bad lines")
+        session_examples = [ToolSelectionExample.from_dict(r) for r in sess_rows]
+        # Pitfall 10 ordering: synth first, session overrides on hash collision.
+        # Pitfall 5: NO re-duplication — mine_tool_sessions has pre-duplicated train.
+        by_hash: dict = {}
+        for ex in getattr(dataset, split_name):
+            by_hash[_normalize_task_hash(ex.task_description)] = ex
+        for ex in session_examples:
+            by_hash[_normalize_task_hash(ex.task_description)] = ex
+        setattr(dataset, split_name, list(by_hash.values()))
+    console.print(
+        f"  After union: train={len(dataset.train)} val={len(dataset.val)} holdout={len(dataset.holdout)}"
+    )
+
+
 def _load_dataset(
     eval_source: str,
     config: EvolutionConfig,
     all_tools: list[ToolDescription],
+    session_source: Optional[str] = None,
 ) -> tuple[list[dspy.Example], list[dspy.Example], list[dspy.Example]]:
     """Build trainset/valset/holdout dspy.Example lists.
 
@@ -234,6 +268,10 @@ def _load_dataset(
             (regenerate via ToolDatasetBuilder).
         config: EvolutionConfig for synthetic generation kwargs.
         all_tools: Discovered ToolDescription list.
+        session_source: Optional path to a mine_tool_sessions output dir
+            (D-09 / D-14). When set, the session-side dataset is unioned
+            into the synthetic/loaded dataset before splitting; session
+            examples win on hash collision.
 
     Returns:
         (train, val, holdout) tuple of dspy.Example lists.
@@ -260,6 +298,11 @@ def _load_dataset(
         dataset = ToolSelectionDataset.load(dataset_path)
     else:
         raise click.UsageError(f"Unknown eval-source: {eval_source!r}")
+
+    # Phase 14 (D-09 / D-14): union session dataset on top of synth/loaded
+    if session_source:
+        _union_session_into_dataset(dataset, session_source)
+
     return (
         dataset.to_dspy_examples("train"),
         dataset.to_dspy_examples("val"),
@@ -538,6 +581,10 @@ def _write_aborted_dir(
 @click.option("--auto", default=None,
               type=click.Choice(["light", "medium", "heavy"]),
               help="GEPA auto-budget; mutex with iterations→max_metric_calls fallback")
+@click.option("--session-source", default=None,
+              type=click.Path(exists=True, file_okay=False, dir_okay=True),
+              help="Directory with train/val/holdout.jsonl from mine_tool_sessions; "
+                   "union with synthetic dataset (session-side wins on hash collision)")
 def evolve(
     iterations: int,
     eval_source: str,
@@ -553,6 +600,7 @@ def evolve(
     allow_miprov2_fallback: bool,
     component_selector: str,
     auto: Optional[str],
+    session_source: Optional[str] = None,
 ) -> None:
     """Evolve hermes-agent TOOL PARAMETER descriptions using DSPy + GEPA.
 
@@ -575,6 +623,7 @@ def evolve(
         allow_miprov2_fallback=allow_miprov2_fallback,
         component_selector=component_selector,
         auto=auto,
+        session_source=session_source,
     )
     if exit_code:
         # Click's runner.invoke captures sys.exit; production callers also
@@ -606,6 +655,7 @@ def _evolve_impl(
     allow_miprov2_fallback: bool,
     component_selector: str,
     auto: Optional[str],
+    session_source: Optional[str] = None,
 ) -> int:
     """Phase 13 evolution pipeline — returns OS exit code.
 
@@ -702,7 +752,7 @@ def _evolve_impl(
 
     # ── 5. Load dataset ─────────────────────────────────────────────────
     console.print(f"\n[bold]Building evaluation dataset[/bold] (source: {eval_source})")
-    trainset, valset, holdout = _load_dataset(eval_source, config, all_tools)
+    trainset, valset, holdout = _load_dataset(eval_source, config, all_tools, session_source=session_source)
     if not trainset and not valset and not holdout:
         console.print("[red]Empty dataset — cannot run optimization.[/red]")
         return 1
@@ -853,6 +903,7 @@ def _evolve_impl(
         ),
         "constraint_failures": 0,
         "param_consistency_failures": 0,
+        "session_source": str(session_source) if session_source else None,
     }
 
     # ── 11. Constraint chain ───────────────────────────────────────────

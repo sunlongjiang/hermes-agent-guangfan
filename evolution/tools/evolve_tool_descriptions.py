@@ -24,14 +24,47 @@ from evolution.core.config import EvolutionConfig, get_hermes_agent_path
 from evolution.core.constraints import ConstraintValidator
 from evolution.tools.tool_loader import discover_tool_files, extract_tool_descriptions, ToolDescription
 from evolution.tools.tool_module import ToolModule
-from evolution.tools.tool_dataset import ToolDatasetBuilder, ToolSelectionDataset
+from evolution.tools.tool_dataset import ToolDatasetBuilder, ToolSelectionDataset, ToolSelectionExample
 from evolution.tools.tool_metric import tool_selection_metric, CrossToolRegressionChecker
 from evolution.tools.tool_constraints import ToolFactualChecker
+from evolution.tools.session_miner import _load_jsonl_skip_bad, _normalize_task_hash
 
 console = Console()
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+
+def _union_session_into_dataset(dataset, session_source) -> None:
+    """In-place union — synth first, session overrides on hash collision (D-14).
+
+    B1 contract: caller must pass an in-memory ToolSelectionDataset object
+    (NOT a path). Caller is responsible for invoking this AFTER
+    `dataset = ToolSelectionDataset.load(...)` / synthesis and BEFORE
+    `dataset.to_dspy_examples(...)`. Mutates dataset.train/val/holdout
+    in-place. Does NOT re-apply train multiplier (Pitfall 5 — mine_tool_sessions
+    has already pre-duplicated train.jsonl).
+    """
+    from pathlib import Path as _SessPath
+
+    sess_dir = _SessPath(session_source)
+    console.print(f"[bold cyan]Phase 14 (D-09 / D-14):[/] union session dataset from {sess_dir}")
+    for split_name in ("train", "val", "holdout"):
+        sess_rows, skipped = _load_jsonl_skip_bad(sess_dir / f"{split_name}.jsonl")
+        if skipped:
+            console.print(f"  {split_name}.jsonl skipped {skipped} bad lines")
+        session_examples = [ToolSelectionExample.from_dict(r) for r in sess_rows]
+        # Pitfall 10 ordering: synth first, session overrides on hash collision.
+        # Pitfall 5: NO re-duplication — mine_tool_sessions has pre-duplicated train.
+        by_hash: dict = {}
+        for ex in getattr(dataset, split_name):
+            by_hash[_normalize_task_hash(ex.task_description)] = ex
+        for ex in session_examples:
+            by_hash[_normalize_task_hash(ex.task_description)] = ex
+        setattr(dataset, split_name, list(by_hash.values()))
+    console.print(
+        f"  After union: train={len(dataset.train)} val={len(dataset.val)} holdout={len(dataset.holdout)}"
+    )
 
 
 def _generate_diff(original_tools: list[ToolDescription], evolved_tools: list[ToolDescription]) -> str:
@@ -76,6 +109,7 @@ def evolve(
     dry_run: bool = False,
     model: Optional[str] = None,
     api_base: Optional[str] = None,
+    session_source: Optional[str] = None,
 ):
     """Main evolution function -- orchestrates the full tool description optimization loop.
 
@@ -86,6 +120,10 @@ def evolve(
         dry_run: If True, validate setup without running optimization.
         model: Override model for all LLM calls.
         api_base: Override API base URL.
+        session_source: Optional path to a mine_tool_sessions output dir
+            (containing train/val/holdout.jsonl). When set, the session-side
+            dataset is unioned into the synthetic/loaded dataset; session
+            examples win on hash collision (D-09 / D-14).
     """
 
     # ── 1. Configuration ─────────────────────────────────────────────────
@@ -165,6 +203,10 @@ def evolve(
         f"  Split: {len(dataset.train)} train / {len(dataset.val)} val"
         f" / {len(dataset.holdout)} holdout"
     )
+
+    # Phase 14 (D-09 / D-14): union session dataset on top of synth (session wins on hash collision)
+    if session_source:
+        _union_session_into_dataset(dataset, session_source)
 
     # ── 6. GEPA optimization ─────────────────────────────────────────────
     console.print(f"\n[bold]Configuring optimizer[/bold]")
@@ -375,6 +417,7 @@ def evolve(
         "holdout_examples": len(dataset.holdout),
         "elapsed_seconds": elapsed,
         "constraints_passed": True,
+        "session_source": str(session_source) if session_source else None,
     }
     (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
@@ -405,7 +448,11 @@ def evolve(
 @click.option("--dry-run", is_flag=True, help="Validate setup without running optimization")
 @click.option("--model", default=None, help="Override model for all LLM calls (e.g. openai/qwen-plus)")
 @click.option("--api-base", default=None, help="Override API base URL (e.g. https://dashscope.aliyuncs.com/compatible-mode/v1)")
-def main(iterations, eval_source, hermes_repo, dry_run, model, api_base):
+@click.option("--session-source", default=None,
+              type=click.Path(exists=True, file_okay=False, dir_okay=True),
+              help="Directory with train/val/holdout.jsonl from mine_tool_sessions; "
+                   "union with synthetic dataset (session-side wins on hash collision)")
+def main(iterations, eval_source, hermes_repo, dry_run, model, api_base, session_source):
     """Evolve hermes-agent tool descriptions using DSPy + GEPA optimization."""
     evolve(
         iterations=iterations,
@@ -414,6 +461,7 @@ def main(iterations, eval_source, hermes_repo, dry_run, model, api_base):
         dry_run=dry_run,
         model=model,
         api_base=api_base,
+        session_source=session_source,
     )
 
 

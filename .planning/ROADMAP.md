@@ -222,7 +222,7 @@ Plans:
   1. Importer extracts tool selection ground truth from session transcripts
   2. Misselection patterns weighted higher in training dataset
   3. Integration with existing ToolDatasetBuilder as additional data source
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 **Wave 0**
@@ -235,7 +235,7 @@ Plans:
 **Wave 3**
 - [x] 14-05-PLAN.md — mine_tool_sessions.py CLI: 12 flags + consent gate + Rich Table summary + metrics.json (D-06..D-08/D-12/D-16, T-14-04)
 **Wave 4** *(blocked on Wave 3 + manual checkpoint)*
-- [ ] 14-06-PLAN.md — evolve_tool_*.py --session-source flag (D-09/D-14) + 44-session real-data dry-run smoke + entropy threshold calibration
+- [x] 14-06-PLAN.md — evolve_tool_*.py --session-source flag (D-09/D-14) + 44-session real-data dry-run smoke + entropy threshold calibration
 
 ### Phase 15: Think-Augmented Tool Selection
 **Goal**: Add reasoning step before tool selection to improve accuracy on ambiguous tasks

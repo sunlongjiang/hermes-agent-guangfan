@@ -233,3 +233,147 @@ class TestGetEvolvedDescriptions:
 
         # Tool-level stays frozen (D-02)
         assert terminal_tool.description == "Execute shell commands"
+
+
+# ── Phase 15: TestEnableReasoning ────────────────────────────────────────
+
+class TestEnableReasoning:
+    """Phase 15 Wave 1 — ToolModule(enable_reasoning=...) construction + forward
+    branching + GEPA discoverability + backward compat."""
+
+    @staticmethod
+    def _tools():
+        from pathlib import Path
+        from evolution.tools.tool_loader import ToolDescription, ToolParam
+        return [
+            ToolDescription(
+                name="search",
+                file_path=Path("/fake/search.py"),
+                description="Search for stuff",
+                params=[
+                    ToolParam(name="q", type="string", required=True, description="query"),
+                ],
+            ),
+            ToolDescription(
+                name="read_file",
+                file_path=Path("/fake/read_file.py"),
+                description="Read file",
+                params=[
+                    ToolParam(name="path", type="string", required=True, description="file path"),
+                ],
+            ),
+        ]
+
+    def test_constructs_reasoner(self):
+        """enable_reasoning=True → self.reasoner is dspy.Predict(ToolReasoningSignature)."""
+        import dspy
+        from unittest.mock import patch, MagicMock
+        from evolution.tools.tool_module import ToolModule, ToolReasoningSignature
+        with patch("evolution.tools.tool_module.dspy.LM") as mock_lm:
+            mock_lm.return_value = MagicMock()
+            module = ToolModule(self._tools(), enable_reasoning=True)
+        assert module.reasoner is not None
+        assert isinstance(module.reasoner, dspy.Predict)
+        # Signature class identity check (handles both Pydantic-1 and -2 dspy versions)
+        sig = module.reasoner.signature
+        sig_name = getattr(sig, "__name__", None) or type(sig).__name__
+        assert "ToolReasoningSignature" in sig_name or sig is ToolReasoningSignature
+
+    def test_disabled_reasoner_absent(self):
+        """enable_reasoning=False → self.reasoner is None."""
+        from evolution.tools.tool_module import ToolModule
+        module = ToolModule(self._tools(), enable_reasoning=False)
+        assert module.reasoner is None
+
+    def test_default_enable_reasoning_is_false(self):
+        """Backward compat: not passing the kwarg → Phase 13 behavior."""
+        from evolution.tools.tool_module import ToolModule
+        module = ToolModule(self._tools())  # no kwarg
+        assert module.reasoner is None
+        assert module.enable_reasoning is False
+
+    def test_off_path_no_reasoner_call(self):
+        """think-off forward: reasoner never called; returned Prediction.reasoning == ''."""
+        import dspy
+        from unittest.mock import MagicMock
+        from evolution.tools.tool_module import ToolModule
+        module = ToolModule(self._tools(), enable_reasoning=False)
+        # Replace selector with mock to avoid real LM call.
+        module.selector = MagicMock(return_value=dspy.Prediction(
+            selected_tool="search",
+            selected_params="{}",
+        ))
+        pred = module.forward(task_description="find files")
+        assert pred.reasoning == ""
+        assert pred.reasoning_tokens == 0
+
+    def test_on_path_reasoner_first(self):
+        """think-on forward: reasoner called BEFORE selector; selector kwargs include reasoning."""
+        import dspy
+        from unittest.mock import patch, MagicMock
+        from evolution.tools.tool_module import ToolModule
+        with patch("evolution.tools.tool_module.dspy.LM") as mock_lm:
+            mock_lm.return_value = MagicMock()
+            module = ToolModule(self._tools(), enable_reasoning=True)
+        # Inject ordered mocks; assert call order via shared list.
+        call_log: list[str] = []
+        def reasoner_mock(**kwargs):
+            call_log.append("reasoner")
+            return dspy.Prediction(reasoning="comparing search vs read_file...")
+        def selector_mock(**kwargs):
+            call_log.append("selector")
+            assert "reasoning" in kwargs, f"selector must receive reasoning kwarg; got {list(kwargs)}"
+            assert kwargs["reasoning"] != "", f"reasoning must be non-empty on think-on path; got {kwargs['reasoning']!r}"
+            return dspy.Prediction(selected_tool="search", selected_params="{}")
+        module.reasoner = reasoner_mock
+        module.selector = selector_mock
+        pred = module.forward(task_description="find files containing TODO")
+        assert call_log == ["reasoner", "selector"]
+        assert pred.reasoning == "comparing search vs read_file..."
+        assert pred.reasoning_tokens > 0  # len("comparing...")/4 > 0
+
+    def test_reasoner_lm_max_tokens_200(self):
+        """D-04: reasoner LM has max_tokens=200 hard cap."""
+        import dspy
+        from unittest.mock import patch
+        from evolution.tools.tool_module import ToolModule
+        # Use a real dspy.LM ctor recording but NOT calling the LM.
+        captured_kwargs = {}
+        real_LM = dspy.LM
+
+        def capturing_LM(model_name, **kwargs):
+            captured_kwargs.update(kwargs)
+            return real_LM.__new__(real_LM)  # uninitialized instance is fine for kwarg check
+
+        with patch("evolution.tools.tool_module.dspy.LM", side_effect=capturing_LM) as patched:
+            ToolModule(self._tools(), enable_reasoning=True)
+        # patched.call_args captures first call kwargs
+        first_call_kwargs = patched.call_args.kwargs if patched.call_args else {}
+        # Either side_effect captured or call_args reflects max_tokens=200
+        assert (
+            captured_kwargs.get("max_tokens") == 200
+            or first_call_kwargs.get("max_tokens") == 200
+        ), (
+            f"reasoner LM must be constructed with max_tokens=200; got "
+            f"captured={captured_kwargs} call_args={first_call_kwargs}"
+        )
+
+    def test_reasoner_in_named_predictors(self):
+        """TOOL-V2-03 SC-2: reasoner.signature.instructions is GEPA-discoverable."""
+        from unittest.mock import patch, MagicMock
+        from evolution.tools.tool_module import ToolModule
+        with patch("evolution.tools.tool_module.dspy.LM") as mock_lm:
+            mock_lm.return_value = MagicMock()
+            module = ToolModule(self._tools(), enable_reasoning=True)
+        names_to_predicts = dict(module.named_predictors())
+        # named_predictors paths often qualified like "reasoner" or include child paths
+        reasoner_keys = [k for k in names_to_predicts.keys() if "reasoner" in k]
+        assert len(reasoner_keys) >= 1, (
+            f"reasoner missing from named_predictors. Got keys: {list(names_to_predicts.keys())}"
+        )
+        # Instructions must be the ToolReasoningSignature docstring (non-empty).
+        pred = names_to_predicts[reasoner_keys[0]]
+        instructions = pred.signature.instructions
+        assert instructions, f"reasoner instructions empty"
+        assert "Be concise" in instructions or "≤200 tokens" in instructions
+

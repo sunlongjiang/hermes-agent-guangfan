@@ -59,12 +59,18 @@ class CostBudgetExceeded(Exception):
         max_usd: The configured ceiling.
     """
 
-    def __init__(self, spent_usd: float, max_usd: float):
-        self.spent_usd = spent_usd
-        self.max_usd = max_usd
-        super().__init__(
-            f"Cost budget exceeded: spent ${spent_usd:.4f} > cap ${max_usd:.4f}"
-        )
+    def __init__(self, spent_usd_or_msg: float | str = 0.0, max_usd: float = 0.0):
+        # Support single-string form (tests) AND two-float form (production).
+        if isinstance(spent_usd_or_msg, str):
+            self.spent_usd = 0.0
+            self.max_usd = max_usd
+            super().__init__(spent_usd_or_msg)
+        else:
+            self.spent_usd = float(spent_usd_or_msg)
+            self.max_usd = float(max_usd)
+            super().__init__(
+                f"Cost budget exceeded: spent ${self.spent_usd:.4f} > cap ${self.max_usd:.4f}"
+            )
 
 
 # ── USD conversion ──────────────────────────────────────────────────────────

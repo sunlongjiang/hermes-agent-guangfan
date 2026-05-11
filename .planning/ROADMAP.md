@@ -245,11 +245,11 @@ Plans:
   1. ToolModule supports optional ChainOfThought reasoning before selection
   2. Reasoning step is optimizable by GEPA (prompt text is a parameter)
   3. A/B comparison shows improvement on ambiguous selection scenarios
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
 **Wave 0**
-- [ ] 15-01-PLAN.md — Wave 0 test scaffolding (test_think_metrics.py + test_evolve_tool_reasoning.py + test_dataset_ambiguous_size.py + conftest.py — 30+ RED stubs + ambiguous subset observation)
+- [x] 15-01-PLAN.md — Wave 0 test scaffolding (test_think_metrics.py + test_evolve_tool_reasoning.py + test_dataset_ambiguous_size.py + conftest.py — 30+ RED stubs + ambiguous subset observation)
 
 **Wave 1**
 - [ ] 15-02-PLAN.md — ToolModule.enable_reasoning + ToolReasoningSignature + forward 双路径 + reasoning InputField (D-01..D-07/D-17) + TestEnableReasoning 7 tests

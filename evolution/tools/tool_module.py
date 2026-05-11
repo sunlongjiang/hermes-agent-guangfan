@@ -7,6 +7,8 @@ mutate it. Per-tool params are wrapped in a sub-dspy.Module (the only way
 DSPy 3.1.3's named_parameters() will recurse into a dict-of-Predict;
 raw dict[str, dict[str, Predict]] at ToolModule level is invisible --
 see 13-RESEARCH.md §Pitfall 1 for source-level verification).
+
+Phase 15: optional reasoner Predict exposed via enable_reasoning=True (D-01..D-07).
 """
 
 from typing import Optional
@@ -31,6 +33,14 @@ class ToolSelectionWithParamsSignature(dspy.Signature):
     available_tools: str = dspy.InputField(
         desc="Formatted list of available tools with their descriptions and parameters",
     )
+    reasoning: str = dspy.InputField(
+        default="",
+        desc=(
+            "Optional pre-reasoning from think-on path; empty string '' on "
+            "think-off path. If non-empty, treat as advisory context — do not "
+            "blindly defer; reasoning may be wrong."
+        ),
+    )
     selected_tool: str = dspy.OutputField(
         desc="The exact name of the most appropriate tool for this task",
     )
@@ -40,6 +50,27 @@ class ToolSelectionWithParamsSignature(dspy.Signature):
             '\'{"pattern":"foo","file_pattern":"*.py"}\'. '
             "Return '{}' if the tool requires no parameters."
         ),
+    )
+
+
+# ── Phase 15 Reasoning Signature ────────────────────────────────────────
+
+class ToolReasoningSignature(dspy.Signature):
+    """Briefly reason about which tool best fits this task.
+
+    Be concise (≤200 tokens). Mention what makes the candidate tools
+    different in this context. Do NOT pre-select a tool — that is the
+    selector's job. Focus on disambiguating overlapping tools by their
+    intent, scope, or side-effects.
+    """
+    task_description: str = dspy.InputField(
+        desc="The task to accomplish",
+    )
+    available_tools: str = dspy.InputField(
+        desc="Formatted listing of available tools with descriptions and params",
+    )
+    reasoning: str = dspy.OutputField(
+        desc="Short rationale comparing top candidates, ≤200 tokens. Do not name a winner.",
     )
 
 
@@ -89,8 +120,14 @@ class _ToolParamBundle(dspy.Module):
 class ToolModule(dspy.Module):
     """Phase-13 ToolModule exposing per-parameter descriptions as GEPA targets.
 
+    Phase 15: optional think-on path via enable_reasoning=True (D-01..D-07).
+
     Args:
         tool_descriptions: List of ToolDescription from tool_loader.extract_tool_descriptions().
+        enable_reasoning: If True, constructs self.reasoner = dspy.Predict(ToolReasoningSignature)
+            with max_tokens=200 LM override. If False (default), Phase 13 behavior preserved.
+        eval_model: LM model name for the reasoner's per-Predict LM override (D-04).
+        lm_kwargs: Extra LM kwargs (max_tokens excluded -- always 200 for reasoner).
 
     Contract:
         - named_predictors() yields one entry per (tool, param), path
@@ -99,9 +136,17 @@ class ToolModule(dspy.Module):
           physically absent from the predictor graph (D-02).
         - forward(task_description) returns dspy.Prediction with both
           `selected_tool` and `selected_params` (JSON-string) fields (D-05, D-18).
+        - Phase 15: forward also returns `reasoning` (str) and `reasoning_tokens` (int).
     """
 
-    def __init__(self, tool_descriptions: list[ToolDescription]):
+    def __init__(
+        self,
+        tool_descriptions: list[ToolDescription],
+        *,
+        enable_reasoning: bool = False,
+        eval_model: str = "openai/gpt-4.1-mini",
+        lm_kwargs: Optional[dict] = None,
+    ):
         super().__init__()
 
         # D-01/D-04: per-tool sub-Module dict -- discoverable + hierarchical.
@@ -125,6 +170,25 @@ class ToolModule(dspy.Module):
 
         # Selector: ChainOfThought with upgraded signature (D-05).
         self.selector = dspy.ChainOfThought(ToolSelectionWithParamsSignature)
+
+        # ── Phase 15: Optional reasoner Predict ─────────────────────────
+        # D-05: opt-in flag, static branching at constructor.
+        # D-07: enable_reasoning is immutable after __init__ — never set self.reasoner
+        # outside this block.
+        self.enable_reasoning: bool = bool(enable_reasoning)
+        self.reasoner: Optional[dspy.Predict] = None
+        if self.enable_reasoning:
+            # D-04 双保险其一: reasoner LM max_tokens=200.
+            # Filter caller-supplied lm_kwargs to avoid double-max_tokens.
+            filtered_kwargs = {
+                k: v for k, v in (lm_kwargs or {}).items()
+                if k != "max_tokens"
+            }
+            reasoning_lm = dspy.LM(eval_model, max_tokens=200, **filtered_kwargs)
+            # D-01: separate Predict, NOT a CoT — selector retains independence.
+            self.reasoner = dspy.Predict(ToolReasoningSignature)
+            # RESEARCH §1.3 Path C: per-Predict LM override for token cap.
+            self.reasoner.set_lm(reasoning_lm)
 
     # ── internals ───────────────────────────────────────────────────────────
 
@@ -162,6 +226,10 @@ class ToolModule(dspy.Module):
     def forward(self, task_description: str) -> dspy.Prediction:
         """Select the best tool AND its parameters for a given task.
 
+        Phase 15: if self.reasoner is not None (enable_reasoning=True), run the
+        reasoner first to produce a short rationale, then pass it to selector as
+        an InputField. Otherwise the path is identical to Phase 13.
+
         Args:
             task_description: Description of the task to accomplish.
 
@@ -169,18 +237,44 @@ class ToolModule(dspy.Module):
             dspy.Prediction with:
                 - selected_tool (str)
                 - selected_params (str, JSON-encoded dict; may be '{}')
+                - reasoning (str; '' on think-off path)
+                - reasoning_tokens (int; 0 on think-off path)
         """
         available_tools = self._format_available_tools()
+
+        # Phase 15: think-on path runs reasoner first (D-01, D-02).
+        reasoning_text = ""
+        if self.reasoner is not None:
+            reasoning_pred = self.reasoner(
+                task_description=task_description,
+                available_tools=available_tools,
+            )
+            # Defensive: reasoner Prediction may have empty/None reasoning under
+            # certain LM error states. Coerce to str.
+            reasoning_text = str(getattr(reasoning_pred, "reasoning", "") or "")
+
+        # Selector retains FULL tools listing (D-02 — no rubber-stamp). The
+        # `reasoning` InputField is advisory; default "" preserves Phase 13
+        # behavior on think-off path.
         result = self.selector(
             task_description=task_description,
             available_tools=available_tools,
+            reasoning=reasoning_text,
         )
         selected_params = getattr(result, "selected_params", "") or "{}"
         # Do NOT attempt json.loads here -- that's the metric's job (D-17).
         # Preserve raw string so metric can flag malformed output (Pitfall 7).
+
+        # RESEARCH §1.4 Path 1: token estimate = len(text)/4 — good enough for
+        # ThinkABGate decisioning with 200-token cap (Phase 16 dashboard can
+        # upgrade to precise LM usage later).
+        reasoning_tokens = int(len(reasoning_text) / 4) if reasoning_text else 0
+
         return dspy.Prediction(
             selected_tool=result.selected_tool,
             selected_params=selected_params,
+            reasoning=reasoning_text,
+            reasoning_tokens=reasoning_tokens,
         )
 
     def get_evolved_descriptions(self) -> list[ToolDescription]:

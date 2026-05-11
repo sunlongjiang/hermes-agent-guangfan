@@ -238,14 +238,30 @@ Plans:
 - [x] 14-06-PLAN.md — evolve_tool_*.py --session-source flag (D-09/D-14) + 44-session real-data dry-run smoke + entropy threshold calibration
 
 ### Phase 15: Think-Augmented Tool Selection
-**Goal**: Add reasoning step before tool selection to improve accuracy on ambiguous tasks
+**Goal**: Add optional reasoning-before-selection Predict to ToolModule (enable_reasoning opt-in), make it GEPA-optimizable, and validate via three-AND gate (full-regression 2pp + ambiguous +3pp + latency p95 ≤ 5s) in a new CLI with isolated output directory.
 **Depends on**: Phase 13
 **Requirements**: TOOL-V2-03
 **Success Criteria** (what must be TRUE):
   1. ToolModule supports optional ChainOfThought reasoning before selection
   2. Reasoning step is optimizable by GEPA (prompt text is a parameter)
   3. A/B comparison shows improvement on ambiguous selection scenarios
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+**Wave 0**
+- [ ] 15-01-PLAN.md — Wave 0 test scaffolding (test_think_metrics.py + test_evolve_tool_reasoning.py + test_dataset_ambiguous_size.py + conftest.py — 30+ RED stubs + ambiguous subset observation)
+
+**Wave 1**
+- [ ] 15-02-PLAN.md — ToolModule.enable_reasoning + ToolReasoningSignature + forward 双路径 + reasoning InputField (D-01..D-07/D-17) + TestEnableReasoning 7 tests
+
+**Wave 2** (并行: 02 + 03)
+- [ ] 15-03-PLAN.md — think_metrics.py: ThinkABGate 双 API + sample_latency_tokens + 4 模块级常量 + Pitfall 12 守门测试
+
+**Wave 3** *(blocked on Wave 1 + Wave 2)*
+- [ ] 15-04-PLAN.md — evolve_tool_reasoning.py CLI: 16 步流水线 + 双 ToolModule + 双门并跑 (V1BaselineGate×2 + ThinkABGate×1) + 4 输出文件 + output/tools_reasoning/ 物理隔离
+
+**Wave 4** *(blocked on Wave 3 + manual dry-run checkpoint)*
+- [ ] 15-05-PLAN.md — test_e2e_mock_pipeline smoke + optional __init__.py export + manual real dry-run checkpoint + VALIDATION.md approved sign-off
 
 ### Phase 16: Per-Tool Regression Dashboard
 **Goal**: Track individual tool selection rates across optimization runs

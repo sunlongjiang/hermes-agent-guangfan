@@ -380,9 +380,135 @@ def test_cost_cap_aborts(tmp_path, monkeypatch):
     assert aborted_json.exists()
 
 
-# ── TEST 11: e2e mock pipeline (Wave 4 placeholder) ─────────────────────
+# ── TEST 11: e2e mock pipeline (Wave 4 — Plan 15-05) ────────────────────
 
-@pytest.mark.skip(reason="Wave 4 smoke test placeholder — fills in 15-05-PLAN.md")
-def test_e2e_mock_pipeline():
-    """End-to-end mock LM pipeline — Wave 4 fills in."""
-    pass
+def test_e2e_mock_pipeline(tmp_path, monkeypatch):
+    """End-to-end mock LM pipeline smoke (Plan 05 Wave 4).
+
+    Mocks LM + GEPA + ToolModule.forward externally but runs REAL
+    V1BaselineGate / ThinkABGate / sample_latency_tokens / _build_ab_comparison /
+    _write_* to verify the full 16-step pipeline wires end-to-end without
+    crashes, writes all 4 output files, and produces metrics.json with the
+    complete Phase 15 schema.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    evolve_mod = pytest.importorskip("evolution.tools.evolve_tool_reasoning")
+    evolve_cmd = getattr(evolve_mod, "evolve", None) or getattr(evolve_mod, "main", None)
+    assert evolve_cmd is not None
+
+    # Build 10 mock holdout examples — 5 ambiguous (confuser len >= 2), 5 non-ambiguous
+    def _mock_example(i: int):
+        ex = MagicMock()
+        ex.task_description = f"task_{i}: find or read a file"
+        ex.correct_tool = "search" if i % 2 == 0 else "read_file"
+        ex.correct_params = '{"q": "foo"}'
+        ex.confuser_tools = ["read_file", "ls"] if i < 5 else ["ls"]
+        return ex
+
+    fake_holdout = [_mock_example(i) for i in range(10)]
+    fake_train = [_mock_example(i + 100) for i in range(20)]
+    fake_val = [_mock_example(i + 200) for i in range(10)]
+
+    # 3 fake tools (search / read_file / ls)
+    fake_tools = [
+        ToolDescription(
+            name=n,
+            file_path=Path(f"/fake/{n}.py"),
+            description=f"Tool {n} for fake use",
+            params=[ToolParam(name="q", type="string", required=True, description="query")],
+        )
+        for n in ("search", "read_file", "ls")
+    ]
+
+    # ToolModule.forward canned predictions — reasoning_tokens > 0 when reasoner set
+    def _fwd_patched(self, task_description):
+        has_reasoner = getattr(self, "reasoner", None) is not None
+        return dspy.Prediction(
+            selected_tool="search",
+            selected_params='{"q": "x"}',
+            reasoning=(
+                "search fits better than read_file for query-shaped tasks"
+                if has_reasoner else ""
+            ),
+            reasoning_tokens=(14 if has_reasoner else 0),
+        )
+
+    # GEPA.compile returns the student module as-is (no-op optimization)
+    def _gepa_compile(student, trainset=None, valset=None):
+        return student
+
+    with patch("evolution.tools.evolve_tool_reasoning._load_tool_descriptions",
+               return_value=fake_tools), \
+         patch("evolution.tools.evolve_tool_reasoning._load_dataset",
+               return_value=(fake_train, fake_val, fake_holdout)), \
+         patch("evolution.tools.evolve_tool_reasoning.dspy.LM",
+               return_value=MagicMock()), \
+         patch("evolution.tools.evolve_tool_reasoning.dspy.GEPA") as mock_gepa, \
+         patch("evolution.tools.tool_module.ToolModule.forward", _fwd_patched):
+        mock_gepa.return_value.compile.side_effect = _gepa_compile
+
+        runner = CliRunner()
+        result = runner.invoke(
+            evolve_cmd,
+            ["--iterations", "1", "--max-cost-usd", "5.0", "--eval-source", "load"],
+            catch_exceptions=False,
+        )
+
+    # Pipeline did not crash — SUCCESS (0) or gate FAILED (1) both acceptable
+    assert result.exit_code in (0, 1), (
+        f"unexpected exit code {result.exit_code}\n"
+        f"Output:\n{result.output}"
+    )
+
+    # Output dir structure
+    tr_root = tmp_path / "output" / "tools_reasoning"
+    assert tr_root.exists(), f"output/tools_reasoning/ must exist; got:\n{result.output}"
+    all_dirs = [d for d in tr_root.iterdir() if d.is_dir()]
+    assert len(all_dirs) >= 1, f"expected >= 1 output dir; got {all_dirs}"
+    out_dir = all_dirs[0]
+
+    # 4 output files present
+    for fname in ("metrics.json", "reasoning_prompt.txt", "diff.txt", "ab_comparison.json"):
+        assert (out_dir / fname).exists(), f"missing {fname} in {out_dir}"
+
+    # metrics.json schema — RESEARCH §6.2 required keys
+    metrics = json.loads((out_dir / "metrics.json").read_text())
+    for key in (
+        "think_on_score", "think_off_score",
+        "ambiguous_think_on", "ambiguous_think_off",
+        "reasoning_token_stats", "latency_stats",
+        "think_ab_gate", "v1_gate_passed",
+        "ambiguous_subset_size", "ambiguous_gate_skipped",
+        "iterations", "eval_model", "status", "timestamp",
+    ):
+        assert key in metrics, (
+            f"metrics.json missing key: {key}\nAvailable: {sorted(metrics.keys())}"
+        )
+
+    # Deterministic: exactly 5 ambiguous examples in fake_holdout (i < 5)
+    assert metrics["ambiguous_subset_size"] == 5, (
+        f"ambiguous_subset_size mismatch: expected 5, got {metrics['ambiguous_subset_size']}"
+    )
+
+    # ab_comparison.json is JSON array with required keys
+    ab_data = json.loads((out_dir / "ab_comparison.json").read_text())
+    assert isinstance(ab_data, list)
+    assert len(ab_data) >= 1
+    required_keys = {
+        "task_id", "task_description", "correct_tool",
+        "selected_off", "selected_on",
+        "is_correct_off", "is_correct_on",
+        "is_ambiguous", "confuser_tools",
+        "reasoning_text_on", "reasoning_tokens_on",
+        "latency_seconds_off", "latency_seconds_on",
+    }
+    missing = required_keys - set(ab_data[0].keys())
+    assert not missing, f"ab_comparison[0] missing keys: {missing}"
+
+    # Physical isolation: output/tools/ must be absent or empty (D-11)
+    tools_dir = tmp_path / "output" / "tools"
+    if tools_dir.exists():
+        assert not any(tools_dir.iterdir()), (
+            f"Phase 15 must NOT write to output/tools/; found: {list(tools_dir.iterdir())}"
+        )

@@ -245,7 +245,7 @@ Plans:
   1. ToolModule supports optional ChainOfThought reasoning before selection
   2. Reasoning step is optimizable by GEPA (prompt text is a parameter)
   3. A/B comparison shows improvement on ambiguous selection scenarios
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 Plans:
 **Wave 0**
@@ -255,7 +255,7 @@ Plans:
 - [x] 15-02-PLAN.md — ToolModule.enable_reasoning + ToolReasoningSignature + forward 双路径 + reasoning InputField (D-01..D-07/D-17) + TestEnableReasoning 7 tests
 
 **Wave 2** (并行: 02 + 03)
-- [ ] 15-03-PLAN.md — think_metrics.py: ThinkABGate 双 API + sample_latency_tokens + 4 模块级常量 + Pitfall 12 守门测试
+- [x] 15-03-PLAN.md — think_metrics.py: ThinkABGate 双 API + sample_latency_tokens + 4 模块级常量 + Pitfall 12 守门测试
 
 **Wave 3** *(blocked on Wave 1 + Wave 2)*
 - [ ] 15-04-PLAN.md — evolve_tool_reasoning.py CLI: 16 步流水线 + 双 ToolModule + 双门并跑 (V1BaselineGate×2 + ThinkABGate×1) + 4 输出文件 + output/tools_reasoning/ 物理隔离

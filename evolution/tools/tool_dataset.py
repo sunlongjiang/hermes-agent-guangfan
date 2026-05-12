@@ -137,8 +137,8 @@ class ToolSelectionDataset:
 
         Only task_description is marked as input; correct_tool, correct_params,
         and confuser_tools are labels/metadata consumed by downstream metrics
-        (joint_tool_param_metric in Phase 13) and filters (D-13 ambiguous subset
-        in Phase 15).
+        (joint_tool_param_metric in Phase 13), filters (D-13 ambiguous subset
+        in Phase 15), and segmentation (D-11 in Phase 16).
 
         Args:
             split: Which split to convert ('train', 'val', or 'holdout').
@@ -153,6 +153,7 @@ class ToolSelectionDataset:
                 correct_tool=ex.correct_tool,
                 correct_params=ex.correct_params,
                 confuser_tools=ex.confuser_tools,
+                difficulty=ex.difficulty,
             ).with_inputs("task_description")
             for ex in data
         ]

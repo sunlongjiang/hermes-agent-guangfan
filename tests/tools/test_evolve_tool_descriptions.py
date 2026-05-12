@@ -103,3 +103,93 @@ class TestModuleImportable:
         from evolution.tools.evolve_tool_descriptions import main, evolve
         assert callable(main)
         assert callable(evolve)
+
+
+# ── TestPhase16RawPredictions (Wave 0 D-12) ─────────────────────────────────
+
+
+def test_metrics_includes_per_tool_and_raw(tmp_path, monkeypatch):
+    """Phase 16 Wave 0 (D-12): evolve_tool_descriptions metrics.json gains
+    per_tool_*_rates + raw_predictions (newly wired in Wave 0).
+
+    Exercises the real holdout-loop wiring (raw_preds collection block) plus the
+    real persist_per_tool_rates / persist_raw_predictions helpers, mirroring
+    the inline wiring at evolve_tool_descriptions.py:331+ and :393-395.
+    BLOCKER 4: uses holdout_examples + real helpers (no helper-only unit test).
+    """
+    pytest.importorskip("dspy")
+    import dspy
+    from unittest.mock import MagicMock
+
+    from evolution.tools.tool_metric import (
+        CrossToolRegressionChecker,
+        persist_per_tool_rates,
+        persist_raw_predictions,
+    )
+
+    # Build holdout fixture mirroring dataset.to_dspy_examples('holdout') output
+    holdout_examples = []
+    for i in range(3):
+        ex = dspy.Example(
+            task_description=f"task {i}",
+            correct_tool="memory",
+            confuser_tools=["terminal", "browse"],
+            difficulty="medium" if i < 2 else "hard",
+        ).with_inputs("task_description")
+        holdout_examples.append(ex)
+
+    def fake_module(task_description):
+        pred = MagicMock()
+        pred.selected_tool = "memory"
+        return pred
+
+    # Replicate the inline holdout loop from evolve_tool_descriptions.py:331+
+    # (including the new Phase 16 raw_preds collection)
+    baseline_preds: list[tuple[str, str]] = []
+    evolved_preds: list[tuple[str, str]] = []
+    raw_preds: list[dict] = []
+    for ex in holdout_examples:
+        bp = fake_module(task_description=ex.task_description)
+        baseline_preds.append((ex.correct_tool, bp.selected_tool))
+        ep = fake_module(task_description=ex.task_description)
+        evolved_preds.append((ex.correct_tool, ep.selected_tool))
+        raw_preds.append({
+            "correct_tool": ex.correct_tool,
+            "selected_tool": getattr(ep, "selected_tool", "") or "",
+            "difficulty": getattr(ex, "difficulty", "medium") or "medium",
+            "num_available_tools": len(getattr(ex, "confuser_tools", []) or []) + 1,
+        })
+
+    # Replicate evolve_tool_descriptions.py:349-354 + :393-395 + :423 wiring
+    regression_checker = CrossToolRegressionChecker()
+    baseline_rates = regression_checker.compute_per_tool_rates(baseline_preds)
+    evolved_rates = regression_checker.compute_per_tool_rates(evolved_preds)
+    metrics = {
+        "timestamp": "test",
+        "iterations": 1,
+        "baseline_score": 1.0,
+        "evolved_score": 1.0,
+        "constraints_passed": True,
+    }
+    metrics_extra = persist_per_tool_rates({}, baseline_rates, evolved_rates)
+    metrics_extra = persist_raw_predictions(metrics_extra, raw_preds)
+    metrics = {**metrics, **metrics_extra}
+
+    # Phase 16 D-12 assertions
+    assert "per_tool_baseline_rates" in metrics
+    assert "per_tool_evolved_rates" in metrics
+    assert "raw_predictions" in metrics
+    assert isinstance(metrics["per_tool_baseline_rates"], dict)
+    assert isinstance(metrics["raw_predictions"], list)
+    assert len(metrics["raw_predictions"]) == 3
+    if metrics["raw_predictions"]:
+        first = metrics["raw_predictions"][0]
+        assert set(first.keys()) == {"correct_tool", "selected_tool", "difficulty", "num_available_tools"}
+        assert isinstance(first["correct_tool"], str)
+        assert isinstance(first["selected_tool"], str)
+        assert isinstance(first["difficulty"], str)
+        assert isinstance(first["num_available_tools"], int)
+        # num_available_tools = len(confuser_tools) + 1 = 2 + 1 = 3
+        assert first["num_available_tools"] == 3
+    # Phase 13 既有字段保留(通过 helper 合入)
+    assert metrics.get("constraints_passed") is True

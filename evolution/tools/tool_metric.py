@@ -475,3 +475,47 @@ def persist_per_tool_rates(
         k: float(v) for k, v in sorted((evolved_rates or {}).items())
     }
     return out
+
+
+# ── Raw Predictions Persistence (Phase 16: D-12 dashboard) ───────────────────
+
+
+def persist_raw_predictions(
+    metrics: dict,
+    raw_predictions: list[dict],
+) -> dict:
+    """Merge raw_predictions list into a metrics dict (Phase 16: D-12 dashboard).
+
+    Pattern matches persist_per_tool_rates: shallow copy of metrics, None
+    tolerance, stable schema. Differs from persist_per_tool_rates: does NOT
+    sort (raw_predictions is order-sensitive time-series); does NOT all-float-
+    coerce (per-field types are str/str/str/int); emits stdout yellow warning
+    when len > 2000 (Pitfall 10 retention placeholder).
+
+    Args:
+        metrics: The in-progress metrics dict to extend.
+        raw_predictions: List of per-prediction dicts, each with fields:
+            correct_tool (str), selected_tool (str), difficulty (str),
+            num_available_tools (int).
+
+    Returns:
+        A new dict equal to `metrics` plus one key:
+            - raw_predictions: list[dict] with schema
+              {correct_tool, selected_tool, difficulty, num_available_tools}
+    """
+    out = dict(metrics)  # shallow copy
+    cleaned: list[dict] = []
+    for rec in (raw_predictions or []):
+        cleaned.append({
+            "correct_tool": str(rec.get("correct_tool", "") or ""),
+            "selected_tool": str(rec.get("selected_tool", "") or ""),
+            "difficulty": str(rec.get("difficulty", "medium") or "medium"),
+            "num_available_tools": int(rec.get("num_available_tools", 0) or 0),
+        })
+    out["raw_predictions"] = cleaned
+    if len(cleaned) > 2000:
+        console.print(
+            f"[yellow]raw_predictions large ({len(cleaned)} records); "
+            f"metrics.json may exceed 1MB[/yellow]"
+        )
+    return out

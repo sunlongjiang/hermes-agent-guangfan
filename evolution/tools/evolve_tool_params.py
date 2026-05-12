@@ -73,6 +73,7 @@ from evolution.tools.tool_metric import (
     joint_tool_param_metric_with_feedback,
     CrossToolRegressionChecker,
     persist_per_tool_rates,
+    persist_raw_predictions,
 )
 from evolution.tools.tool_constraints import ToolFactualChecker, ParamConsistencyChecker
 from evolution.tools.v1_baseline_gate import (
@@ -1015,6 +1016,17 @@ def _evolve_impl(
     evolved_rates = regression_checker.compute_per_tool_rates(evolved_tool_pairs)
     regression_result = regression_checker.check_regression(baseline_rates, evolved_rates)
     metrics = persist_per_tool_rates(metrics, baseline_rates, evolved_rates)
+
+    # ── 13b. Persist raw_predictions for Phase 16 dashboard distribution ──
+    raw_preds: list[dict] = []
+    for ex, (correct, selected) in zip(holdout, evolved_tool_pairs):
+        raw_preds.append({
+            "correct_tool": correct,
+            "selected_tool": selected,
+            "difficulty": getattr(ex, "difficulty", "medium") or "medium",
+            "num_available_tools": len(getattr(ex, "confuser_tools", []) or []) + 1,
+        })
+    metrics = persist_raw_predictions(metrics, raw_preds)
 
     if not regression_result.passed:
         metrics["status"] = "REGRESSION_FAILED"

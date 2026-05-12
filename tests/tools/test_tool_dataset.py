@@ -415,3 +415,39 @@ class TestToolDatasetBuilder:
         for tool in tools:
             count = tool_counts.get(tool.name, 0)
             assert count >= 3, f"Tool {tool.name} has only {count} examples (need >= 3)"
+
+
+class TestToDspyExamplesDifficulty:
+    """Phase 16 Wave 0: to_dspy_examples must include difficulty (D-11 segmentation)."""
+
+    def test_dspy_example_has_difficulty(self):
+        from evolution.tools.tool_dataset import ToolSelectionDataset, ToolSelectionExample
+        ex = ToolSelectionExample(
+            task_description="t", correct_tool="x", correct_params={},
+            difficulty="hard", confuser_tools=["y"],
+        )
+        ds = ToolSelectionDataset(holdout=[ex])
+        out = ds.to_dspy_examples("holdout")
+        assert len(out) == 1
+        assert getattr(out[0], "difficulty", None) == "hard"
+
+    def test_dspy_example_difficulty_default_medium(self):
+        from evolution.tools.tool_dataset import ToolSelectionDataset, ToolSelectionExample
+        ex = ToolSelectionExample(
+            task_description="t", correct_tool="x", correct_params={},
+            confuser_tools=["y"],
+        )
+        ds = ToolSelectionDataset(holdout=[ex])
+        out = ds.to_dspy_examples("holdout")
+        assert getattr(out[0], "difficulty", None) == "medium"
+
+    def test_dspy_example_inputs_unchanged(self):
+        from evolution.tools.tool_dataset import ToolSelectionDataset, ToolSelectionExample
+        ex = ToolSelectionExample(
+            task_description="t", correct_tool="x", correct_params={},
+            difficulty="hard", confuser_tools=["y"],
+        )
+        ds = ToolSelectionDataset(holdout=[ex])
+        out = ds.to_dspy_examples("holdout")
+        assert set(out[0].inputs().keys()) == {"task_description"}
+

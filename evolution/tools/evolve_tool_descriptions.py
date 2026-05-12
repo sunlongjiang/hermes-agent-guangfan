@@ -25,7 +25,12 @@ from evolution.core.constraints import ConstraintValidator
 from evolution.tools.tool_loader import discover_tool_files, extract_tool_descriptions, ToolDescription
 from evolution.tools.tool_module import ToolModule
 from evolution.tools.tool_dataset import ToolDatasetBuilder, ToolSelectionDataset, ToolSelectionExample
-from evolution.tools.tool_metric import tool_selection_metric, CrossToolRegressionChecker
+from evolution.tools.tool_metric import (
+    tool_selection_metric,
+    CrossToolRegressionChecker,
+    persist_per_tool_rates,
+    persist_raw_predictions,
+)
 from evolution.tools.tool_constraints import ToolFactualChecker
 from evolution.tools.session_miner import _load_jsonl_skip_bad, _normalize_task_hash
 
@@ -330,6 +335,7 @@ def evolve(
 
     baseline_preds: list[tuple[str, str]] = []
     evolved_preds: list[tuple[str, str]] = []
+    raw_preds: list[dict] = []
 
     for ex in holdout_examples:
         with dspy.context(lm=lm):
@@ -337,6 +343,12 @@ def evolve(
             baseline_preds.append((ex.correct_tool, bp.selected_tool))
             ep = optimized_module(task_description=ex.task_description)
             evolved_preds.append((ex.correct_tool, ep.selected_tool))
+            raw_preds.append({
+                "correct_tool": ex.correct_tool,
+                "selected_tool": getattr(ep, "selected_tool", "") or "",
+                "difficulty": getattr(ex, "difficulty", "medium") or "medium",
+                "num_available_tools": len(getattr(ex, "confuser_tools", []) or []) + 1,
+            })
 
     # Compute overall accuracy
     baseline_correct = sum(1 for c, s in baseline_preds if c.strip().lower() == s.strip().lower())
@@ -389,6 +401,10 @@ def evolve(
     console.print()
     console.print(result_table)
 
+    # ── Phase 16 Wave 0: persist per-tool rates + raw_predictions for dashboard ──
+    metrics_extra = persist_per_tool_rates({}, baseline_rates, evolved_rates)
+    metrics_extra = persist_raw_predictions(metrics_extra, raw_preds)
+
     # ── 11. Save results ─────────────────────────────────────────────────
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = Path("output") / "tools" / timestamp
@@ -419,6 +435,7 @@ def evolve(
         "constraints_passed": True,
         "session_source": str(session_source) if session_source else None,
     }
+    metrics = {**metrics, **metrics_extra}
     (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
     # Save diff

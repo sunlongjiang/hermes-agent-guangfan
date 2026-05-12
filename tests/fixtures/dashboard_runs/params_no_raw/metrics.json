@@ -1,0 +1,9 @@
+{
+  "timestamp": "20260301_100000",
+  "iterations": 3,
+  "param_predictors_discovered": 8,
+  "baseline_score": 0.70,
+  "evolved_score": 0.72,
+  "per_tool_baseline_rates": {"search_files": 0.70, "read_file": 0.80},
+  "per_tool_evolved_rates": {"search_files": 0.72, "read_file": 0.81}
+}

@@ -1,0 +1,37 @@
+{
+  "timestamp": "20260512_103000",
+  "iterations": 5,
+  "param_predictors_discovered": 12,
+  "optimizer_used": "gepa",
+  "baseline_score": 0.75,
+  "evolved_score": 0.82,
+  "improvement": 0.07,
+  "per_tool_baseline_rates": {
+    "search_files": 0.80,
+    "read_file": 0.85,
+    "browser_navigate": 0.60,
+    "edit_file": 0.70,
+    "list_files": 0.90
+  },
+  "per_tool_evolved_rates": {
+    "search_files": 0.84,
+    "read_file": 0.87,
+    "browser_navigate": 0.55,
+    "edit_file": 0.78,
+    "list_files": 0.92
+  },
+  "raw_predictions": [
+    {"correct_tool": "search_files", "selected_tool": "search_files", "difficulty": "easy", "num_available_tools": 4},
+    {"correct_tool": "search_files", "selected_tool": "search_files", "difficulty": "easy", "num_available_tools": 4},
+    {"correct_tool": "search_files", "selected_tool": "search_files", "difficulty": "medium", "num_available_tools": 5},
+    {"correct_tool": "search_files", "selected_tool": "read_file", "difficulty": "medium", "num_available_tools": 5},
+    {"correct_tool": "search_files", "selected_tool": "search_files", "difficulty": "hard", "num_available_tools": 6},
+    {"correct_tool": "read_file", "selected_tool": "read_file", "difficulty": "easy", "num_available_tools": 3},
+    {"correct_tool": "read_file", "selected_tool": "read_file", "difficulty": "medium", "num_available_tools": 4},
+    {"correct_tool": "read_file", "selected_tool": "read_file", "difficulty": "medium", "num_available_tools": 5},
+    {"correct_tool": "browser_navigate", "selected_tool": "browser_navigate", "difficulty": "easy", "num_available_tools": 3},
+    {"correct_tool": "browser_navigate", "selected_tool": "search_files", "difficulty": "hard", "num_available_tools": 6},
+    {"correct_tool": "edit_file", "selected_tool": "edit_file", "difficulty": "medium", "num_available_tools": 4},
+    {"correct_tool": "list_files", "selected_tool": "list_files", "difficulty": "easy", "num_available_tools": 3}
+  ]
+}

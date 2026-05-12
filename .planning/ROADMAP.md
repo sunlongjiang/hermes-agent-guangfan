@@ -274,7 +274,19 @@ Plans:
   1. Metrics file records per-tool accuracy before and after optimization
   2. Rich console dashboard shows selection rate changes per tool
   3. Regression threshold configurable (default: 2pp drop triggers warning)
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+**Wave 0**
+- [ ] 16-00-PLAN.md — raw_predictions schema + persist_raw_predictions helper + to_dspy_examples 加 difficulty + 三 CLI 接线 (D-12)
+**Wave 1** *(blocked on Wave 0)*
+- [ ] 16-01-PLAN.md — Dashboard CLI 骨架 + LATEST 区 (per-tool 表 12 列 + 频次柱图 + sample<3 退化 n/a) (D-09 / D-16 / D-11)
+**Wave 2** *(blocked on Wave 1)*
+- [ ] 16-02-PLAN.md — DIFF 区 (--baseline-run + --evolved-run) + TREND 区 (--trend-window/--trend-days mutex + sparkline) (D-05 / D-06 / D-10)
+**Wave 3** *(blocked on Wave 2)*
+- [ ] 16-03-PLAN.md — ABStudy 区 (三类计数 + top-3 + secret redact) + 跨 CLI source 启发判定 + 三类 fallback + warning 不影响 exit code (D-07 / D-08 / D-13 / D-15)
+**Wave 4** *(blocked on Wave 3)*
+- [ ] 16-04-PLAN.md — dashboard.json schema 收口 (8 顶层字段) + E2E 集成测试 + .gitignore 卫生 (D-04 / D-17)
 
 ### Phase 17: Joint Section Optimization
 **Goal**: Optimize all 5 prompt sections simultaneously instead of round-robin

@@ -29,7 +29,7 @@
 - 给 evolve_* CLI 加 `--dashboard` inline summary flag（dashboard 仅 standalone 调用）。
 - skill / prompt 管道的 dashboard 化（本 phase 仅工具维度）。
 - Reasoning 错例修复 / 自动 issue 创建（Phase 15 deferred 中比错例分析更进一步的部分）。
-- evolve_tool_descriptions / evolve_tool_reasoning 写 `per_tool_baseline_rates` / `per_tool_evolved_rates`（**本 phase 不补**；只补 `raw_predictions` 一个字段；前者老路径仍走「整 run 跳过 + dropped_runs 列表」）。
+- 给 evolve_tool_descriptions 历史 run（`output/tools/FAILED_*` 等）回填 `per_tool_*_rates` / `raw_predictions`（**老 run 不回填**；老 run 仍走「整 run 跳过 + dropped_runs 列表」fallback）。
 - ROADMAP / state.md 的 dashboard `--strict` 模式（即使留 `--strict` flag 槽位也仅作为 deferred 的占位）。
 
 </domain>
@@ -61,7 +61,7 @@
   - 语义 A：单 run 内跨 task segment 切片（D-09 的 min/p25/.../max 列）。
   - 语义 B：跨 run 历史的同工具 evolved_rate 序列（在 TREND 区展示，Rich 文本 sparkline + min/p25/median/p75/max 摘要列）。
 - **D-11:** **segment 切片策略**：evolve_* CLI 持久化 `raw_predictions: list[{correct_tool, selected_tool, difficulty, num_available_tools}]`；dashboard 启动时按 `--segment difficulty|pool_size` 动态计算 per-segment evolved_rate。`difficulty` 为 ToolSelectionExample 现有字段；`num_available_tools` = `len(example.available_tools)`，dashboard 内分桶 `1-3 / 4-7 / 8+`。Rationale：未来加新 segment 维度（如 `has_confuser`）时零改 evolve_*。
-- **D-12:** **schema 扩展是 Phase 16 范围内**——这是 D-08 的对称面：dashboard 仅读，但 evolve_* CLI 必须新增 `raw_predictions` 字段才能给 distribution 喂数据。新建共用 helper `evolution/tools/tool_metric.py:persist_raw_predictions(metrics: dict, predictions: list[dict]) -> dict`（不可变模式，对齐 `persist_per_tool_rates`）。三 CLI 在 holdout 评估完成、metrics 落盘前各调用一次。
+- **D-12:** **schema 扩展是 Phase 16 范围内**——这是 D-08 的对称面：dashboard 仅读，但三 CLI 必须新增 `raw_predictions` 字段才能给 distribution 喂数据，**且必须补齐 `per_tool_baseline_rates` / `per_tool_evolved_rates` 的接线**——研究发现 `persist_per_tool_rates` 当前仅 `evolve_tool_params.py` 调用；`evolve_tool_descriptions.py` / `evolve_tool_reasoning.py` 完全没接，否则 dashboard 启动时 90% 现存 run（17 reasoning + 1 desc）将落入 `dropped_runs[]`。新建共用 helper `evolution/tools/tool_metric.py:persist_raw_predictions(metrics: dict, predictions: list[dict]) -> dict`（不可变模式，对齐 `persist_per_tool_rates`）。三 CLI 在 holdout 评估完成、metrics 落盘前各调用 `persist_per_tool_rates(...)` + `persist_raw_predictions(...)` 两行（evolve_tool_params 已有前者，仅补后者；evolve_tool_descriptions / evolve_tool_reasoning 两行都需新接）。
 - **D-13:** **Warning 门**：dashboard 默认 -2pp warning（与 ROADMAP 成功标准 3 对齐），CLI flag `--warning-threshold-pp <float>` 可调。**不返 exit code**——dashboard 是观察工具，不参与 CI 决策。Phase 13 现有 `CrossToolRegressionChecker` 的 mean-based 2pp 硬门继续在 evolve_* CLI 内单独跑，路径不变。
 - **D-14:** **不**实现 p25-based hard gate（Pitfall 10 双中门的右侧）。Rationale：当前 holdout per-tool sample_count 通常 < 20，p25 估计方差大，硬 gate 容易误杀；先靠 dashboard warning + 人工 review，待 Phase 14 session 数据 + Phase 19 prompt 数据扩 holdout 体量后再评估。归 deferred。
 

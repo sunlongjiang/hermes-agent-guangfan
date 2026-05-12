@@ -123,7 +123,7 @@ class TestToolSelectionDataset:
             assert orig.correct_params == restored.correct_params
 
     def test_to_dspy_examples(self):
-        """to_dspy_examples returns dspy.Example with correct inputs."""
+        """to_dspy_examples returns dspy.Example with correct inputs + labels."""
         ds = ToolSelectionDataset(
             train=self._make_examples(3),
             val=[],
@@ -133,10 +133,49 @@ class TestToolSelectionDataset:
         assert len(dspy_examples) == 3
         # Check that task_description is an input and correct_tool is available
         ex = dspy_examples[0]
+        # input
         assert hasattr(ex, "task_description")
-        assert hasattr(ex, "correct_tool")
-        # task_description should be in inputs
         assert "task_description" in ex.inputs()
+        # labels / metadata
+        assert hasattr(ex, "correct_tool")
+        assert hasattr(ex, "correct_params"), "Phase 13 joint metric needs correct_params"
+        assert hasattr(ex, "confuser_tools"), "Phase 15 D-13 ambiguous filter needs confuser_tools"
+
+    def test_to_dspy_examples_supports_ambiguous_filter(self):
+        """D-13 regression: ambiguous subset filter `len(ex.confuser_tools) >= 2`
+        must work on dspy.Example output of to_dspy_examples (not just on raw
+        ToolSelectionExample JSONL)."""
+        ds = ToolSelectionDataset(
+            train=[],
+            val=[],
+            holdout=[
+                ToolSelectionExample(
+                    task_description="t0",
+                    correct_tool="a",
+                    confuser_tools=[],
+                ),
+                ToolSelectionExample(
+                    task_description="t1",
+                    correct_tool="a",
+                    confuser_tools=["b"],
+                ),
+                ToolSelectionExample(
+                    task_description="t2",
+                    correct_tool="a",
+                    confuser_tools=["b", "c"],
+                ),
+                ToolSelectionExample(
+                    task_description="t3",
+                    correct_tool="a",
+                    confuser_tools=["b", "c", "d"],
+                ),
+            ],
+        )
+        holdout = ds.to_dspy_examples("holdout")
+        ambiguous = [ex for ex in holdout if len(ex.confuser_tools) >= 2]
+        assert len(ambiguous) == 2  # only t2 + t3
+        assert ambiguous[0].task_description == "t2"
+        assert ambiguous[1].task_description == "t3"
 
     def test_all_examples(self):
         """all_examples returns concatenation of all splits."""

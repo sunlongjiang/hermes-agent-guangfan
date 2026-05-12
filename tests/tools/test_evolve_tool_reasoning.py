@@ -47,6 +47,83 @@ def _fake_examples(n: int = 8) -> list:
     return out
 
 
+# ── TEST: Phase 16 Wave 0 — raw_predictions wiring ──────────────────────
+
+
+def test_metrics_includes_per_tool_and_raw(mock_reasoning_module, monkeypatch):
+    """Phase 16 Wave 0 (D-12): evolve_tool_reasoning metrics.json gains
+    per_tool_*_rates + raw_predictions; raw_predictions populated from
+    think-on path via _score_with_predictions.
+
+    BLOCKER 4: exercises real _score_with_predictions helper (the new wiring
+    code) + real persist_per_tool_rates / persist_raw_predictions. Mirrors
+    the inline CLI wiring at evolve_tool_reasoning.py:470-471 + :563-567.
+    """
+    pytest.importorskip("dspy")
+    import dspy
+
+    from evolution.tools.evolve_tool_reasoning import _score_with_predictions
+    from evolution.tools.tool_metric import (
+        CrossToolRegressionChecker,
+        persist_per_tool_rates,
+        persist_raw_predictions,
+    )
+
+    # Build a small holdout fixture with difficulty + confuser_tools
+    holdout = []
+    for i in range(4):
+        ex = dspy.Example(
+            task_description=f"task {i}",
+            correct_tool="search",
+            confuser_tools=["read_file", "browse"],
+            difficulty="easy" if i < 2 else "hard",
+        ).with_inputs("task_description")
+        holdout.append(ex)
+
+    mock_lm = MagicMock()
+
+    # _score_with_predictions uses dspy.context(lm=lm); patch it to no-op
+    with patch("evolution.tools.evolve_tool_reasoning.dspy.context") as mock_ctx:
+        mock_ctx.return_value.__enter__ = MagicMock(return_value=None)
+        mock_ctx.return_value.__exit__ = MagicMock(return_value=False)
+
+        # think-off and think-on share the mock module (selector returns search)
+        th_off, tool_pairs_off, _ = _score_with_predictions(mock_reasoning_module, holdout, mock_lm)
+        th_on, tool_pairs_on, raw_preds_on = _score_with_predictions(mock_reasoning_module, holdout, mock_lm)
+
+    # Helper assertions — real wiring exercised
+    assert th_on == 1.0  # mock returns "search" === correct_tool every time
+    assert len(tool_pairs_off) == 4
+    assert len(tool_pairs_on) == 4
+    assert len(raw_preds_on) == 4
+
+    # Replicate CLI wiring at evolve_tool_reasoning.py:563-567
+    regression_checker = CrossToolRegressionChecker()
+    baseline_rates = regression_checker.compute_per_tool_rates(tool_pairs_off)
+    evolved_rates = regression_checker.compute_per_tool_rates(tool_pairs_on)
+    metrics = {
+        "timestamp": "test",
+        "status": "SUCCESS",
+        "think_ab_gate": {"passed": True},  # Phase 15 既有字段未被破坏
+    }
+    metrics = persist_per_tool_rates(metrics, baseline_rates, evolved_rates)
+    metrics = persist_raw_predictions(metrics, raw_preds_on)
+
+    # Phase 16 D-12 schema assertions
+    assert "per_tool_baseline_rates" in metrics
+    assert "per_tool_evolved_rates" in metrics
+    assert "raw_predictions" in metrics
+    assert "think_ab_gate" in metrics  # Phase 15 既有字段保留
+    assert isinstance(metrics["raw_predictions"], list)
+    assert len(metrics["raw_predictions"]) == 4
+    if metrics["raw_predictions"]:
+        first = metrics["raw_predictions"][0]
+        assert set(first.keys()) == {"correct_tool", "selected_tool", "difficulty", "num_available_tools"}
+        # num_available_tools = len(confuser_tools) + 1 = 2 + 1 = 3
+        assert first["num_available_tools"] == 3
+        assert first["difficulty"] in {"easy", "hard"}
+
+
 # ── TEST 1: dry-run schema ──────────────────────────────────────────────
 
 def test_dry_run_emits_setup(tmp_path):

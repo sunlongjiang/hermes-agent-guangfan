@@ -50,7 +50,12 @@ from evolution.tools.think_metrics import (
     ThinkABGate,
     sample_latency_tokens,
 )
-from evolution.tools.tool_metric import joint_tool_param_metric_with_feedback
+from evolution.tools.tool_metric import (
+    joint_tool_param_metric_with_feedback,
+    CrossToolRegressionChecker,
+    persist_per_tool_rates,
+    persist_raw_predictions,
+)
 from evolution.tools.tool_module import ToolModule, ToolReasoningSignature
 from evolution.tools.v1_baseline_gate import (
     V1BaselineGate,
@@ -462,8 +467,8 @@ def _evolve_impl(
 
     # ── 11. Holdout evaluation × 2 (think-off + think-on) ──────────────────
     eval_holdout = ambiguous_subset if ambiguous_only else holdout
-    th_off_full = _safe_score(baseline_module, eval_holdout, lm)
-    th_on_full = _safe_score(optimized_module, eval_holdout, lm)
+    th_off_full, tool_pairs_off, _ = _score_with_predictions(baseline_module, eval_holdout, lm)
+    th_on_full, tool_pairs_on, raw_preds_on = _score_with_predictions(optimized_module, eval_holdout, lm)
     th_off_ambig = _safe_score(baseline_module, ambiguous_subset, lm)
     th_on_ambig = _safe_score(optimized_module, ambiguous_subset, lm)
 
@@ -554,6 +559,13 @@ def _evolve_impl(
         "think_ab_gate": think_ab_metrics,
     }
 
+    # ── Phase 16 Wave 0: persist per-tool rates + raw_predictions for dashboard ──
+    regression_checker = CrossToolRegressionChecker()
+    baseline_rates = regression_checker.compute_per_tool_rates(tool_pairs_off)
+    evolved_rates = regression_checker.compute_per_tool_rates(tool_pairs_on)
+    metrics = persist_per_tool_rates(metrics, baseline_rates, evolved_rates)
+    metrics = persist_raw_predictions(metrics, raw_preds_on)
+
     # ── Build ab_comparison.json (RESEARCH §6.3) ───────────────────────────
     ab_comparison = _build_ab_comparison(
         holdout=eval_holdout,
@@ -610,6 +622,63 @@ def _evolve_impl(
 
 
 # ── Internal gate-passed helper ────────────────────────────────────────────
+
+
+def _score_with_predictions(
+    module: Any,
+    examples: list,
+    lm: Any,
+) -> tuple[float, list[tuple[str, str]], list[dict]]:
+    """Score module on examples + return per-prediction tool_pairs + raw_preds.
+
+    Replaces _safe_score for paths where Phase 16 dashboard needs raw data
+    (full holdout scoring on think-off / think-on). Mirrors _safe_score's
+    error tolerance: returns (0.0, [], []) on empty input or any exception.
+    Per-example exceptions are skipped (not propagated) so a single bad
+    sample does not zero out the whole batch.
+
+    Args:
+        module: ToolModule (think-off or think-on configured)
+        examples: list of dspy.Example with task_description / correct_tool /
+            difficulty / confuser_tools attributes
+        lm: language model for dspy.context
+
+    Returns:
+        (mean_score, tool_pairs, raw_preds)
+        - mean_score: exact-match accuracy over successful predictions
+        - tool_pairs: list of (correct_tool, selected_tool) for every successful
+          prediction, fed into CrossToolRegressionChecker.compute_per_tool_rates
+        - raw_preds: list of dicts with Phase 16 D-12 schema
+          {correct_tool, selected_tool, difficulty, num_available_tools}
+    """
+    if not examples:
+        return 0.0, [], []
+    tool_pairs: list[tuple[str, str]] = []
+    raw_preds: list[dict] = []
+    total = 0.0
+    n = 0
+    try:
+        with dspy.context(lm=lm):
+            for ex in examples:
+                try:
+                    pred = module(task_description=ex.task_description)
+                except Exception:
+                    continue
+                correct = getattr(ex, "correct_tool", "") or ""
+                selected = getattr(pred, "selected_tool", "") or ""
+                tool_pairs.append((correct, selected))
+                raw_preds.append({
+                    "correct_tool": correct,
+                    "selected_tool": selected,
+                    "difficulty": getattr(ex, "difficulty", "medium") or "medium",
+                    "num_available_tools": len(getattr(ex, "confuser_tools", []) or []) + 1,
+                })
+                total += 1.0 if correct == selected else 0.0
+                n += 1
+        score = total / n if n else 0.0
+        return float(score), tool_pairs, raw_preds
+    except Exception:
+        return 0.0, tool_pairs, raw_preds
 
 
 def _safe_score(module: Any, examples: list, lm: Any) -> float:

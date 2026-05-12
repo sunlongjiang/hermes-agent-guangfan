@@ -40,7 +40,7 @@
 
 - [ ] v2: Per-parameter description optimization (TOOL-V2-02)
 - [ ] v2: SessionDB mining for tool/prompt training data (TOOL-V2-01, PMPT-V2-04)
-- [ ] v2: Think-augmented tool selection (TOOL-V2-03)
+- [x] v2: Think-augmented tool selection (TOOL-V2-03) — Validated in Phase 15 (pending real-LM UAT for CR-01..04 scenarios)
 - [ ] v2: Joint section optimization (PMPT-V2-01)
 - [ ] v2: Personality drift detection (PMPT-V2-02)
 - [ ] v2: Darwinian code evolution (V2-CODE-01)
@@ -117,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 — Phase 13 (per-parameter description optimization) complete; Phase 14 (sessiondb-mining-for-tools) next*
+*Last updated: 2026-05-12 — Phase 15 (think-augmented tool selection) complete with 6 plans + 1 gap closure; HUMAN-UAT residuals open for real-LM CR-01..04 validation. Phase 16 (per-tool-regression-dashboard) next.*

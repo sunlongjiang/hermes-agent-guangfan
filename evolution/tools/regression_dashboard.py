@@ -294,6 +294,143 @@ def _render_frequency_bars(sample_counts: Counter) -> None:
     console.print(Panel("\n".join(lines), title="Sample frequency"))
 
 
+def _sparkline(values: list[float]) -> str:
+    """8-char Unicode block sparkline (▁▂▃▄▅▆▇█).
+
+    Maps each value linearly to one of 8 block characters based on
+    (v - min) / (max - min) span. Empty list → "". Single value (zero
+    span) → all min-band characters (▁ × n).
+    """
+    if not values:
+        return ""
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1.0
+    return "".join(
+        _SPARK_CHARS[min(7, int((v - lo) / span * 8))]
+        for v in values
+    )
+
+
+def _render_diff(
+    baseline_run: dict,
+    evolved_run: dict,
+    warning_threshold_pp: float,
+) -> dict:
+    """Render DIFF region: per-tool comparison between two specific runs (D-05).
+
+    Returns dict consumed by Wave 4 dashboard.json schema.
+    """
+    b_metrics = baseline_run["metrics"]
+    e_metrics = evolved_run["metrics"]
+    b_rates = b_metrics.get("per_tool_evolved_rates", {}) or {}
+    e_rates = e_metrics.get("per_tool_evolved_rates", {}) or {}
+    all_tools = sorted(set(b_rates.keys()) | set(e_rates.keys()))
+
+    table = Table(
+        title=(
+            f"DIFF region [{baseline_run['source']} vs {evolved_run['source']}]: "
+            f"{baseline_run['path']} → {evolved_run['path']}"
+        ),
+        show_lines=False,
+    )
+    table.add_column("tool", justify="left", style="cyan")
+    table.add_column("baseline_run rate", justify="right")
+    table.add_column("evolved_run rate", justify="right")
+    table.add_column("delta_pp", justify="right")
+    table.add_column("status", justify="left", min_width=8, no_wrap=True)
+
+    per_tool: list[dict] = []
+    for tool in all_tools:
+        b = float(b_rates.get(tool, 0.0))
+        e = float(e_rates.get(tool, 0.0))
+        delta = (e - b) * 100.0
+        label, style = _status_style(delta, warning_threshold_pp)
+        delta_cell = f"[{style}]{delta:+.2f}[/{style}]" if style else f"{delta:+.2f}"
+        status_cell = f"[{style}]{label}[/{style}]" if style else label
+        table.add_row(tool, f"{b:.3f}", f"{e:.3f}", delta_cell, status_cell)
+        per_tool.append({
+            "tool": tool,
+            "baseline_rate": b,
+            "evolved_rate": e,
+            "delta_pp": delta,
+            "status": label.split()[0] if label else "",
+        })
+
+    console.print(table)
+    return {
+        "baseline_run": baseline_run["path"],
+        "evolved_run": evolved_run["path"],
+        "per_tool": per_tool,
+    }
+
+
+def _render_trend(
+    runs: list[dict],
+    window_kind: str,
+    window_value: int,
+) -> dict:
+    """Render TREND region: cross-run sparkline + quintile summary per tool (D-10 语义 B).
+
+    `runs` is the windowed list (caller already filtered). For each tool,
+    gather evolved_rate time-series across runs (oldest → newest).
+    """
+    if not runs:
+        console.print("[dim]No runs for TREND region[/dim]")
+        return {"window_kind": window_kind, "window_value": window_value, "tools": []}
+
+    series: dict[str, list[tuple[str, float]]] = {}
+    for run in runs:
+        rates = run["metrics"].get("per_tool_evolved_rates", {}) or {}
+        for tool, rate in rates.items():
+            series.setdefault(tool, []).append((run["path"], float(rate)))
+
+    table = Table(
+        title=f"TREND region ({window_kind}={window_value}, {len(runs)} runs)",
+        show_lines=False,
+    )
+    table.add_column("tool", justify="left", style="cyan")
+    table.add_column("sparkline", justify="left", no_wrap=True)
+    table.add_column("min", justify="right")
+    table.add_column("p25", justify="right")
+    table.add_column("median", justify="right")
+    table.add_column("p75", justify="right")
+    table.add_column("max", justify="right")
+    table.add_column("n_runs", justify="right")
+
+    tools_records: list[dict] = []
+    for tool in sorted(series.keys()):
+        ts = series[tool]
+        rates = [r for _, r in ts]
+        spark = _sparkline(rates)
+        q = _quintiles(rates)
+        table.add_row(
+            tool, spark,
+            f"{q['min']:.2f}", f"{q['p25']:.2f}", f"{q['median']:.2f}",
+            f"{q['p75']:.2f}", f"{q['max']:.2f}",
+            str(len(rates)),
+        )
+        tools_records.append({
+            "tool": tool,
+            "sparkline": spark,
+            "series": [{"run_path": p, "rate": r} for p, r in ts],
+            "summary": q,
+        })
+
+    console.print(Panel(
+        "[dim]Distribution semantics (D-10 B): min/p25/median/p75/max are computed "
+        "across N runs' evolved_rate time-series for each tool "
+        "(cross-run, not within-run segment).[/dim]",
+        title="TREND legend",
+    ))
+    console.print(table)
+
+    return {
+        "window_kind": window_kind,
+        "window_value": window_value,
+        "tools": tools_records,
+    }
+
+
 # ── Click CLI ──────────────────────────────────────────────────────────────
 
 
@@ -362,6 +499,60 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
         return 0
 
     _render_latest(latest_run, segment, warning_threshold_pp)
+
+    # ── DIFF region (D-05) ────────────────────────────────────────────────
+    if baseline_run is not None or evolved_run is not None:
+        if baseline_run is None or evolved_run is None:
+            console.print(
+                "[yellow]DIFF region requires both --baseline-run AND --evolved-run; "
+                "got only one — skipping DIFF[/yellow]"
+            )
+        else:
+            b_loaded = _load_run(Path(baseline_run) / "metrics.json")
+            e_loaded = _load_run(Path(evolved_run) / "metrics.json")
+            if (
+                b_loaded and b_loaded.get("metrics")
+                and "per_tool_evolved_rates" in b_loaded["metrics"]
+                and e_loaded and e_loaded.get("metrics")
+                and "per_tool_evolved_rates" in e_loaded["metrics"]
+            ):
+                _render_diff(b_loaded, e_loaded, warning_threshold_pp)
+            else:
+                console.print(
+                    "[yellow]DIFF region: one or both runs missing per_tool_evolved_rates — skipped[/yellow]"
+                )
+
+    # ── TREND region (D-06) ───────────────────────────────────────────────
+    valid_runs: list[dict] = []
+    for p in runs_paths:
+        loaded = _load_run(p)
+        if (
+            loaded and loaded.get("metrics") and loaded.get("source")
+            and "per_tool_evolved_rates" in loaded["metrics"]
+            and loaded["metrics"].get("status") != "FAILED"
+        ):
+            valid_runs.append(loaded)
+
+    if trend_days is not None:
+        window_kind = "days"
+        window_value = trend_days
+        cutoff = datetime.now().timestamp() - (trend_days * 86400.0)
+        windowed = [
+            r for r in valid_runs
+            if Path(r["path"]).stat().st_mtime >= cutoff
+        ]
+    else:
+        window_kind = "n"
+        window_value = trend_window if trend_window is not None else 10
+        windowed = (
+            valid_runs[-window_value:]
+            if len(valid_runs) > window_value
+            else valid_runs
+        )
+
+    if windowed:
+        _render_trend(windowed, window_kind, window_value)
+
     if dropped:
         console.print(f"\n[yellow]Dropped {len(dropped)} run(s); see dashboard.json (Wave 4)[/yellow]")
     return 0

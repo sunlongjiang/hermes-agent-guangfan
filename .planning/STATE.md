@@ -4,8 +4,8 @@ milestone: v2.0
 milestone_name: — Stabilization, Enhancement & Expansion
 status: executing
 stopped_at: Phase 16 context gathered
-last_updated: "2026-05-12T12:05:11.058Z"
-last_activity: 2026-05-12 -- Phase 16 planning complete
+last_updated: "2026-05-12T12:13:44.001Z"
+last_activity: 2026-05-12 -- Phase 16 execution started
 progress:
   total_phases: 11
   completed_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** 让 GEPA 优化循环能覆盖工具描述和系统提示词，使 hermes-agent 的核心文本制品都能被系统性地自动改进
-**Current focus:** Phase 15 — Think-Augmented Tool Selection
+**Current focus:** Phase 16 — per-tool-regression-dashboard
 
 ## Current Position
 
-Phase: 16
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-12 -- Phase 16 planning complete
+Phase: 16 (per-tool-regression-dashboard) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 16
+Last activity: 2026-05-12 -- Phase 16 execution started
 
 Progress: [██████████] 100%
 

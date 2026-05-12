@@ -137,7 +137,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-02 | Phase 11 | Complete (skipped) |
 | TOOL-V2-01 | Phase 14 | Complete |
 | TOOL-V2-02 | Phase 13 | Complete |
-| TOOL-V2-03 | Phase 15 | Pending |
+| TOOL-V2-03 | Phase 15 | Complete |
 | TOOL-V2-04 | Phase 16 | Pending |
 | PMPT-V2-01 | Phase 17 | Pending |
 | PMPT-V2-02 | Phase 18 | Pending |

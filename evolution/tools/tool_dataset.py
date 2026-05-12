@@ -136,9 +136,6 @@ class ToolSelectionDataset:
         """Convert a split to DSPy Example objects.
 
         Only task_description is marked as input; correct_tool is the label.
-        correct_params and confuser_tools are included as non-input fields so
-        that joint_tool_param_metric() and Phase 15's ambiguous_subset filter
-        (D-13: len(ex.confuser_tools) >= 2) can access them at evaluation time.
 
         Args:
             split: Which split to convert ('train', 'val', or 'holdout').
@@ -151,8 +148,6 @@ class ToolSelectionDataset:
             dspy.Example(
                 task_description=ex.task_description,
                 correct_tool=ex.correct_tool,
-                correct_params=ex.correct_params,
-                confuser_tools=ex.confuser_tools,
             ).with_inputs("task_description")
             for ex in data
         ]

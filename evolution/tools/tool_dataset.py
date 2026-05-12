@@ -130,7 +130,10 @@ class ToolSelectionDataset:
     def to_dspy_examples(self, split: str = "train") -> list[dspy.Example]:
         """Convert a split to DSPy Example objects.
 
-        Only task_description is marked as input; correct_tool is the label.
+        Only task_description is marked as input; correct_tool, correct_params,
+        and confuser_tools are labels/metadata consumed by downstream metrics
+        (joint_tool_param_metric in Phase 13) and filters (D-13 ambiguous subset
+        in Phase 15).
 
         Args:
             split: Which split to convert ('train', 'val', or 'holdout').
@@ -143,6 +146,8 @@ class ToolSelectionDataset:
             dspy.Example(
                 task_description=ex.task_description,
                 correct_tool=ex.correct_tool,
+                correct_params=ex.correct_params,
+                confuser_tools=ex.confuser_tools,
             ).with_inputs("task_description")
             for ex in data
         ]

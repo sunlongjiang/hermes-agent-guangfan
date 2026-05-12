@@ -245,7 +245,7 @@ Plans:
   1. ToolModule supports optional ChainOfThought reasoning before selection
   2. Reasoning step is optimizable by GEPA (prompt text is a parameter)
   3. A/B comparison shows improvement on ambiguous selection scenarios
-**Plans:** 4/5 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 **Wave 0**
@@ -261,7 +261,10 @@ Plans:
 - [x] 15-04-PLAN.md — evolve_tool_reasoning.py CLI: 16 步流水线 + 双 ToolModule + 双门并跑 (V1BaselineGate×2 + ThinkABGate×1) + 4 输出文件 + output/tools_reasoning/ 物理隔离
 
 **Wave 4** *(blocked on Wave 3 + manual dry-run checkpoint)*
-- [ ] 15-05-PLAN.md — test_e2e_mock_pipeline smoke + optional __init__.py export + manual real dry-run checkpoint + VALIDATION.md approved sign-off
+- [ ] 15-05-PLAN.md — test_e2e_mock_pipeline smoke + optional __init__.py export + manual real dry-run checkpoint + VALIDATION.md approved sign-off (PARTIAL — Tasks 1-2 done; Tasks 3-4 blocked on Plan 15-06)
+
+**Wave 5** *(gap closure for Plan 15-05 — to_dspy_examples bug spun out per user scope decision)*
+- [ ] 15-06-PLAN.md — Fix to_dspy_examples() missing confuser_tools / correct_params (D-13 ambiguous filter + Phase 13 joint metric param_match) + test_to_dspy_examples_supports_ambiguous_filter regression test + dry-run consistency verification
 
 ### Phase 16: Per-Tool Regression Dashboard
 **Goal**: Track individual tool selection rates across optimization runs

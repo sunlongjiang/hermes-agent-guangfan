@@ -16,7 +16,7 @@
   "per_tool_evolved_rates": {
     "search_files": 0.84,
     "read_file": 0.87,
-    "browser_navigate": 0.55,
+    "browser_navigate": 0.50,
     "edit_file": 0.78,
     "list_files": 0.92
   },

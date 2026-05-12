@@ -221,7 +221,7 @@ def _render_latest(
     table.add_column("median", justify="right")
     table.add_column("p75", justify="right")
     table.add_column("max", justify="right")
-    table.add_column("status", justify="left")
+    table.add_column("status", justify="left", min_width=8, no_wrap=True)
 
     per_tool_records: list[dict] = []
     all_tools = sorted(set(baseline_rates.keys()) | set(evolved_rates.keys()))

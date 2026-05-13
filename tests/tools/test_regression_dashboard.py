@@ -149,19 +149,93 @@ def test_distribution_n_a_when_sample_low():
 # Renaming any of these stubs breaks the wave-2/3/4 grep gates.
 
 
-@pytest.mark.skip(reason="Wave 2 — DIFF region")
 def test_diff_requires_both_runs():
-    pass
+    """16-02-01 (D-05) — DIFF region requires both --baseline-run AND --evolved-run.
+
+    Behavior: passing only one → stdout yellow hint, no exit code change
+    (still 0, LATEST still rendered). Passing both → DIFF region rendered.
+    """
+    runner = CliRunner()
+    fixture_v1 = FIXTURES / "params_complete"
+    fixture_v2 = FIXTURES / "params_complete_v2"
+
+    # Case 1: only --baseline-run → DIFF skipped with hint, exit 0
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_v1 / "metrics.json"],
+    ):
+        result = runner.invoke(
+            main,
+            ["--runs", str(fixture_v1), "--baseline-run", str(fixture_v1)],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert "DIFF region requires both" in result.output
+
+    # Case 2: both → DIFF rendered
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_v1 / "metrics.json", fixture_v2 / "metrics.json"],
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "--runs", str(fixture_v1),
+                "--runs", str(fixture_v2),
+                "--baseline-run", str(fixture_v1),
+                "--evolved-run", str(fixture_v2),
+            ],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert "DIFF" in result.output
 
 
-@pytest.mark.skip(reason="Wave 2 — TREND mutex")
 def test_trend_window_days_mutex():
-    pass
+    """16-02-02 (D-06) — --trend-window and --trend-days are mutually exclusive."""
+    runner = CliRunner()
+    fixture_v1 = FIXTURES / "params_complete"
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_v1 / "metrics.json"],
+    ):
+        result = runner.invoke(
+            main,
+            ["--runs", str(fixture_v1), "--trend-window", "5", "--trend-days", "7"],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 2, (
+        f"expected exit 2 (UsageError), got {result.exit_code}; "
+        f"stdout: {result.output}"
+    )
+    assert "mutually exclusive" in result.output
 
 
-@pytest.mark.skip(reason="Wave 2 — TREND sparkline")
 def test_trend_sparkline():
-    pass
+    """16-02-03 (D-10 B) — TREND region renders sparkline (▁▂▃▄▅▆▇█) + quintile columns."""
+    runner = CliRunner()
+    fixture_v1 = FIXTURES / "params_complete"
+    fixture_v2 = FIXTURES / "params_complete_v2"
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_v1 / "metrics.json", fixture_v2 / "metrics.json"],
+    ):
+        result = runner.invoke(
+            main,
+            ["--runs", str(fixture_v1), "--runs", str(fixture_v2), "--trend-window", "10"],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert "TREND" in result.output
+    spark_chars = "▁▂▃▄▅▆▇█"
+    assert any(c in result.output for c in spark_chars), (
+        f"no sparkline chars in stdout: {result.output[:500]}"
+    )
+    assert "min" in result.output.lower()
+    assert "p25" in result.output
+    assert "median" in result.output
+    assert "p75" in result.output
+    assert "max" in result.output.lower()
 
 
 @pytest.mark.skip(reason="Wave 3 — ABStudy categories")

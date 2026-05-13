@@ -238,39 +238,189 @@ def test_trend_sparkline():
     assert "max" in result.output.lower()
 
 
-@pytest.mark.skip(reason="Wave 3 — ABStudy categories")
 def test_ab_study_categories():
-    pass
+    """16-03-01 (D-15) — ABStudy three categories with counts and top-3 examples."""
+    runner = CliRunner()
+    fixture_path = FIXTURES / "reasoning_complete" / "metrics.json"
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_path],
+    ):
+        result = runner.invoke(
+            main, ["--runs", str(fixture_path.parent)], catch_exceptions=False
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert "ABStudy" in result.output
+    assert "think_on_saved" in result.output
+    assert "think_on_regressed" in result.output
+    assert "both_wrong" in result.output
 
 
-@pytest.mark.skip(reason="Wave 3 — ABStudy secret redaction")
 def test_ab_study_secret_redaction():
-    pass
+    """16-03-02 (D-15 / W3 fix) — secrets in BOTH task_description AND reasoning_text_on
+    must be redacted before stdout render.
+    """
+    runner = CliRunner()
+    fixture_dir = FIXTURES / "reasoning_with_secret"
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_dir / "metrics.json"],
+    ):
+        result = runner.invoke(
+            main, ["--runs", str(fixture_dir)], catch_exceptions=False
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert "sk-1234567890abcdefghijklmnopqrstuvwxyz" not in result.output, (
+        f"task_description sk- key leaked: {result.output[:1000]}"
+    )
+    assert "AKIA" not in result.output, (
+        f"AWS access key prefix leaked from reasoning_text_on: {result.output[:1000]}"
+    )
+    assert "AKIAIOSFODNN7EXAMPLE" not in result.output, (
+        f"AWS access key full token leaked from reasoning_text_on: {result.output[:1000]}"
+    )
+    assert "REDACTED" in result.output
 
 
-@pytest.mark.skip(reason="Wave 3 — source detection")
 def test_source_detection():
-    pass
+    """16-03-03 (D-07) — source heuristic: think_ab_gate→reasoning, param_predictors→params,
+    parent dir + baseline_score → desc, otherwise None.
+    """
+    from pathlib import Path as P
+    from evolution.tools.regression_dashboard import _detect_source
+    assert _detect_source({"think_ab_gate": {}}, P("output/tools_reasoning/abc/metrics.json")) == "reasoning"
+    assert _detect_source({"param_predictors_discovered": 5}, P("output/tools/abc/metrics.json")) == "params"
+    assert _detect_source(
+        {"think_ab_gate": {}, "param_predictors_discovered": 5},
+        P("output/tools_reasoning/abc/metrics.json"),
+    ) == "reasoning"
+    assert _detect_source({"some_field": 1}, P("output/tools_reasoning/abc/metrics.json")) == "reasoning"
+    assert _detect_source({"baseline_score": 0.5}, P("output/tools/abc/metrics.json")) == "desc"
+    assert _detect_source({}, P("output/tools/abc/metrics.json")) is None
+    assert _detect_source({}, P("/tmp/abc/metrics.json")) is None
 
 
-@pytest.mark.skip(reason="Wave 3 — fallback dropped run")
 def test_fallback_dropped_run():
-    pass
+    """16-03-04 (D-08) — run missing per_tool_*_rates → dropped + dropped_runs[]."""
+    runner = CliRunner()
+    fixture_path = FIXTURES / "desc_old" / "metrics.json"
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_path],
+    ):
+        result = runner.invoke(
+            main, ["--runs", str(fixture_path.parent)], catch_exceptions=False
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    output_lower = result.output.lower()
+    assert (
+        "dropped" in output_lower
+        or "missing per_tool" in result.output
+        or "failed" in output_lower
+    )
 
 
-@pytest.mark.skip(reason="Wave 3 — fallback no raw_predictions")
 def test_fallback_no_raw_predictions():
-    pass
+    """16-03-05 (D-08) — run has per_tool_*_rates but no raw_predictions →
+    LATEST renders, distribution columns degrade to n/a, stdout warns.
+    """
+    runner = CliRunner()
+    fixture_path = FIXTURES / "params_no_raw" / "metrics.json"
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_path],
+    ):
+        result = runner.invoke(
+            main, ["--runs", str(fixture_path.parent)], catch_exceptions=False
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert "LATEST" in result.output
+    assert "distribution disabled" in result.output
+    assert "n/a" in result.output
 
 
-@pytest.mark.skip(reason="Wave 3 — fallback no ab_comparison")
 def test_fallback_no_ab_comparison():
-    pass
+    """16-03-06 (D-08) — reasoning run missing both per_tool_*_rates AND ab_comparison.json →
+    run dropped before reaching ABStudy filter; stdout does not complain.
+    """
+    runner = CliRunner()
+    fixture_path = FIXTURES / "reasoning_old" / "metrics.json"
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_path],
+    ):
+        result = runner.invoke(
+            main, ["--runs", str(fixture_path.parent)], catch_exceptions=False
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert "ABStudy" not in result.output
+    assert "missing ab_comparison" not in result.output.lower()
 
 
-@pytest.mark.skip(reason="Wave 3 — warning threshold no exit")
-def test_warning_threshold_no_exit():
-    pass
+def test_warning_threshold_no_exit(monkeypatch, tmp_path):
+    """16-03-07 (D-13 / B3 fix) — warnings NEVER affect exit code regardless of threshold severity.
+
+    Case A: params_complete + 2.0pp → 1 WARNING (browser_navigate -5pp); exit 0.
+    Case B: params_multi_regress + 0.1pp → ≥3 WARNINGs; exit 0 STILL.
+    """
+    runner = CliRunner()
+
+    # Case A: 2.0pp threshold on params_complete (browser_navigate -5pp is the sole negative)
+    fixture_complete = FIXTURES / "params_complete"
+    monkeypatch.chdir(tmp_path)
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_complete / "metrics.json"],
+    ):
+        result_a = runner.invoke(
+            main,
+            ["--runs", str(fixture_complete), "--warning-threshold-pp", "2.0"],
+            catch_exceptions=False,
+        )
+    assert result_a.exit_code == 0, (
+        f"Case A: expected exit 0 (D-13 no-gate), got {result_a.exit_code}; "
+        f"stdout: {result_a.output}"
+    )
+    assert "WARNING:" in result_a.output, (
+        f"Case A: expected 'WARNING:' for browser_navigate -5pp; got: {result_a.output[:1000]}"
+    )
+    assert result_a.output.count("WARNING:") == 1, (
+        f"Case A: expected exactly 1 WARNING: line on params_complete; "
+        f"got {result_a.output.count('WARNING:')}. stdout: {result_a.output[:1500]}"
+    )
+    assert "browser_navigate" in result_a.output
+
+    # Case B: 0.1pp threshold on params_multi_regress (3 negative-delta tools by construction)
+    fixture_multi = FIXTURES / "params_multi_regress"
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_multi / "metrics.json"],
+    ):
+        result_b = runner.invoke(
+            main,
+            ["--runs", str(fixture_multi), "--warning-threshold-pp", "0.1"],
+            catch_exceptions=False,
+        )
+    assert result_b.exit_code == 0, (
+        f"Case B (strict threshold): expected exit 0, got {result_b.exit_code}; "
+        f"this would catch any 'if len(warnings_list) > N: return 1' bug. "
+        f"stdout: {result_b.output}"
+    )
+    warning_count_b = result_b.output.count("WARNING:")
+    assert warning_count_b >= 3, (
+        f"Case B: expected at least 3 WARNING: lines at strict 0.1 threshold on "
+        f"params_multi_regress (read_file/browser_navigate/edit_file all cross), "
+        f"got {warning_count_b}. stdout: {result_b.output[:1500]}"
+    )
+    assert "read_file" in result_b.output, (
+        f"Case B: read_file (-0.5pp) WARNING: missing. stdout: {result_b.output[:1500]}"
+    )
+    assert "browser_navigate" in result_b.output, (
+        f"Case B: browser_navigate (-5.0pp) WARNING: missing. stdout: {result_b.output[:1500]}"
+    )
+    assert "edit_file" in result_b.output, (
+        f"Case B: edit_file (-1.5pp) WARNING: missing. stdout: {result_b.output[:1500]}"
+    )
 
 
 @pytest.mark.skip(reason="Wave 4 — E2E dashboard.json schema")

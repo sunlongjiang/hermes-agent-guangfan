@@ -431,6 +431,117 @@ def _render_trend(
     }
 
 
+def _safe_truncate(text: str, max_len: int = 80) -> str:
+    """D-15: redact-then-truncate ABStudy strings.
+
+    Defensive: hermes-agent session importers already filter secrets upstream,
+    but ab_comparison.json is downstream-rendered to stdout. Re-check before
+    display to avoid second-order leak.
+    """
+    if not text:
+        return ""
+    if _contains_secret(text):
+        return "[REDACTED — secret-like content]"
+    return text[:max_len] + "..." if len(text) > max_len else text
+
+
+def _count_ab_categories(ab_records: list[dict]) -> dict:
+    """D-15: three-category counts + top-3 examples per category.
+
+    Categories (mutually exclusive over the off×on truth grid):
+    - think_on_saved = is_correct_off==False AND is_correct_on==True
+    - think_on_regressed = is_correct_off==True AND is_correct_on==False
+    - both_wrong = is_correct_off==False AND is_correct_on==False
+    (is_correct_off==True AND is_correct_on==True is the boring "both right",
+    not surfaced as a category — Phase 16 only highlights deltas.)
+
+    Top-3 sorting:
+    - saved: reasoning_text_on length DESC (longest reasoning = most explanatory win)
+    - regressed: task_description length DESC (longest task = most likely a hard case)
+    - both_wrong: unsorted (no narrative ordering)
+    """
+    saved = [r for r in ab_records if not r.get("is_correct_off") and r.get("is_correct_on")]
+    regressed = [r for r in ab_records if r.get("is_correct_off") and not r.get("is_correct_on")]
+    both_wrong = [r for r in ab_records if not r.get("is_correct_off") and not r.get("is_correct_on")]
+    saved_sorted = sorted(saved, key=lambda r: len(r.get("reasoning_text_on", "") or ""), reverse=True)
+    regressed_sorted = sorted(regressed, key=lambda r: len(r.get("task_description", "") or ""), reverse=True)
+
+    def _top(recs: list[dict], k: int = 3) -> list[dict]:
+        out = []
+        for r in recs[:k]:
+            out.append({
+                "task_id": r.get("task_id"),
+                "task_description": _safe_truncate(r.get("task_description", "") or ""),
+                "correct_tool": r.get("correct_tool"),
+                "selected_off": r.get("selected_off"),
+                "selected_on": r.get("selected_on"),
+                "reasoning_text_on": _safe_truncate(r.get("reasoning_text_on", "") or "", max_len=200),
+            })
+        return out
+
+    return {
+        "think_on_saved": {"count": len(saved), "top": _top(saved_sorted)},
+        "think_on_regressed": {"count": len(regressed), "top": _top(regressed_sorted)},
+        "both_wrong": {"count": len(both_wrong), "top": _top(both_wrong)},
+    }
+
+
+def _render_ab_study(reasoning_runs: list[dict]) -> dict:
+    """D-15: ABStudy region — renders for reasoning runs with ab_comparison.json present."""
+    if not reasoning_runs:
+        return {"detected_runs": 0, "by_run": []}
+    by_run: list[dict] = []
+    for run in reasoning_runs:
+        ab = run.get("ab_comparison") or []
+        cats = _count_ab_categories(ab)
+        by_run.append({
+            "run_path": run["path"],
+            "think_on_saved": cats["think_on_saved"]["count"],
+            "think_on_regressed": cats["think_on_regressed"]["count"],
+            "both_wrong": cats["both_wrong"]["count"],
+            "top_examples": {
+                "saved": cats["think_on_saved"]["top"],
+                "regressed": cats["think_on_regressed"]["top"],
+                "both_wrong": cats["both_wrong"]["top"],
+            },
+        })
+
+    table = Table(title="ABStudy (Phase 15 reasoning runs)", show_lines=False)
+    table.add_column("run_path", justify="left", style="cyan")
+    table.add_column("think_on_saved", justify="right", style="bold green")
+    table.add_column("think_on_regressed", justify="right", style="bold red")
+    table.add_column("both_wrong", justify="right", style="yellow")
+    for entry in by_run:
+        table.add_row(
+            entry["run_path"],
+            str(entry["think_on_saved"]),
+            str(entry["think_on_regressed"]),
+            str(entry["both_wrong"]),
+        )
+    console.print(table)
+
+    for entry in by_run:
+        top = entry["top_examples"]
+        lines: list[str] = [f"[bold]Run:[/bold] {entry['run_path']}"]
+        for cat_name, recs in [
+            ("saved", top["saved"]),
+            ("regressed", top["regressed"]),
+            ("both_wrong", top["both_wrong"]),
+        ]:
+            if recs:
+                lines.append(f"\n[bold]{cat_name}[/bold]")
+                for r in recs:
+                    lines.append(
+                        f"  task#{r['task_id']}: {r['task_description']}"
+                        f" | correct={r['correct_tool']} | off={r['selected_off']} on={r['selected_on']}"
+                    )
+                    if r.get("reasoning_text_on"):
+                        lines.append(f"    reasoning: {r['reasoning_text_on']}")
+        console.print(Panel("\n".join(lines), title="ABStudy top-3"))
+
+    return {"detected_runs": len(reasoning_runs), "by_run": by_run}
+
+
 # ── Click CLI ──────────────────────────────────────────────────────────────
 
 
@@ -553,8 +664,43 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
     if windowed:
         _render_trend(windowed, window_kind, window_value)
 
+    # ── ABStudy region (D-15) ────────────────────────────────────────────
+    reasoning_with_ab = [
+        r for r in valid_runs
+        if r.get("source") == "reasoning" and r.get("ab_comparison")
+    ]
+    if reasoning_with_ab:
+        _render_ab_study(reasoning_with_ab)
+
+    # ── D-13 warnings + D-08 fallback messages (latest run only) ─────────
+    warnings_list: list[dict] = []
+    if latest_run is not None:
+        b_rates = latest_run["metrics"].get("per_tool_baseline_rates", {}) or {}
+        e_rates = latest_run["metrics"].get("per_tool_evolved_rates", {}) or {}
+        for tool in sorted(set(b_rates) | set(e_rates)):
+            delta = (float(e_rates.get(tool, 0.0)) - float(b_rates.get(tool, 0.0))) * 100.0
+            if delta <= -warning_threshold_pp:
+                warnings_list.append({
+                    "tool": tool,
+                    "delta_pp": delta,
+                    "run_path": latest_run["path"],
+                })
+                console.print(
+                    f"[yellow]WARNING: {tool} regressed by {delta:+.2f}pp in "
+                    f"{latest_run['path']} (threshold: -{warning_threshold_pp:.1f}pp)[/yellow]"
+                )
+        if "raw_predictions" not in latest_run["metrics"]:
+            console.print(
+                f"[yellow]raw_predictions absent in {latest_run['path']}; "
+                f"distribution disabled for this run[/yellow]"
+            )
+
     if dropped:
-        console.print(f"\n[yellow]Dropped {len(dropped)} run(s); see dashboard.json (Wave 4)[/yellow]")
+        console.print(f"\n[yellow]Dropped {len(dropped)} run(s):[/yellow]")
+        for d in dropped:
+            console.print(f"[yellow]  - {d['path']}: {d['reason']}[/yellow]")
+
+    # D-13: warnings DO NOT affect exit code; Wave 4 will write dashboard.json
     return 0
 
 

@@ -1,0 +1,25 @@
+{
+  "timestamp": "20260513_120000",
+  "started_at": "2026-05-13T04:00:00.000000",
+  "status": "SUCCESS",
+  "iterations": 6,
+  "param_predictors_discovered": 8,
+  "tool_count": 4,
+  "think_off_score": 0.55,
+  "think_on_score": 0.62,
+  "think_ab_gate": {"passed": true, "delta": 0.07},
+  "per_tool_baseline_rates": {
+    "search_files": 0.55,
+    "browser_navigate": 0.50
+  },
+  "per_tool_evolved_rates": {
+    "search_files": 0.62,
+    "browser_navigate": 0.45
+  },
+  "raw_predictions": [
+    {"correct_tool": "search_files", "selected_tool": "search_files", "difficulty": "easy", "num_available_tools": 3},
+    {"correct_tool": "search_files", "selected_tool": "search_files", "difficulty": "medium", "num_available_tools": 3},
+    {"correct_tool": "search_files", "selected_tool": "list_files", "difficulty": "hard", "num_available_tools": 4},
+    {"correct_tool": "browser_navigate", "selected_tool": "search_files", "difficulty": "hard", "num_available_tools": 4}
+  ]
+}

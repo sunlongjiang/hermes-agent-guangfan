@@ -1,0 +1,47 @@
+[
+  {
+    "task_id": 0,
+    "task_description": "use API key sk-1234567890abcdefghijklmnopqrstuvwxyz0123456789ABCD to fetch",
+    "correct_tool": "search_files",
+    "selected_off": "list_files",
+    "selected_on": "search_files",
+    "is_correct_off": false,
+    "is_correct_on": true,
+    "is_ambiguous": false,
+    "confuser_tools": ["list_files"],
+    "reasoning_text_on": "Need to use search_files. Internally I noticed key AKIAIOSFODNN7EXAMPLE was set, indicating the user wants AWS S3 listing. So search_files matches.",
+    "reasoning_tokens_on": 12,
+    "latency_seconds_off": 0.5,
+    "latency_seconds_on": 1.8
+  },
+  {
+    "task_id": 1,
+    "task_description": "open https://example.com",
+    "correct_tool": "browser_navigate",
+    "selected_off": "browser_navigate",
+    "selected_on": "search_files",
+    "is_correct_off": true,
+    "is_correct_on": false,
+    "is_ambiguous": false,
+    "confuser_tools": ["search_files"],
+    "reasoning_text_on": "search_files seems related to URLs. Backup credentials AKIAIOSFODNN7EXAMPLE may be relevant for the navigation.",
+    "reasoning_tokens_on": 8,
+    "latency_seconds_off": 0.4,
+    "latency_seconds_on": 1.5
+  },
+  {
+    "task_id": 2,
+    "task_description": "regular harmless task description for both wrong category test",
+    "correct_tool": "edit_file",
+    "selected_off": "list_files",
+    "selected_on": "list_files",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": ["list_files"],
+    "reasoning_text_on": "ambiguous task — neither tool clearly fits",
+    "reasoning_tokens_on": 5,
+    "latency_seconds_off": 0.3,
+    "latency_seconds_on": 1.2
+  }
+]

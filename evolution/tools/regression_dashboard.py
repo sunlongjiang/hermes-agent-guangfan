@@ -542,6 +542,45 @@ def _render_ab_study(reasoning_runs: list[dict]) -> dict:
     return {"detected_runs": len(reasoning_runs), "by_run": by_run}
 
 
+def _write_dashboard_json(
+    output_path: Path,
+    *,
+    scanned_runs: int,
+    dropped_runs: list[dict],
+    latest_data: Optional[dict],
+    diff_data: Optional[dict],
+    trend_data: dict,
+    ab_study_data: dict,
+    warnings_list: list[dict],
+    summary: dict,
+) -> None:
+    """Serialize 8 top-level fields to dashboard.json (D-04 schema).
+
+    Top-level keys: latest, diff, trend, ab_study, source_legend, dropped_runs,
+    summary, warnings + auxiliary generated_at and scanned_runs.
+    """
+    payload = {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "scanned_runs": scanned_runs,
+        "dropped_runs": dropped_runs,
+        "source_legend": {
+            "desc": "evolve_tool_descriptions, baseline=v1 frozen",
+            "params": "evolve_tool_params, baseline=v1 frozen",
+            "reasoning": "evolve_tool_reasoning, baseline=think-off",
+        },
+        "latest": latest_data,
+        "diff": diff_data,
+        "trend": trend_data,
+        "ab_study": ab_study_data,
+        "warnings": warnings_list,
+        "summary": summary,
+    }
+    output_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    console.print(f"[green]Wrote dashboard.json: {output_path}[/green]")
+
+
 # ── Click CLI ──────────────────────────────────────────────────────────────
 
 
@@ -570,6 +609,17 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
     if trend_window is not None and trend_days is not None:
         raise click.UsageError("--trend-window and --trend-days are mutually exclusive")
 
+    # Wave 4: collectors for dashboard.json 8-field schema (D-04)
+    latest_data: Optional[dict] = None
+    diff_data: Optional[dict] = None
+    trend_data: dict = {
+        "window_kind": "n",
+        "window_value": trend_window if trend_window is not None else 10,
+        "tools": [],
+    }
+    ab_study_data: dict = {"detected_runs": 0, "by_run": []}
+    warnings_list: list[dict] = []
+
     # Build root list: defaults + --runs additions
     roots = list(DEFAULT_ROOTS)
     for r in runs:
@@ -581,13 +631,19 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
         console.print("[red]No runs found in default roots or --runs paths[/red]")
         raise click.UsageError("no runs found; pass --runs <path> or populate output/tools[_reasoning]/")
 
-    # Wave 1: render LATEST only (Wave 2/3/4 add DIFF/TREND/ABStudy/JSON)
+    # Full classification pass: every scanned run is either usable or dropped.
+    # Latest is the newest usable; all unusable runs (regardless of position)
+    # surface in dropped_runs[] so dashboard.json gives a complete picture.
     latest_run = None
     dropped: list[dict] = []
+    usable_runs: list[dict] = []  # ordered as scanned (newest first via reversed below)
     for p in reversed(runs_paths):  # newest first
         loaded = _load_run(p)
         if loaded is None or loaded.get("metrics") is None:
-            dropped.append({"path": str(p), "reason": loaded.get("_drop_reason", "load failed") if loaded else "load failed"})
+            dropped.append({
+                "path": str(p),
+                "reason": loaded.get("_drop_reason", "load failed") if loaded else "load failed",
+            })
             continue
         m = loaded["metrics"]
         if loaded["source"] is None:
@@ -599,17 +655,14 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
         if m.get("status") == "FAILED":
             dropped.append({"path": str(p), "reason": "run status=FAILED"})
             continue
-        latest_run = loaded
-        break
+        usable_runs.append(loaded)
+    if usable_runs:
+        latest_run = usable_runs[0]
 
     if latest_run is None:
         console.print("[yellow]No usable runs for LATEST region[/yellow]")
-        for d in dropped:
-            console.print(f"[yellow]dropped: {d['path']} — {d['reason']}[/yellow]")
-        # Wave 4 will write dashboard.json even when empty; Wave 1 returns 0.
-        return 0
-
-    _render_latest(latest_run, segment, warning_threshold_pp)
+    else:
+        latest_data = _render_latest(latest_run, segment, warning_threshold_pp)
 
     # ── DIFF region (D-05) ────────────────────────────────────────────────
     if baseline_run is not None or evolved_run is not None:
@@ -627,7 +680,7 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
                 and e_loaded and e_loaded.get("metrics")
                 and "per_tool_evolved_rates" in e_loaded["metrics"]
             ):
-                _render_diff(b_loaded, e_loaded, warning_threshold_pp)
+                diff_data = _render_diff(b_loaded, e_loaded, warning_threshold_pp)
             else:
                 console.print(
                     "[yellow]DIFF region: one or both runs missing per_tool_evolved_rates — skipped[/yellow]"
@@ -662,7 +715,13 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
         )
 
     if windowed:
-        _render_trend(windowed, window_kind, window_value)
+        trend_data = _render_trend(windowed, window_kind, window_value)
+    else:
+        trend_data = {
+            "window_kind": window_kind,
+            "window_value": window_value,
+            "tools": [],
+        }
 
     # ── ABStudy region (D-15) ────────────────────────────────────────────
     reasoning_with_ab = [
@@ -670,10 +729,9 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
         if r.get("source") == "reasoning" and r.get("ab_comparison")
     ]
     if reasoning_with_ab:
-        _render_ab_study(reasoning_with_ab)
+        ab_study_data = _render_ab_study(reasoning_with_ab)
 
     # ── D-13 warnings + D-08 fallback messages (latest run only) ─────────
-    warnings_list: list[dict] = []
     if latest_run is not None:
         b_rates = latest_run["metrics"].get("per_tool_baseline_rates", {}) or {}
         e_rates = latest_run["metrics"].get("per_tool_evolved_rates", {}) or {}
@@ -700,7 +758,29 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
         for d in dropped:
             console.print(f"[yellow]  - {d['path']}: {d['reason']}[/yellow]")
 
-    # D-13: warnings DO NOT affect exit code; Wave 4 will write dashboard.json
+    # ── Wave 4: emit dashboard.json (D-04) ────────────────────────────────
+    if output is not None:
+        out_path = Path(output)
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_path = Path.cwd() / f"dashboard_{ts}.json"
+
+    _write_dashboard_json(
+        out_path,
+        scanned_runs=len(runs_paths),
+        dropped_runs=dropped,
+        latest_data=latest_data,
+        diff_data=diff_data,
+        trend_data=trend_data,
+        ab_study_data=ab_study_data,
+        warnings_list=warnings_list,
+        summary={
+            "warning_threshold_pp": warning_threshold_pp,
+            "segment_kind": segment,
+        },
+    )
+
+    # D-13: warnings DO NOT affect exit code.
     return 0
 
 

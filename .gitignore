@@ -25,6 +25,9 @@ snapshots/
 # Per-run evolution outputs (may contain mined data / evolved artifacts)
 output/
 
+# Phase 16 dashboard outputs (CONCERNS §H4)
+dashboard_*.json
+
 # IDE
 .idea/
 .vscode/

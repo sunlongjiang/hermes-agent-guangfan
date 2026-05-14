@@ -423,16 +423,109 @@ def test_warning_threshold_no_exit(monkeypatch, tmp_path):
     )
 
 
-@pytest.mark.skip(reason="Wave 4 — E2E dashboard.json schema")
-def test_e2e_dashboard_json_schema():
-    pass
+def test_e2e_dashboard_json_schema(tmp_path, monkeypatch):
+    """16-04-01 (D-04 + D-17) — E2E: 5 fixture runs → dashboard.json with 8 top-level fields."""
+    runner = CliRunner()
+    fixture_paths = [
+        FIXTURES / "desc_old" / "metrics.json",
+        FIXTURES / "params_complete" / "metrics.json",
+        FIXTURES / "params_no_raw" / "metrics.json",
+        FIXTURES / "reasoning_complete" / "metrics.json",
+        FIXTURES / "reasoning_old" / "metrics.json",
+    ]
+    out_json = tmp_path / "test_dashboard.json"
+    monkeypatch.chdir(tmp_path)
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=fixture_paths,
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "--runs", str(FIXTURES / "params_complete"),
+                "--output", str(out_json),
+                "--trend-window", "5",
+            ],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert out_json.exists(), f"dashboard.json not written: {out_json}"
+    data = json.loads(out_json.read_text())
+
+    expected_keys = {
+        "latest", "diff", "trend", "ab_study", "source_legend",
+        "dropped_runs", "summary", "warnings",
+    }
+    assert expected_keys.issubset(set(data.keys())), (
+        f"missing top-level keys: {expected_keys - set(data.keys())}"
+    )
+    assert "generated_at" in data
+    assert data["scanned_runs"] == 5
+
+    dropped_paths = [d["path"] for d in data["dropped_runs"]]
+    assert any("desc_old" in p for p in dropped_paths), dropped_paths
+    assert any("reasoning_old" in p for p in dropped_paths), dropped_paths
+
+    assert set(data["source_legend"].keys()) == {"desc", "params", "reasoning"}
+
+    assert data["latest"] is not None
+    assert "per_tool" in data["latest"]
+    assert "tools" in data["trend"]
 
 
-@pytest.mark.skip(reason="Wave 4 — dashboard.json output path")
-def test_dashboard_json_output_path():
-    pass
+def test_dashboard_json_output_path(tmp_path, monkeypatch):
+    """16-04-02 (D-04) — dashboard.json default lands at CWD with `dashboard_<ts>.json` pattern;
+    --output overrides path.
+    """
+    runner = CliRunner()
+    fixture_path = FIXTURES / "params_complete" / "metrics.json"
+
+    # Case 1: --output explicit path
+    custom_out = tmp_path / "custom.json"
+    monkeypatch.chdir(tmp_path)
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_path],
+    ):
+        result = runner.invoke(
+            main,
+            ["--runs", str(fixture_path.parent), "--output", str(custom_out)],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert custom_out.exists()
+
+    # Case 2: no --output → default `dashboard_<ts>.json` in CWD
+    with patch(
+        "evolution.tools.regression_dashboard._scan_runs",
+        return_value=[fixture_path],
+    ):
+        result = runner.invoke(
+            main,
+            ["--runs", str(fixture_path.parent)],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    matches = list(tmp_path.glob("dashboard_*.json"))
+    assert len(matches) >= 1, (
+        f"no dashboard_<ts>.json in CWD: {list(tmp_path.iterdir())}"
+    )
+    import re
+    assert any(re.match(r"^dashboard_\d{8}_\d{6}\.json$", m.name) for m in matches), (
+        f"filename does not match pattern: {[m.name for m in matches]}"
+    )
 
 
-@pytest.mark.skip(reason="Wave 4 — no runs exits 2")
 def test_no_runs_exits_2():
-    pass
+    """16-04-03 (D-02) — empty default roots + no --runs → click.UsageError → exit 2."""
+    runner = CliRunner()
+    with patch(
+        "evolution.tools.regression_dashboard.DEFAULT_ROOTS", ()
+    ), patch(
+        "evolution.tools.regression_dashboard._scan_runs", return_value=[]
+    ):
+        result = runner.invoke(main, [], catch_exceptions=False)
+    assert result.exit_code == 2, (
+        f"expected exit 2 (UsageError), got {result.exit_code}; stdout: {result.output}"
+    )
+    assert "no runs" in result.output.lower() or "no run" in result.output.lower()

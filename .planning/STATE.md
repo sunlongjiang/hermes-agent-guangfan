@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: — Stabilization, Enhancement & Expansion
 status: executing
 stopped_at: Phase 18 context gathered
-last_updated: "2026-05-15T13:28:56.748Z"
-last_activity: 2026-05-15 -- Phase 18 planning complete
+last_updated: "2026-05-15T13:45:12.146Z"
+last_activity: 2026-05-15
 progress:
   total_phases: 11
   completed_phases: 5
   total_plans: 34
-  completed_plans: 30
-  percent: 88
+  completed_plans: 31
+  percent: 91
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** 让 GEPA 优化循环能覆盖工具描述和系统提示词，使 hermes-agent 的核心文本制品都能被系统性地自动改进
-**Current focus:** Phase 17 — joint-section-optimization
+**Current focus:** Phase 18 — Personality Drift Detection
 
 ## Current Position
 
-Phase: 18
-Plan: Not started
+Phase: 18 (Personality Drift Detection) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-05-15 -- Phase 18 planning complete
+Last activity: 2026-05-15
 
-Progress: [██████████] 100%
+Progress: [█████████░] 91%
 
 ## Milestone v2.0 Phase Map
 
@@ -65,6 +65,7 @@ Progress: [██████████] 100%
 - [Phase 13 discuss 2026-05-07]: Gray areas resolved across module structure (two-dim param_predictors, physically isolated tool-level desc), CLI shape (new `evolve_tool_params` entry, existing CLI untouched), scope (joint fitness + param_consistency + per-tool persistence + cost cap all in-scope; v1 baseline hard regression gate; no default param-group cap), eval (reuse Phase 4 dataset, joint 50/50 exact-match, selector outputs tool+params together). Folded todos: loud-gepa-fallback, persist-per-tool-regression-rates, max-cost-usd-and-reflection-model.
 - [Phase 13-07 2026-05-08]: V1 baseline hard-gate landed in `evolution/tools/v1_baseline_gate.py` — `check_v1_baseline_gate` returns `ConstraintResult` (per Wave 0 contract); `compute_v1_baseline` resolves baseline source as historical (Phase 5 metrics.json:evolved_score, type-safe loader rejects bool/string/OOR/malformed) → inline (rerun joint metric on baseline ToolModule + holdout) → missing (degraded). `V1BaselineGate` facade for 13-08 CLI metrics.json shape. Plan-vs-test signature conflict resolved by honoring tests as canonical source; `evolve_tool_params.py` shell module re-exports the gate symbols (13-08 will replace shell with full Click CLI, exports preserved). Wave 0 RED tests now GREEN.
 - [Phase 13-08 2026-05-08]: evolve_tool_params CLI end-to-end pipeline landed at `evolution/tools/evolve_tool_params.py` (991 LoC; 14 flags). Wires all Wave 1-3 atomic components into a single user entry point: discover → ToolModule (13-02) → joint metric+feedback (13-03) → ParamConsistencyChecker (13-04) → CostTracker w/ _CostStopper StopperProtocol adapter (13-05) → persist_per_tool_rates (13-06) → V1BaselineGate (13-07). Loud-by-default GEPA failure (D-15a closure); `--allow-miprov2-fallback` opt-in records `optimizer_used: 'miprov2'` in metrics.json. FAILED_<ts>/ + ABORTED_<ts>/ + success output topology. Hard scope guard verified (`grep -c 'write_back'` = 0). Wave 0 RED tests GREEN; full suite 385 passed + 1 xfailed. Phase 13 = **8/8 plans complete**.
+- [Phase 18-01 2026-05-15]: Wave 0 RED scaffolds — 14 failing pytest scaffolds (10 in tests/prompts/test_drift_detector.py + 4 in tests/prompts/test_drift_calibration.py) plus first-ever tests/prompts/conftest.py (mock_drift_lm, dummy_thresholds, drift_calibration_mini_path fixtures) and 6-row deterministic mini calibration fixture. .gitignore now exempts datasets/prompts/drift_calibration.jsonl + drift_thresholds.json per D-CAL-02. Lazy module imports inside test helpers let pytest --collect-only succeed before Wave 1/3 production code exists; tests fail at run time with ModuleNotFoundError as intended. tests/prompts/ test count rose from 97 to 111 with zero regression. Commits: 97f8c08, bba021c, c00ad1f.
 
 ### Test Coverage (v2 baseline after 2026-05-07 fixes)
 
@@ -80,6 +81,6 @@ Progress: [██████████] 100%
 
 ## Session Continuity
 
-Last session: 2026-05-15T09:22:53.594Z
+Last session: 2026-05-15T13:42:17.305Z
 Stopped at: Phase 18 context gathered
 Next: `/gsd-verify-phase 13` to run the post-implementation verification gate

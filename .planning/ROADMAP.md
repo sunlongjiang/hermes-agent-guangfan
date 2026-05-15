@@ -318,11 +318,11 @@ Plans:
   1. DriftDetector compares original vs evolved text on tone, formality, personality dimensions
   2. Constraint gate rejects evolved sections with drift score exceeding threshold
   3. Drift report included in optimization output
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
 **Wave 0**
-- [ ] 18-01-PLAN.md — Wave 0 RED test scaffolds (test_drift_detector.py 10 tests + test_drift_calibration.py 4 tests + conftest fixtures + mini fixture JSONL + .gitignore exception)
+- [x] 18-01-PLAN.md — Wave 0 RED test scaffolds (test_drift_detector.py 10 tests + test_drift_calibration.py 4 tests + conftest fixtures + mini fixture JSONL + .gitignore exception)
 
 **Wave 1** *(blocked on Wave 0 completion)*
 - [ ] 18-02-PLAN.md — DriftDetector class (temperature=0.7/cache=False + typed float OutputFields + 3-run averaging + severity ladder) + DriftCalibrationBuilder + derive_thresholds (pure stdlib F1 scan, no sklearn)

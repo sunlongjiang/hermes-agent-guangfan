@@ -589,3 +589,95 @@ def test_e2e_mock_pipeline(tmp_path, monkeypatch):
         assert not any(tools_dir.iterdir()), (
             f"Phase 15 must NOT write to output/tools/; found: {list(tools_dir.iterdir())}"
         )
+
+
+# ── Wave 5 (gap closure) tests ────────────────────────────────────────────
+
+
+def test_score_with_predictions_uses_joint_metric():
+    """16-05-G5 (CR-03) — _score_with_predictions uses joint_tool_param_metric,
+    same as _safe_score path. Tool name comparison must be case-insensitive
+    (.strip().lower()), proving the gate is now apples-to-apples.
+    """
+    import dspy
+    from evolution.tools.evolve_tool_reasoning import _score_with_predictions
+    from evolution.tools.tool_metric import joint_tool_param_metric
+
+    # Build 2 examples; one has case-mismatched correct_tool to prove normalization
+    ex1 = dspy.Example(
+        task_description="read a file",
+        correct_tool="Read_File",  # uppercase
+        correct_params={},
+        confuser_tools=["edit_file"],
+        difficulty="easy",
+    ).with_inputs("task_description")
+    ex2 = dspy.Example(
+        task_description="search code",
+        correct_tool="search_files",
+        correct_params={},
+        confuser_tools=["read_file", "list_files"],
+        difficulty="medium",
+    ).with_inputs("task_description")
+
+    class FakeModule:
+        def __init__(self):
+            self.calls = []
+
+        def __call__(self, task_description):
+            # Return prediction whose selected_tool matches correct_tool (lowercased)
+            self.calls.append(task_description)
+            if "read a file" in task_description:
+                return dspy.Prediction(selected_tool="read_file", selected_params="{}")
+            return dspy.Prediction(selected_tool="search_files", selected_params="{}")
+
+    module = FakeModule()
+    score, tool_pairs, raw_preds = _score_with_predictions(
+        module, [ex1, ex2], lm=None
+    )
+    # Both should score 1.0 if metric is case-insensitive (joint_tool_param_metric)
+    assert score == pytest.approx(1.0), (
+        f"case-insensitive joint metric should score 1.0 on Read_File->read_file; "
+        f"got {score} — CR-03 not fixed"
+    )
+    assert len(raw_preds) == 2
+    # raw_preds preserves original case (not normalized)
+    assert raw_preds[0]["correct_tool"] == "Read_File"
+
+
+def test_score_with_predictions_logs_per_example_error(capsys):
+    """16-05-G6 (WR-07) — per-example exception emits yellow log; partial result returned."""
+    import dspy
+    from evolution.tools.evolve_tool_reasoning import _score_with_predictions
+
+    ex1 = dspy.Example(
+        task_description="will fail",
+        correct_tool="x",
+        correct_params={},
+        confuser_tools=[],
+        difficulty="easy",
+    ).with_inputs("task_description")
+    ex2 = dspy.Example(
+        task_description="will succeed",
+        correct_tool="y",
+        correct_params={},
+        confuser_tools=[],
+        difficulty="easy",
+    ).with_inputs("task_description")
+
+    class FlakyModule:
+        def __call__(self, task_description):
+            if "fail" in task_description:
+                raise RuntimeError("simulated LM failure")
+            return dspy.Prediction(selected_tool="y", selected_params="{}")
+
+    score, tool_pairs, raw_preds = _score_with_predictions(
+        FlakyModule(), [ex1, ex2], lm=None
+    )
+    # Only the second example contributes
+    assert len(raw_preds) == 1
+    assert raw_preds[0]["correct_tool"] == "y"
+    # Yellow log captured — Rich console outputs to stdout in test context
+    captured = capsys.readouterr()
+    assert "holdout example skipped" in captured.out, (
+        f"expected per-example yellow log; got stdout: {captured.out!r}"
+    )

@@ -51,6 +51,7 @@ from evolution.tools.think_metrics import (
     sample_latency_tokens,
 )
 from evolution.tools.tool_metric import (
+    joint_tool_param_metric,
     joint_tool_param_metric_with_feedback,
     CrossToolRegressionChecker,
     persist_per_tool_rates,
@@ -662,7 +663,11 @@ def _score_with_predictions(
             for ex in examples:
                 try:
                     pred = module(task_description=ex.task_description)
-                except Exception:
+                except Exception as e:
+                    console.print(
+                        f"[yellow]holdout example skipped due to LM error: "
+                        f"{type(e).__name__}: {e}[/yellow]"
+                    )
                     continue
                 correct = getattr(ex, "correct_tool", "") or ""
                 selected = getattr(pred, "selected_tool", "") or ""
@@ -673,12 +678,27 @@ def _score_with_predictions(
                     "difficulty": getattr(ex, "difficulty", "medium") or "medium",
                     "num_available_tools": len(getattr(ex, "confuser_tools", []) or []) + 1,
                 })
-                total += 1.0 if correct == selected else 0.0
+                # CR-03 (Phase 16 gap closure): use joint_tool_param_metric — same as
+                # _safe_score → _score_module_on_holdout, so ThinkABGate.check() compares
+                # coherent (full vs ambiguous) score pairs. The previous raw
+                # `correct == selected` was case-sensitive tool-only and made the gate
+                # apples-vs-oranges. joint_tool_param_metric normalizes via
+                # .strip().lower() and combines 0.5 tool_match + 0.5 param_match.
+                try:
+                    sample_score = float(joint_tool_param_metric(ex, pred))
+                except Exception:
+                    sample_score = 0.0
+                total += sample_score
                 n += 1
         score = total / n if n else 0.0
         return float(score), tool_pairs, raw_preds
-    except Exception:
-        return 0.0, tool_pairs, raw_preds
+    except Exception as e:
+        console.print(
+            f"[yellow]_score_with_predictions batch-level failure: "
+            f"{type(e).__name__}: {e}; returning partial result "
+            f"(n={n}, raw_preds={len(raw_preds)})[/yellow]"
+        )
+        return float(total / n) if n else 0.0, tool_pairs, raw_preds
 
 
 def _safe_score(module: Any, examples: list, lm: Any) -> float:

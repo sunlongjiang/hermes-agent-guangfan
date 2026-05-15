@@ -24,7 +24,7 @@ import json
 import statistics
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -51,25 +51,56 @@ _MIN_SEGMENT_SAMPLE = 3  # below this, render distribution column as n/a (D-11 /
 # ── Run discovery & loading ────────────────────────────────────────────────
 
 
-def _scan_runs(roots: tuple[Path, ...]) -> list[Path]:
-    """Glob <root>/*/metrics.json, sorted by mtime ascending (oldest first)."""
+def _scan_runs(
+    roots: tuple[Path, ...],
+    explicit_runs: tuple[Path, ...] = (),
+) -> list[Path]:
+    """Discover metrics.json paths from default roots (globbed) and explicit run dirs.
+
+    `roots` are parent directories whose `*/metrics.json` are globbed.
+    `explicit_runs` are individual run directories whose `<dir>/metrics.json`
+    is loaded directly — matches `--baseline-run` / `--evolved-run` semantics
+    (CR-01 / CR-02 fix). The two channels are unioned and de-duplicated.
+
+    Returns paths sorted by mtime ascending (oldest first).
+    """
     found: list[Path] = []
     for root in roots:
         if root.exists():
             found.extend(root.glob("*/metrics.json"))
-    return sorted(found, key=lambda p: p.stat().st_mtime)
+    for run_dir in explicit_runs:
+        mp = Path(run_dir) / "metrics.json"
+        if mp.exists():
+            found.append(mp)
+    # De-duplicate while preserving order
+    seen: set[Path] = set()
+    uniq: list[Path] = []
+    for p in found:
+        rp = p.resolve()
+        if rp not in seen:
+            seen.add(rp)
+            uniq.append(p)
+    return sorted(uniq, key=lambda p: p.stat().st_mtime)
 
 
-def _load_run(metrics_path: Path) -> Optional[dict]:
-    """Return {path, source, metrics, ab_comparison?} or None on parse error.
+def _load_run(metrics_path: Path) -> dict:
+    """Return {path, source, metrics, ab_comparison?} record.
 
-    Also returns None for runs that are unrecoverable (status=FAILED, missing
-    per_tool_*_rates) — those appear in dropped_runs[] via the caller.
+    On JSON/OS parse error returns a record with `metrics=None`,
+    `source=None`, and a `_drop_reason` string explaining the failure;
+    the caller surfaces these in `dropped_runs[]`. Never returns None
+    (IN-01: docstring previously claimed None on parse error, code did
+    not — this docstring matches the code).
     """
     try:
         metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
-        return {"path": str(metrics_path), "metrics": None, "source": None, "_drop_reason": f"json parse error: {e}"}
+        return {
+            "path": str(metrics_path.parent),
+            "metrics": None,
+            "source": None,
+            "_drop_reason": f"json parse error: {e}",
+        }
     run_dir = metrics_path.parent
     source = _detect_source(metrics, metrics_path)
     record: dict = {"path": str(run_dir), "metrics": metrics, "source": source, "ab_comparison": None}
@@ -207,7 +238,10 @@ def _render_latest(
     distribution = _segment_distribution(raw_preds, segment)
 
     # Per-tool sample counts from raw_predictions (correct_tool occurrences)
-    sample_counts: Counter = Counter(rec.get("correct_tool", "") for rec in raw_preds)
+    # WR-06: filter empty string keys so ghost bars don't appear in frequency chart
+    sample_counts: Counter = Counter(
+        tool for tool in (rec.get("correct_tool", "") for rec in raw_preds) if tool
+    )
 
     table = Table(title=f"LATEST [{source}] @ {run['path']}", show_lines=False)
     table.add_column("source", justify="left")
@@ -326,9 +360,11 @@ def _render_diff(
     e_rates = e_metrics.get("per_tool_evolved_rates", {}) or {}
     all_tools = sorted(set(b_rates.keys()) | set(e_rates.keys()))
 
+    b_src = baseline_run["source"] or "?"
+    e_src = evolved_run["source"] or "?"
     table = Table(
         title=(
-            f"DIFF region [{baseline_run['source']} vs {evolved_run['source']}]: "
+            f"DIFF region [{b_src} vs {e_src}]: "
             f"{baseline_run['path']} → {evolved_run['path']}"
         ),
         show_lines=False,
@@ -560,7 +596,7 @@ def _write_dashboard_json(
     summary, warnings + auxiliary generated_at and scanned_runs.
     """
     payload = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "scanned_runs": scanned_runs,
         "dropped_runs": dropped_runs,
         "source_legend": {
@@ -620,11 +656,13 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
     ab_study_data: dict = {"detected_runs": 0, "by_run": []}
     warnings_list: list[dict] = []
 
-    # Build root list: defaults + --runs additions
-    roots = list(DEFAULT_ROOTS)
-    for r in runs:
-        roots.append(Path(r))
-    runs_paths = _scan_runs(tuple(roots))
+    # Build root list: defaults only (--runs goes to explicit_runs channel below).
+    # CR-01/CR-02 fix: --runs values are run DIRECTORIES, not glob roots.
+    # _scan_runs handles explicit_runs by resolving <dir>/metrics.json directly,
+    # matching the semantics of --baseline-run / --evolved-run.
+    roots = tuple(DEFAULT_ROOTS)
+    explicit_runs = tuple(Path(r) for r in runs)
+    runs_paths = _scan_runs(roots, explicit_runs)
 
     # D-02: empty default roots + no --runs → exit 2
     if not runs_paths:
@@ -639,10 +677,10 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
     usable_runs: list[dict] = []  # ordered as scanned (newest first via reversed below)
     for p in reversed(runs_paths):  # newest first
         loaded = _load_run(p)
-        if loaded is None or loaded.get("metrics") is None:
+        if loaded.get("metrics") is None:
             dropped.append({
-                "path": str(p),
-                "reason": loaded.get("_drop_reason", "load failed") if loaded else "load failed",
+                "path": str(p.parent),
+                "reason": loaded.get("_drop_reason", "load failed"),
             })
             continue
         m = loaded["metrics"]
@@ -700,7 +738,7 @@ def main(runs, baseline_run, evolved_run, trend_window, trend_days, segment,
     if trend_days is not None:
         window_kind = "days"
         window_value = trend_days
-        cutoff = datetime.now().timestamp() - (trend_days * 86400.0)
+        cutoff = datetime.now(timezone.utc).timestamp() - (trend_days * 86400.0)
         windowed = [
             r for r in valid_runs
             if Path(r["path"]).stat().st_mtime >= cutoff

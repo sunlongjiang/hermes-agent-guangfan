@@ -529,3 +529,136 @@ def test_no_runs_exits_2():
         f"expected exit 2 (UsageError), got {result.exit_code}; stdout: {result.output}"
     )
     assert "no runs" in result.output.lower() or "no run" in result.output.lower()
+
+
+# ── Wave 5 (gap closure) tests ────────────────────────────────────────────
+
+
+def test_scan_runs_resolves_explicit_path(tmp_path, monkeypatch):
+    """16-05-G1 (CR-01/CR-02) — `--runs <run-dir>` resolves <dir>/metrics.json directly,
+    matching `--baseline-run` semantics. Does NOT patch `_scan_runs` so the real
+    glob/explicit-path resolution is exercised end-to-end.
+    """
+    monkeypatch.setattr(
+        "evolution.tools.regression_dashboard.DEFAULT_ROOTS", ()
+    )
+    out_json = tmp_path / "dashboard.json"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--runs", str(FIXTURES / "params_complete"),
+            "--output", str(out_json),
+            "--trend-window", "3",
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert out_json.exists()
+    data = json.loads(out_json.read_text())
+    assert data["scanned_runs"] >= 1, (
+        f"--runs <fixture-dir> should resolve <dir>/metrics.json (CR-01); "
+        f"got scanned_runs={data['scanned_runs']}"
+    )
+    assert data["latest"] is not None, (
+        "fixture run not loaded as latest — CR-01 not fixed"
+    )
+    assert "params_complete" in data["latest"]["run_path"], (
+        f"latest.run_path should reference the fixture dir; "
+        f"got {data['latest']['run_path']}"
+    )
+
+
+def test_scan_runs_glob_and_explicit_combined(tmp_path, monkeypatch):
+    """16-05-G2 (CR-01) — glob roots + explicit --runs both contribute; no double-count."""
+    import shutil
+
+    # Build a tmp glob root with one run subdir (copy of params_complete)
+    glob_root = tmp_path / "glob_root"
+    fake_run = glob_root / "20260101_000000"
+    fake_run.mkdir(parents=True)
+    shutil.copy(
+        FIXTURES / "params_complete" / "metrics.json",
+        fake_run / "metrics.json",
+    )
+    monkeypatch.setattr(
+        "evolution.tools.regression_dashboard.DEFAULT_ROOTS", (glob_root,)
+    )
+    out_json = tmp_path / "dashboard.json"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--runs", str(FIXTURES / "params_complete_v2"),
+            "--output", str(out_json),
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    data = json.loads(out_json.read_text())
+    # 1 from glob root + 1 from explicit --runs == 2
+    assert data["scanned_runs"] == 2, (
+        f"glob root + explicit --runs should contribute 2; "
+        f"got {data['scanned_runs']}; dropped={data['dropped_runs']}"
+    )
+
+
+def test_json_corrupt_fixture_drops_with_reason(tmp_path, monkeypatch):
+    """16-05-G3 (IN-02) — json_corrupt fixture surfaces in dropped_runs with json parse error."""
+    monkeypatch.setattr(
+        "evolution.tools.regression_dashboard.DEFAULT_ROOTS", ()
+    )
+    out_json = tmp_path / "dashboard.json"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "--runs", str(FIXTURES / "params_complete"),
+            "--runs", str(FIXTURES / "json_corrupt"),
+            "--output", str(out_json),
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    data = json.loads(out_json.read_text())
+    corrupt_drop = [
+        d for d in data["dropped_runs"] if "json_corrupt" in d["path"]
+    ]
+    assert len(corrupt_drop) == 1, (
+        f"json_corrupt should appear in dropped_runs once; "
+        f"got {[d['path'] for d in data['dropped_runs']]}"
+    )
+    assert "json parse error" in corrupt_drop[0]["reason"], (
+        f"reason should mention 'json parse error'; got: {corrupt_drop[0]['reason']}"
+    )
+
+
+def test_dashboard_json_no_datetime_deprecation_warning(tmp_path, monkeypatch):
+    """16-05-G4 (WR-01) — dashboard run emits no DeprecationWarning from datetime.utcnow()."""
+    import warnings
+
+    monkeypatch.setattr(
+        "evolution.tools.regression_dashboard.DEFAULT_ROOTS", ()
+    )
+    out_json = tmp_path / "dashboard.json"
+    runner = CliRunner()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = runner.invoke(
+            main,
+            [
+                "--runs", str(FIXTURES / "params_complete"),
+                "--output", str(out_json),
+            ],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    utc_now_warnings = [
+        w for w in caught
+        if issubclass(w.category, DeprecationWarning)
+        and "utcnow" in str(w.message).lower()
+    ]
+    assert utc_now_warnings == [], (
+        f"datetime.utcnow() should not appear; got: "
+        f"{[str(w.message) for w in utc_now_warnings]}"
+    )

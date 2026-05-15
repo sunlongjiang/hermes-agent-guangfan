@@ -591,6 +591,13 @@ def evolve(
                 "val", section_texts=section_texts
             )
 
+            # CR-01 fix: mirror main round-robin branch's GEPA -> MIPROv2
+            # fallback chain to preserve D-AB-04 "1:1 strict comparability".
+            # If the main RR branch (line ~405-438) falls back to MIPROv2 when
+            # GEPA is unavailable but the A/B baseline does NOT, then a
+            # GEPA-only failure would skew the holdout comparison into
+            # "joint optimization vs UNoptimized" and the soft gate would
+            # mis-trigger.
             try:
                 ab_reflection_lm = dspy.LM(
                     config.optimizer_model, **config.get_lm_kwargs()
@@ -607,10 +614,25 @@ def evolve(
                     valset=ab_valset,
                 )
             except Exception as e:
+                # A/B baseline parity with main RR branch: GEPA -> MIPROv2 fallback
                 console.print(
-                    f"  [yellow]A/B baseline GEPA failed for {ab_sid} ({e}); "
-                    f"skipping this section[/yellow]"
+                    f"  [yellow]A/B baseline GEPA not available for {ab_sid} "
+                    f"({e}), falling back to MIPROv2[/yellow]"
                 )
+                try:
+                    ab_optimizer = dspy.MIPROv2(
+                        metric=metric,
+                        auto="light",
+                    )
+                    ab_baseline_module = ab_optimizer.compile(
+                        ab_baseline_module,
+                        trainset=ab_trainset,
+                    )
+                except Exception as e2:
+                    console.print(
+                        f"  [red]A/B baseline MIPROv2 also failed for {ab_sid} "
+                        f"({e2}), skipping this section[/red]"
+                    )
 
         # Score A/B baseline on SAME holdout
         ab_scores: list[float] = []

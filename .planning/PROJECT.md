@@ -117,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-12 — Phase 15 (think-augmented tool selection) complete with 6 plans + 1 gap closure; HUMAN-UAT residuals open for real-LM CR-01..04 validation. Phase 16 (per-tool-regression-dashboard) next.*
+*Last updated: 2026-05-15 — Phase 16 (per-tool-regression-dashboard, TOOL-V2-04) complete with 6 plans + 1 gap closure; verifier passed 6/6 must_haves. Track individual tool selection rates across optimization runs now end-to-end. Phase 17 (joint-section-optimization, PMPT-V2-01) next.*

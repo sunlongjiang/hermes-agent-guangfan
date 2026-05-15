@@ -108,16 +108,27 @@ class TestActiveSection:
 class TestFrozenContext:
     """Tests for frozen context construction."""
 
-    def test_frozen_context_excludes_active(self):
-        """_build_frozen_context() excludes active section, includes others."""
+    def test_frozen_context_includes_active(self):
+        """_build_frozen_context() includes ALL sections (Phase 17 / Pitfall 1 fix).
+
+        Pre-Phase-17 the active section was excluded from frozen_context, which
+        meant GEPA mutations to the active section's Predict.signature.instructions
+        had no path to the selector's input — mutations were effectively no-ops.
+        Phase 17 fixes this: the active section's CURRENT instructions (read from
+        section_predictors[active].signature.instructions) are now part of
+        frozen_context. See evolution/prompts/prompt_module.py _build_frozen_context.
+        """
         sections = _make_prompt_sections()
         module = PromptModule(sections)
         module.set_active_section("memory_guidance")
         context = module._build_frozen_context()
 
-        assert "[memory_guidance]" not in context
-        assert "[default_agent_identity]" in context
-        assert "[skills_guidance]" in context
+        # Phase 17 / Pitfall 1 fix: active section text now flows into frozen_context
+        assert "[memory_guidance]:" in context
+        # Active text content (from the Predict's signature.instructions) is present
+        assert "Use memory tools to store important context." in context
+        assert "[default_agent_identity]:" in context
+        assert "[skills_guidance]:" in context
 
     def test_only_active_in_named_parameters(self):
         """After set_active_section, only active section's Predict is in named_parameters()."""
@@ -221,3 +232,157 @@ class TestGetEvolvedSections:
         assert memory.section_id == "memory_guidance"
         assert memory.line_range == (20, 25)
         assert memory.source_path == Path("/fake/prompt_builder.py")
+
+
+# ── TestJointMode (Phase 17) ───────────────────────────────────────────────
+
+
+class TestJointMode:
+    """Tests for Phase 17 joint mode: all sections simultaneously optimizable."""
+
+    def test_set_joint_mode_exposes_all_predictors(self):
+        """set_joint_mode(True) promotes all sections to section_predictors."""
+        from evolution.prompts.prompt_module import JOINT_SENTINEL
+
+        sections = _make_prompt_sections()
+        module = PromptModule(sections)
+        module.set_joint_mode(True)
+
+        assert len(module.section_predictors) == 3
+        assert set(module.section_predictors.keys()) == {
+            "default_agent_identity",
+            "memory_guidance",
+            "skills_guidance",
+        }
+        assert len(module._frozen_instructions) == 0
+        assert module._active_section == JOINT_SENTINEL
+        # Each predictor has the original instructions
+        assert (
+            module.section_predictors["memory_guidance"].signature.instructions
+            == "Use memory tools to store important context."
+        )
+
+    def test_set_joint_mode_idempotent(self):
+        """Calling set_joint_mode(True) twice is a no-op (no errors, no state change)."""
+        from evolution.prompts.prompt_module import JOINT_SENTINEL
+
+        sections = _make_prompt_sections()
+        module = PromptModule(sections)
+        module.set_joint_mode(True)
+        module.set_joint_mode(True)  # Should not raise or duplicate
+
+        assert len(module.section_predictors) == 3
+        assert module._active_section == JOINT_SENTINEL
+
+    def test_set_joint_mode_false_demotes_all(self):
+        """set_joint_mode(False) reverses joint mode — all sections back to frozen."""
+        sections = _make_prompt_sections()
+        module = PromptModule(sections)
+        module.set_joint_mode(True)
+        module.set_joint_mode(False)
+
+        assert len(module.section_predictors) == 0
+        assert len(module._frozen_instructions) == 3
+        assert module._active_section is None
+
+    def test_joint_then_set_active_section_auto_demotes(self):
+        """Calling set_active_section after set_joint_mode auto-demotes joint (Pitfall 3 fix).
+
+        Without the auto-demote guard, set_active_section would try to
+        pop JOINT_SENTINEL from section_predictors -> KeyError.
+        """
+        sections = _make_prompt_sections()
+        module = PromptModule(sections)
+        module.set_joint_mode(True)
+        module.set_active_section("memory_guidance")  # Must not raise
+
+        assert module._active_section == "memory_guidance"
+        assert len(module.section_predictors) == 1
+        assert "memory_guidance" in module.section_predictors
+        # Other two are back in frozen
+        assert "default_agent_identity" in module._frozen_instructions
+        assert "skills_guidance" in module._frozen_instructions
+
+    def test_named_predictors_in_joint_mode_excludes_selector(self):
+        """In joint mode, named_predictors() yields exactly N section_predictors
+        entries, NOT selector.predict (Phase 17 Resolved Decision 2 — selector freeze).
+
+        W4 revision: tightened from substring `"selector" in n` to exact-token
+        checks. The previous loose substring match would silently pass if a
+        future DSPy version introduced subcomponents like `selector.reasoning`
+        that happen to contain the substring `"selector"` but are NOT the
+        routing Predict we intend to freeze. We now check:
+          (1) `selector.predict` is not in names (the exact name that
+              super().named_predictors() yields for the ChainOfThought's
+              underlying Predict — see RESEARCH §Pattern 4 dspy 3.1.3 inspection).
+          (2) total length equals exactly 3 (one per fixture section), which
+              fails loudly if any new subcomponent slips through.
+        """
+        sections = _make_prompt_sections()
+        module = PromptModule(sections)
+        module.set_joint_mode(True)
+
+        named = list(module.named_predictors())
+        names = [n for n, _ in named]
+        # Must contain all 3 section_predictors entries
+        for sid in ["default_agent_identity", "memory_guidance", "skills_guidance"]:
+            matching = [n for n in names if sid in n]
+            assert len(matching) >= 1, (
+                f"section_predictors[{sid}] missing from named_predictors(): {names}"
+            )
+        # W4: Tight selector exclusion check — exact-name, not substring
+        assert "selector.predict" not in names, (
+            f"selector.predict must be excluded in joint mode, but it's in: {names}"
+        )
+        # W4: Total entry count must equal section count exactly — fails loud
+        # if dspy adds any new sub-predictor that bypasses _frozen_predictor_ids
+        assert len(named) == 3, (
+            f"Joint mode must expose exactly 3 predictors (one per section); "
+            f"got {len(named)}: {names}. If dspy version added new subcomponents, "
+            f"update _frozen_predictor_ids in PromptModule.__init__ accordingly."
+        )
+
+    def test_forward_in_joint_mode_uses_all_section_texts(self):
+        """In joint mode, forward() builds frozen_context containing ALL N section texts."""
+        sections = _make_prompt_sections()
+        module = PromptModule(sections)
+        module.set_joint_mode(True)
+
+        mock_result = dspy.Prediction(output="joint mocked response")
+        with patch.object(module.selector, "forward", return_value=mock_result) as mock_sel:
+            result = module.forward("test input")
+
+        assert isinstance(result, dspy.Prediction)
+        assert result.output == "joint mocked response"
+        mock_sel.assert_called_once()
+        kwargs = mock_sel.call_args.kwargs
+        assert "frozen_context" in kwargs
+        ctx = kwargs["frozen_context"]
+        # All 3 sections must appear in frozen_context with their texts
+        assert "[default_agent_identity]:" in ctx
+        assert "You are a helpful AI assistant." in ctx
+        assert "[memory_guidance]:" in ctx
+        assert "Use memory tools to store important context." in ctx
+        assert "[skills_guidance]:" in ctx
+        assert "Leverage available skills for complex tasks." in ctx
+        assert kwargs["task_input"] == "test input"
+
+    def test_forward_in_round_robin_includes_active_text(self):
+        """In round-robin (single active) mode, forward() includes active section's
+        CURRENT Predict instructions in frozen_context (Pitfall 1 fix)."""
+        sections = _make_prompt_sections()
+        module = PromptModule(sections)
+        module.set_active_section("memory_guidance")
+
+        mock_result = dspy.Prediction(output="rr mocked response")
+        with patch.object(module.selector, "forward", return_value=mock_result) as mock_sel:
+            module.forward("test input")
+
+        kwargs = mock_sel.call_args.kwargs
+        ctx = kwargs["frozen_context"]
+        # Pitfall 1 fix: active section text flows into frozen_context
+        assert "[memory_guidance]:" in ctx
+        assert "Use memory tools to store important context." in ctx
+        # Other sections also present
+        assert "[default_agent_identity]:" in ctx
+        assert "[skills_guidance]:" in ctx

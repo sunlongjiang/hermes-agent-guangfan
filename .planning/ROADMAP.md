@@ -298,11 +298,11 @@ Plans:
   1. PromptModule supports all-sections-active mode (all Predicts discoverable)
   2. GEPA can mutate multiple sections in one pass
   3. Joint optimization produces equal or better scores than round-robin on holdout
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 17-01-PLAN.md — PromptModule joint mode 状态机扩展 (set_joint_mode + JOINT_SENTINEL + forward 三态 + Pitfall 1 修复 + selector freeze) + TestJointMode 测试
+- [x] 17-01-PLAN.md — PromptModule joint mode 状态机扩展 (set_joint_mode + JOINT_SENTINEL + forward 三态 + Pitfall 1 修复 + selector freeze) + TestJointMode 测试
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 17-02-PLAN.md — CLI --mode flag + joint pipeline 分支 + num_predictors-dynamic budget + stdout 预算预估 + TestJointPipeline/TestDryRun 测试

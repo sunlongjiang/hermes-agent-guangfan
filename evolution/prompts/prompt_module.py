@@ -11,6 +11,17 @@ import dspy
 from evolution.prompts.prompt_loader import PromptSection
 
 
+# ── Constants ───────────────────────────────────────────────────────────────
+
+JOINT_SENTINEL = "__JOINT__"
+"""Sentinel value for PromptModule._active_section in joint optimization mode.
+
+Indicates that all sections are simultaneously promoted to Predict instances
+in section_predictors, making them all discoverable by named_predictors()
+and mutable by GEPA with component_selector='all'.
+"""
+
+
 # ── Signatures ──────────────────────────────────────────────────────────────
 
 class PromptSectionSignature(dspy.Signature):
@@ -68,6 +79,11 @@ class PromptModule(dspy.Module):
         # Selector for forward pass
         self.selector = dspy.ChainOfThought(PromptSectionSignature)
 
+        # IDs of internal predictors that must stay frozen (invisible to GEPA) in joint mode.
+        # selector.predict is the underlying Predict of self.selector (ChainOfThought),
+        # which exists for forward routing only — GEPA must not mutate its instructions.
+        self._frozen_predictor_ids: set[str] = {"selector.predict"}
+
     def set_active_section(self, section_id: str) -> None:
         """Set which section is optimizable. Others become frozen context.
 
@@ -82,8 +98,11 @@ class PromptModule(dspy.Module):
                 f"Unknown section: {section_id}. "
                 f"Available: {self._section_ids}"
             )
+        # Pitfall 3 guard: if currently in joint mode, demote all first (auto-recover)
+        if self._active_section == JOINT_SENTINEL:
+            self.set_joint_mode(False)
         # Move current active back to frozen (extract instructions from Predict)
-        if self._active_section is not None:
+        elif self._active_section is not None:
             pred = self.section_predictors.pop(self._active_section)
             self._frozen_instructions[self._active_section] = (
                 pred.signature.instructions
@@ -98,8 +117,61 @@ class PromptModule(dspy.Module):
         self.section_predictors[section_id] = dspy.Predict(sig)
         self._active_section = section_id
 
+    def set_joint_mode(self, active: bool = True) -> None:
+        """Activate or deactivate joint optimization mode (all sections simultaneously).
+
+        In joint mode (active=True), every section's instruction text is promoted
+        from a plain string in _frozen_instructions to a dspy.Predict instance in
+        section_predictors. This makes all sections discoverable by
+        named_predictors() and mutable by GEPA when called with
+        component_selector='all'.
+
+        Joint mode is idempotent — calling set_joint_mode(True) twice is a no-op.
+        Calling set_active_section(sid) while in joint mode auto-demotes joint
+        first (see set_active_section guard).
+
+        Args:
+            active: True to enter joint mode, False to demote all back to frozen.
+        """
+        if active:
+            if self._active_section == JOINT_SENTINEL:
+                return  # idempotent
+            # If a single section is currently active, move it back to frozen first
+            if self._active_section is not None:
+                pred = self.section_predictors.pop(self._active_section)
+                self._frozen_instructions[self._active_section] = (
+                    pred.signature.instructions
+                )
+            # Promote ALL frozen sections to Predict instances
+            for sid in list(self._frozen_instructions.keys()):
+                text = self._frozen_instructions.pop(sid)
+                sig = dspy.Signature(
+                    "section_text -> confirmation",
+                    instructions=text,
+                )
+                self.section_predictors[sid] = dspy.Predict(sig)
+            self._active_section = JOINT_SENTINEL
+        else:
+            # Demote: move every Predict back to frozen string
+            for sid in list(self.section_predictors.keys()):
+                pred = self.section_predictors.pop(sid)
+                self._frozen_instructions[sid] = pred.signature.instructions
+            self._active_section = None
+
     def forward(self, task_input: str) -> dspy.Prediction:
-        """Respond to task using active section + frozen context.
+        """Respond to task using current optimization mode's section assembly.
+
+        Three-state dispatch:
+        - _active_section is None → RuntimeError (no section set; backward-compat)
+        - _active_section == JOINT_SENTINEL → joint mode: concat ALL section
+          instructions (from section_predictors[sid].signature.instructions) as
+          frozen_context, feed selector once. GEPA mutations to any
+          section_predictors[sid].signature.instructions thus actually affect
+          forward output (precondition for component_selector='all' to work).
+        - _active_section == <real_sid> → round-robin mode: build frozen_context
+          including the active section's CURRENT Predict instructions
+          (Pitfall 1 fix — previously the active text was not flowing into
+          selector, making GEPA mutations no-ops at forward time).
 
         Args:
             task_input: The task or user message to respond to.
@@ -112,7 +184,8 @@ class PromptModule(dspy.Module):
         """
         if self._active_section is None:
             raise RuntimeError(
-                "No active section set. Call set_active_section() first."
+                "No active section set. Call set_active_section() "
+                "or set_joint_mode() first."
             )
         frozen_context = self._build_frozen_context()
         result = self.selector(
@@ -122,13 +195,46 @@ class PromptModule(dspy.Module):
         return dspy.Prediction(output=result.output)
 
     def _build_frozen_context(self) -> str:
-        """Concatenate non-active sections as context string."""
+        """Concatenate section texts as context string.
+
+        Joint mode (_active_section == JOINT_SENTINEL): concat ALL N sections
+        from section_predictors[sid].signature.instructions (the GEPA-mutable
+        Predict instances).
+
+        Round-robin mode (_active_section is a real sid): concat all N sections
+        — non-active from _frozen_instructions[sid] (plain strings), active
+        from section_predictors[active].signature.instructions (Pitfall 1 fix:
+        the active section's current instructions must flow into selector for
+        GEPA mutations to have any effect on forward output).
+        """
         parts = []
         for sid in self._section_ids:
-            if sid != self._active_section:
+            if self._active_section == JOINT_SENTINEL:
+                # Joint mode: ALL sections live as Predicts
+                text = self.section_predictors[sid].signature.instructions
+            elif sid == self._active_section:
+                # Round-robin active: read from Predict (Pitfall 1 fix)
+                text = self.section_predictors[sid].signature.instructions
+            else:
+                # Round-robin frozen: read from string
                 text = self._frozen_instructions[sid]
-                parts.append(f"[{sid}]: {text}")
+            parts.append(f"[{sid}]: {text}")
         return "\n\n".join(parts)
+
+    def named_predictors(self):
+        """Override to exclude self.selector in joint mode (Phase 17 decision).
+
+        In joint mode, only section_predictors entries should be visible to GEPA
+        with component_selector='all'. The selector is a routing-only primitive
+        whose instructions must remain stable across optimization runs.
+
+        In round-robin mode, selector remains visible (existing behavior — see
+        Phase 8 tests that expect selector.predict to be discoverable).
+        """
+        for name, pred in super().named_predictors():
+            if self._active_section == JOINT_SENTINEL and name in self._frozen_predictor_ids:
+                continue
+            yield name, pred
 
     def get_evolved_sections(self) -> list[PromptSection]:
         """Extract current (possibly evolved) sections merged with frozen metadata.

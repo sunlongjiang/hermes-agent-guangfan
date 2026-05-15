@@ -270,7 +270,17 @@ def evolve(
     )
 
     # ── 6. Optimization (joint vs round-robin fork) ──────────────────────
-    sections_to_optimize = [section] if section else module._section_ids
+    # WR-05 fix: snapshot _section_ids via list(...) so the round-robin
+    # for-loop (which rebinds `module = optimizer.compile(...)` per
+    # iteration) does not implicitly rely on whether dspy.GEPA.compile
+    # returns the same module instance or a deep-copy with its own
+    # _section_ids attribute. The IDs themselves are stable across the
+    # call by design, but capturing them up front makes the invariant
+    # explicit and survives any future dspy refactor that changes the
+    # compile() return semantics.
+    sections_to_optimize = (
+        [section] if section else list(module._section_ids)
+    )
 
     metric = PromptBehavioralMetric(config)
     section_texts = {s.section_id: s.text for s in original_sections}
@@ -583,7 +593,13 @@ def evolve(
         ab_baseline_module = PromptModule(original_sections)  # fresh (Pitfall 4)
         ab_start = time.time()
 
-        for ab_sid in ab_baseline_module._section_ids:
+        # WR-05 fix: snapshot section ids before the loop, since
+        # `ab_baseline_module = ab_optimizer.compile(...)` rebinds the
+        # variable each iteration. This makes the loop body independent
+        # of dspy.GEPA.compile's return semantics (same instance vs
+        # deep-copied module).
+        ab_section_ids = list(ab_baseline_module._section_ids)
+        for ab_sid in ab_section_ids:
             ab_baseline_module.set_active_section(ab_sid)
             ab_section_train = [
                 ex for ex in dataset.train if ex.section_id == ab_sid

@@ -17,6 +17,10 @@ evolution.yaml
 datasets/**/*.jsonl
 datasets/**/*.json
 !datasets/.gitkeep
+# Phase 18: drift calibration assets are stable evaluation artifacts (golden-set-like),
+# tracked in git so threshold derivation is reproducible across machines / recals.
+!datasets/prompts/drift_calibration.jsonl
+!datasets/prompts/drift_thresholds.json
 
 # Evolution snapshots
 snapshots/

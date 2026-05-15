@@ -163,9 +163,12 @@ class TestEvolve:
             hermes_repo="/fake",
         )
 
-        # Verify call order (PromptModule called twice: once for optimization, once for baseline)
+        # Verify call order. PromptModule instantiation count by mode:
+        #   - round-robin: 2 (main + holdout baseline)
+        #   - joint: 3 (main + holdout baseline + Plan 17-03 A/B baseline)
+        # This test runs joint by default → expect 3.
         mock_extract.assert_called_once()
-        assert mock_module_cls.call_count == 2
+        assert mock_module_cls.call_count == 3
         mock_builder.generate.assert_called_once()
         assert mock_module.set_active_section.call_count >= 1
         mock_gepa.compile.assert_called()

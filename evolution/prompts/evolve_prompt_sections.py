@@ -543,6 +543,118 @@ def evolve(
     evolved_score = sum(evolved_scores) / n_holdout if evolved_scores else 0.0
     improvement = evolved_score - baseline_score
 
+    # ── 9.5. Joint mode inline A/B baseline (D-AB-01/02/03/04) ───────────
+    roundrobin_baseline_score: Optional[float] = None
+    ab_elapsed: float = 0.0
+    ab_baseline_evolved_sections: list[PromptSection] = []
+    joint_vs_roundrobin_delta_pp: Optional[float] = None
+
+    if effective_mode == "joint":
+        # D-AB-04 (W6 revision): per-section baseline budget = iterations*50,
+        # 与 round-robin legacy 路径单参数公式 1:1 对齐(NO 压缩),保证 A/B 严格可比
+        ab_per_section_budget = iterations * 50
+
+        console.print(
+            f"\n[bold]Inline A/B baseline: round-robin on same dataset[/bold]"
+        )
+        console.print(
+            f"  (fresh PromptModule, {len(original_sections)} sections × "
+            f"{iterations} iter, max_metric_calls={ab_per_section_budget}/section)"
+        )
+
+        ab_baseline_module = PromptModule(original_sections)  # fresh (Pitfall 4)
+        ab_start = time.time()
+
+        for ab_sid in ab_baseline_module._section_ids:
+            ab_baseline_module.set_active_section(ab_sid)
+            ab_section_train = [
+                ex for ex in dataset.train if ex.section_id == ab_sid
+            ]
+            ab_section_val = [
+                ex for ex in dataset.val if ex.section_id == ab_sid
+            ]
+            if not ab_section_train:
+                console.print(
+                    f"  [dim]No training data for {ab_sid}, skipping[/dim]"
+                )
+                continue
+
+            ab_temp_ds = PromptBehavioralDataset(
+                train=ab_section_train,
+                val=ab_section_val,
+                holdout=[],
+            )
+            ab_trainset = ab_temp_ds.to_dspy_examples(
+                "train", section_texts=section_texts
+            )
+            ab_valset = ab_temp_ds.to_dspy_examples(
+                "val", section_texts=section_texts
+            )
+
+            try:
+                ab_reflection_lm = dspy.LM(
+                    config.optimizer_model, **config.get_lm_kwargs()
+                )
+                ab_optimizer = dspy.GEPA(
+                    metric=metric,
+                    max_metric_calls=ab_per_section_budget,  # D-AB-04 full budget
+                    reflection_lm=ab_reflection_lm,
+                    component_selector="round_robin",
+                )
+                ab_baseline_module = ab_optimizer.compile(
+                    ab_baseline_module,
+                    trainset=ab_trainset,
+                    valset=ab_valset,
+                )
+            except Exception as e:
+                console.print(
+                    f"  [yellow]A/B baseline GEPA failed for {ab_sid} ({e}); "
+                    f"skipping this section[/yellow]"
+                )
+
+        # Score A/B baseline on SAME holdout
+        ab_scores: list[float] = []
+        # Ensure forward() does not raise RuntimeError — set any single active
+        if ab_baseline_module._section_ids:
+            ab_baseline_module.set_active_section(
+                ab_baseline_module._section_ids[0]
+            )
+        for ex in holdout_examples:
+            with dspy.context(lm=lm):
+                ab_pred = ab_baseline_module(task_input=ex.task_input)
+                ab_scores.append(metric(ex, ab_pred, trace=None))
+        roundrobin_baseline_score = (
+            sum(ab_scores) / max(1, len(ab_scores)) if ab_scores else 0.0
+        )
+        ab_elapsed = time.time() - ab_start
+        ab_baseline_evolved_sections = ab_baseline_module.get_evolved_sections()
+
+        console.print(
+            f"  A/B baseline completed in {ab_elapsed:.1f}s "
+            f"(score: {roundrobin_baseline_score:.3f})"
+        )
+
+        # ── 9.6. Soft gate (D-AB-02 — warning only, no exit code) ────────
+        # W3 revision: explicit two-direction deltas to disambiguate semantics
+        # delta_pp: rr_baseline view (positive = rr beats joint, used in warning text)
+        # joint_vs_roundrobin_delta_pp: A/B delta (positive = joint wins),
+        # persisted to metrics.json as a distinct field from `improvement`
+        # (which is evolved_score - baseline_score vs UNOPTIMIZED baseline).
+        delta_pp = (roundrobin_baseline_score - evolved_score) * 100
+        joint_vs_roundrobin_delta_pp = (evolved_score - roundrobin_baseline_score) * 100
+        if evolved_score < roundrobin_baseline_score - EPSILON_PP:
+            console.print(
+                f"[yellow]Joint score ({evolved_score:.3f}) below "
+                f"round-robin baseline ({roundrobin_baseline_score:.3f}) "
+                f"by {delta_pp:.1f}pp — review before deploying[/yellow]"
+            )
+        else:
+            console.print(
+                f"[green]Joint score ({evolved_score:.3f}) ≥ "
+                f"round-robin baseline ({roundrobin_baseline_score:.3f}) "
+                f"within epsilon ({EPSILON_PP * 100:.0f}pp)[/green]"
+            )
+
     # ── 10. Report results ───────────────────────────────────────────────
     result_table = Table(title="Evolution Results")
     result_table.add_column("Metric", style="bold")
@@ -581,8 +693,16 @@ def evolve(
     )
 
     # Save metrics
+    # NOTE (W3 revision): `improvement` = evolved_score - baseline_score
+    # (vs unoptimized prompt baseline_score). This is DISTINCT from
+    # `joint_vs_roundrobin_delta_pp` (added below in joint mode) which is
+    # the A/B delta: joint_score - roundrobin_baseline_score. Downstream
+    # dashboards MUST NOT conflate the two — improvement gauges absolute
+    # quality gain; joint_vs_roundrobin_delta_pp gauges joint mode's edge
+    # over the round-robin legacy path on the same holdout.
     metrics = {
         "timestamp": timestamp,
+        "mode": effective_mode,
         "iterations": iterations,
         "eval_model": config.eval_model,
         "baseline_score": baseline_score,
@@ -595,6 +715,13 @@ def evolve(
         "elapsed_seconds": elapsed,
         "constraints_passed": True,
     }
+    # Joint-mode-only A/B baseline fields (D-OUT-02 + W3 explicit A/B delta)
+    if effective_mode == "joint" and roundrobin_baseline_score is not None:
+        metrics["joint_score"] = evolved_score
+        metrics["roundrobin_baseline_score"] = roundrobin_baseline_score
+        metrics["epsilon_pp"] = EPSILON_PP
+        metrics["joint_vs_roundrobin_delta_pp"] = joint_vs_roundrobin_delta_pp
+        metrics["ab_elapsed_seconds"] = ab_elapsed
     (output_dir / "metrics.json").write_text(
         json.dumps(metrics, indent=2)
     )
@@ -602,6 +729,20 @@ def evolve(
     # Save diff
     diff_text = _generate_diff(original_sections, evolved_sections)
     (output_dir / "diff.txt").write_text(diff_text)
+
+    # ── 11.5. Joint mode: persist A/B baseline副本文件(shared-prefix layout, D-OUT-01)
+    if effective_mode == "joint" and ab_baseline_evolved_sections:
+        ab_data = [
+            {"section_id": s.section_id, "text": s.text}
+            for s in ab_baseline_evolved_sections
+        ]
+        (output_dir / "roundrobin_baseline_evolved_sections.json").write_text(
+            json.dumps(ab_data, indent=2)
+        )
+        ab_diff_text = _generate_diff(
+            original_sections, ab_baseline_evolved_sections
+        )
+        (output_dir / "roundrobin_baseline_diff.txt").write_text(ab_diff_text)
 
     console.print(f"\n  Output saved to {output_dir}/")
 

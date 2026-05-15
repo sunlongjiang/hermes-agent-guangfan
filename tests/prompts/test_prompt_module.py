@@ -117,6 +117,11 @@ class TestFrozenContext:
         Phase 17 fixes this: the active section's CURRENT instructions (read from
         section_predictors[active].signature.instructions) are now part of
         frozen_context. See evolution/prompts/prompt_module.py _build_frozen_context.
+
+        WR-07 fix: the active section is tagged `[ACTIVE:{sid}]:` so the
+        selector LLM (and GEPA reflection) can distinguish it from frozen
+        sections, even though both physically appear in the same context
+        string. Non-active sections retain the plain `[{sid}]:` label.
         """
         sections = _make_prompt_sections()
         module = PromptModule(sections)
@@ -124,11 +129,16 @@ class TestFrozenContext:
         context = module._build_frozen_context()
 
         # Phase 17 / Pitfall 1 fix: active section text now flows into frozen_context
-        assert "[memory_guidance]:" in context
+        # WR-07: active section is tagged with [ACTIVE:...] prefix.
+        assert "[ACTIVE:memory_guidance]:" in context
         # Active text content (from the Predict's signature.instructions) is present
         assert "Use memory tools to store important context." in context
+        # Non-active sections keep the plain [sid]: prefix
         assert "[default_agent_identity]:" in context
         assert "[skills_guidance]:" in context
+        # The plain memory_guidance label must NOT appear (would mean WR-07
+        # tag is missing or duplicated)
+        assert "[memory_guidance]:" not in context
 
     def test_only_active_in_named_parameters(self):
         """After set_active_section, only active section's Predict is in named_parameters()."""
@@ -369,7 +379,12 @@ class TestJointMode:
 
     def test_forward_in_round_robin_includes_active_text(self):
         """In round-robin (single active) mode, forward() includes active section's
-        CURRENT Predict instructions in frozen_context (Pitfall 1 fix)."""
+        CURRENT Predict instructions in frozen_context (Pitfall 1 fix).
+
+        WR-07 fix: active section is tagged `[ACTIVE:{sid}]:` so the
+        selector LLM / GEPA reflection can distinguish it from frozen
+        context. Non-active sections retain plain `[{sid}]:` prefix.
+        """
         sections = _make_prompt_sections()
         module = PromptModule(sections)
         module.set_active_section("memory_guidance")
@@ -380,9 +395,10 @@ class TestJointMode:
 
         kwargs = mock_sel.call_args.kwargs
         ctx = kwargs["frozen_context"]
-        # Pitfall 1 fix: active section text flows into frozen_context
-        assert "[memory_guidance]:" in ctx
+        # Pitfall 1 fix: active section text flows into frozen_context.
+        # WR-07: active section is tagged with [ACTIVE:...] prefix.
+        assert "[ACTIVE:memory_guidance]:" in ctx
         assert "Use memory tools to store important context." in ctx
-        # Other sections also present
+        # Other (non-active) sections retain plain [sid]: prefix
         assert "[default_agent_identity]:" in ctx
         assert "[skills_guidance]:" in ctx

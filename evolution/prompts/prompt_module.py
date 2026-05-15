@@ -203,26 +203,38 @@ class PromptModule(dspy.Module):
 
         Joint mode (_active_section == JOINT_SENTINEL): concat ALL N sections
         from section_predictors[sid].signature.instructions (the GEPA-mutable
-        Predict instances).
+        Predict instances). Every section is jointly active, so no individual
+        section is tagged — all use the plain `[sid]:` label.
 
         Round-robin mode (_active_section is a real sid): concat all N sections
         — non-active from _frozen_instructions[sid] (plain strings), active
         from section_predictors[active].signature.instructions (Pitfall 1 fix:
         the active section's current instructions must flow into selector for
-        GEPA mutations to have any effect on forward output).
+        GEPA mutations to have any effect on forward output). WR-07 fix: the
+        active section is tagged `[ACTIVE:{sid}]:` instead of plain `[{sid}]:`
+        so the selector LLM (and GEPA reflection) can distinguish the
+        currently-optimized section from frozen context, restoring semantic
+        clarity that was lost when Pitfall 1 made the active text physically
+        indistinguishable from frozen text in the input string.
         """
         parts = []
         for sid in self._section_ids:
             if self._active_section == JOINT_SENTINEL:
-                # Joint mode: ALL sections live as Predicts
+                # Joint mode: ALL sections live as Predicts (no single
+                # "active" — all are jointly optimized).
                 text = self.section_predictors[sid].signature.instructions
+                label = f"[{sid}]:"
             elif sid == self._active_section:
-                # Round-robin active: read from Predict (Pitfall 1 fix)
+                # Round-robin active: read from Predict (Pitfall 1 fix).
+                # Tag with [ACTIVE:...] to disambiguate from frozen context
+                # for the selector LLM and GEPA reflection (WR-07).
                 text = self.section_predictors[sid].signature.instructions
+                label = f"[ACTIVE:{sid}]:"
             else:
-                # Round-robin frozen: read from string
+                # Round-robin frozen: read from string.
                 text = self._frozen_instructions[sid]
-            parts.append(f"[{sid}]: {text}")
+                label = f"[{sid}]:"
+            parts.append(f"{label} {text}")
         return "\n\n".join(parts)
 
     def named_predictors(self):

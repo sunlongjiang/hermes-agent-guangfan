@@ -699,10 +699,19 @@ def evolve(
         delta_pp = (roundrobin_baseline_score - evolved_score) * 100
         joint_vs_roundrobin_delta_pp = (evolved_score - roundrobin_baseline_score) * 100
         # CR-02 fix: EPSILON_PP is in percentage points; convert to score
-        # space for direct comparison with raw scores. (Strictly less-than:
-        # an exactly-epsilon regression is treated as acceptable per WR-06
-        # documented semantics.)
-        if evolved_score < roundrobin_baseline_score - (EPSILON_PP / 100):
+        # space (`EPSILON_PP / 100`) for direct comparison with raw scores.
+        # WR-06 fix: this is a STRICT less-than — a regression that lands
+        # exactly at -EPSILON_PP is treated as acceptable (within tolerance).
+        # Per Plan 17-03 soft-gate semantics: "warn when joint regresses by
+        # MORE THAN 1pp". To stabilize the boundary against IEEE-754 noise
+        # (e.g. 0.60 - 0.59 == 0.010000000000000009, not 0.01), we round the
+        # scores to 4 decimal places before the comparison. 4dp << 1pp so
+        # this preserves semantic resolution; it only smooths the very last
+        # bit of float representation, making the gate decision deterministic
+        # across CPython / hardware / OS combinations.
+        evolved_rounded = round(evolved_score, 4)
+        baseline_rounded = round(roundrobin_baseline_score, 4)
+        if evolved_rounded < baseline_rounded - (EPSILON_PP / 100):
             console.print(
                 f"[yellow]Joint score ({evolved_score:.3f}) below "
                 f"round-robin baseline ({roundrobin_baseline_score:.3f}) "

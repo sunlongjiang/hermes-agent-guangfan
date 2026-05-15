@@ -17,10 +17,9 @@ from typing import Optional
 import click
 import dspy
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
-from evolution.core.config import EvolutionConfig, get_hermes_agent_path
+from evolution.core.config import EvolutionConfig
 from evolution.core.constraints import ConstraintValidator
 from evolution.prompts.prompt_loader import extract_prompt_sections, PromptSection
 from evolution.prompts.prompt_module import PromptModule

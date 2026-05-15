@@ -527,16 +527,24 @@ def evolve(
         "holdout", section_texts=section_texts
     )
 
+    # WR-01 fix: hoist set_active_section out of the per-example loop.
+    # Previously the body did `for sid in _section_ids: set_active(sid); break`
+    # on EVERY holdout example, which pop/recreates the active Predict on
+    # iteration 2+ (no-op semantically after the first call, but wastes work
+    # and obscures intent). Pitfall 1 fix guarantees _build_frozen_context
+    # already includes all section text regardless of which section is
+    # "active", so a one-time activation pre-loop is sufficient. Guarded
+    # by `holdout_examples` so empty-holdout test paths don't accrue an
+    # extra set_active_section call.
+    if holdout_examples and baseline_module._section_ids:
+        baseline_module.set_active_section(baseline_module._section_ids[0])
+
     baseline_scores = []
     evolved_scores = []
 
     for ex in holdout_examples:
         with dspy.context(lm=lm):
             # Score baseline
-            # Need to set active section for baseline to work
-            for sid in baseline_module._section_ids:
-                baseline_module.set_active_section(sid)
-                break
             bp = baseline_module(task_input=ex.task_input)
             b_score = metric(ex, bp, trace=None)
             baseline_scores.append(b_score)

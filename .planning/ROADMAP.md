@@ -291,14 +291,19 @@ Plans:
 - [x] 16-05-PLAN.md — CR-01/CR-02 (--runs 语义统一) + CR-03 (reasoning joint metric 一致性) + WR-04 (FAILED 分支 persist 顺序反转) + datetime/timezone/IN-02 hygiene
 
 ### Phase 17: Joint Section Optimization
-**Goal**: Optimize all 5 prompt sections simultaneously instead of round-robin
+**Goal**: 让 GEPA 把 hermes-agent prompt 的全部 section (实测 13 个) 视为一组参数同时优化,取代当前的 round-robin。CLI 默认 `--mode joint` 调用 DSPy GEPA `component_selector="all"` 单次 compile,joint 跑完 holdout 评估后 inline 跑 round-robin A/B baseline (fresh PromptModule + 同 dataset/metric/holdout),软门 1pp 比较 + 双方都落盘 (shared-prefix output layout)。
 **Depends on**: Phase 12
 **Requirements**: PMPT-V2-01
 **Success Criteria** (what must be TRUE):
   1. PromptModule supports all-sections-active mode (all Predicts discoverable)
   2. GEPA can mutate multiple sections in one pass
   3. Joint optimization produces equal or better scores than round-robin on holdout
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 17-01-PLAN.md — PromptModule joint mode 状态机扩展 (set_joint_mode + JOINT_SENTINEL + forward 三态 + Pitfall 1 修复 + selector freeze) + TestJointMode 测试
+- [ ] 17-02-PLAN.md — CLI --mode flag + joint pipeline 分支 + num_predictors-dynamic budget + stdout 预算预估 + TestJointPipeline/TestDryRun 测试
+- [ ] 17-03-PLAN.md — inline A/B baseline + 软门 [yellow] 警告 + metrics.json 4 新字段 + shared-prefix baseline 副本文件 + TestABBaseline 测试
 
 ### Phase 18: Personality Drift Detection
 **Goal**: Detect tone/personality changes between original and evolved prompt sections

@@ -56,9 +56,12 @@ created: 2026-05-15
 | TBD | TBD | 1+ | PMPT-V2-02 (RA3) | — | F1 derivation uses pure stdlib (no sklearn import) | unit | `pytest tests/prompts/test_drift_calibration.py::test_no_sklearn_dependency -x` | ❌ W0 | ⬜ pending |
 | TBD | TBD | 1+ | PMPT-V2-02 (RA5) | — | DriftCalibrationBuilder uses `judge_model` (not `eval_model`) | unit | `pytest tests/prompts/test_drift_calibration.py::test_generator_uses_judge_model -x` | ❌ W0 | ⬜ pending |
 | TBD | TBD | verify | PMPT-V2-02 (RA6) | — | F1 ≥ 0.85 on calibration self-eval (live LLM gated) | integration | `RUN_LIVE_LLM=1 pytest tests/prompts/test_drift_calibration.py::test_f1_target_self_eval -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1+ | PMPT-V2-02 | — | metrics.json contains `drift_per_dim`, `drift_thresholds`, `drift_passed` | integration | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::test_metrics_json_has_drift_fields -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1+ | PMPT-V2-02 | — | `--drift-thresholds-path` flag accepted, default resolved | unit | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::test_drift_thresholds_path_flag -x` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1+ | PMPT-V2-02 (D-BYPASS-01) | — | Bypass flag is **absent** (regression guard) | unit | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::test_no_skip_drift_flag -x` | ❌ W0 | ⬜ pending |
+| TBD | TBD | 1+ | PMPT-V2-02 | — | metrics.json contains `drift_per_dim`, `drift_thresholds`, `drift_passed` (joint mode) | integration | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::TestDriftGate::test_metrics_json_has_drift_fields -x` | ❌ W0 | ⬜ pending |
+| TBD | TBD | 1+ | PMPT-V2-02 (D-ROB-04) | — | metrics.json contains drift_* fields in `--mode round-robin` (regression guard for Plan 18-04 Edit-3 indent ambiguity) | integration | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::TestDriftGate::test_round_robin_metrics_json_has_drift_fields -x` | ❌ W0 | ⬜ pending |
+| TBD | TBD | 1+ | PMPT-V2-02 | — | `--drift-thresholds-path` flag accepted, default resolved | unit | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::TestDriftGate::test_drift_thresholds_path_flag -x` | ❌ W0 | ⬜ pending |
+| TBD | TBD | 1+ | PMPT-V2-02 (D-BYPASS-01) | — | Bypass flag is **absent** (regression guard) | unit | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::TestDriftGate::test_no_skip_drift_flag -x` | ❌ W0 | ⬜ pending |
+| TBD | TBD | 1+ | PMPT-V2-02 (D-GATE-03) | — | 1-dim drift → yellow stdout warning, evolved_sections.json still written under `output/prompts/<ts>/`, `drift_passed=true`, `drift_exceeded_dims` has 1 entry | integration | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::TestDriftGate::test_one_dim_drift_warns_but_deploys -x` | ❌ W0 | ⬜ pending |
+| TBD | TBD | 1+ | PMPT-V2-02 (D-GATE-04) | — | 2+ dim drift → `FAILED_<ts>/` created with metrics.json (`drift_passed=false`, `status=FAILED`) + drift_report.txt + evolved_sections.json + diff.txt | integration | `pytest tests/prompts/test_evolve_prompt_sections_cli.py::TestDriftGate::test_two_dim_drift_rejects_and_writes_failed_dir -x` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -68,7 +71,7 @@ created: 2026-05-15
 
 - [ ] `tests/prompts/test_drift_detector.py` — RED stubs for 9 unit scenarios (typed parsing, fallback, temperature wiring, 3-run stdev, conservative rule, severity ladder warn/reject, drift report payload, 4-dim scores)
 - [ ] `tests/prompts/test_drift_calibration.py` — RED stubs for 4 scenarios (F1 derivation optimum, stdlib-only path, judge_model wiring, live-gated F1 ≥ 0.85)
-- [ ] `tests/prompts/test_evolve_prompt_sections_cli.py` — extend with 3 new tests (metrics.json drift fields, `--drift-thresholds-path` flag, regression guard for `--no-drift-check` absence)
+- [ ] `tests/prompts/test_evolve_prompt_sections_cli.py` — extend with 6 new tests (metrics.json drift fields joint, metrics.json drift fields round-robin, `--drift-thresholds-path` flag, regression guard for `--no-drift-check` absence, D-GATE-03 warn path, D-GATE-04 reject path)
 - [ ] `tests/prompts/conftest.py` — add `mock_drift_lm` fixture + `dummy_thresholds` fixture (placeholder `{tone: 0.55, formality: 0.50, vocabulary: 0.45, persona: 0.65}` per D-CAL-01)
 - [ ] `tests/prompts/fixtures/drift_calibration_mini.jsonl` — 6-example mini set (1 section × 6 variants) for offline `derive_thresholds` tests
 - [ ] `.gitignore` exception: append `!datasets/prompts/drift_calibration.jsonl` and `!datasets/prompts/drift_thresholds.json` (D-CAL-02)

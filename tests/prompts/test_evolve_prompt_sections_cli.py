@@ -153,11 +153,18 @@ class TestJointPipeline:
         return result, mock_gepa, spy_module, mock_module_cls
 
     def test_joint_mode_default_calls_gepa_with_component_selector_all(self):
-        """Default mode (no --mode flag) routes to joint: single GEPA.compile +
-        component_selector='all' + set_joint_mode(True) called exactly once."""
+        """Default mode (no --mode flag) routes to joint: GEPA invoked with
+        component_selector='all' at least once + set_joint_mode(True) called.
+
+        Plan 17-03 update: In joint mode, A/B baseline also instantiates GEPA
+        per-section (with component_selector='round_robin'). So
+        `mock_gepa.call_args` reflects the LAST call (round_robin A/B), not
+        the joint call. We must inspect ALL calls for a joint signature.
+        """
+        fake_sections = _make_fake_sections(3)
         result, mock_gepa, spy_module, _ = self._patched_run(
             ["--iterations", "2", "--hermes-repo", "/fake"],
-            fake_sections=_make_fake_sections(3),
+            fake_sections=fake_sections,
         )
 
         assert result.exit_code == 0, (
@@ -165,23 +172,32 @@ class TestJointPipeline:
             f"Output: {result.output[:500]}"
         )
         assert mock_gepa.called, "dspy.GEPA was never instantiated in joint mode"
-        init_kwargs = mock_gepa.call_args.kwargs
-        assert init_kwargs.get("component_selector") == "all", (
-            f"Joint mode must call GEPA with component_selector='all', "
-            f"got {init_kwargs.get('component_selector')!r}"
+        # Plan 17-03: inspect all GEPA constructor calls. At least one must
+        # carry component_selector='all' (the joint optimizer).
+        joint_selectors = [
+            c.kwargs.get("component_selector") for c in mock_gepa.call_args_list
+        ]
+        assert "all" in joint_selectors, (
+            f"Joint mode must call GEPA at least once with "
+            f"component_selector='all'; got {joint_selectors!r}"
         )
-        # Joint mode does ONE compile call (not per-section)
-        assert mock_gepa.return_value.compile.call_count == 1, (
-            f"Joint mode expected exactly 1 GEPA.compile() call, got "
+        # Plan 17-03: total compile calls = 1 (joint) + N (A/B per-section).
+        # The joint mode itself still does exactly one compile.
+        expected_compiles = 1 + len(fake_sections)
+        assert mock_gepa.return_value.compile.call_count == expected_compiles, (
+            f"Joint mode + A/B baseline expected {expected_compiles} compile "
+            f"calls (1 joint + {len(fake_sections)} A/B), got "
             f"{mock_gepa.return_value.compile.call_count}"
         )
-        # set_joint_mode(True) was called (proves we entered joint branch)
+        # set_joint_mode(True) was called (proves we entered joint branch).
+        # NOTE: set_joint_mode is called once on the main module (joint branch
+        # via PromptModule patch returning spy_module). A/B baseline uses a
+        # fresh PromptModule(original_sections) which is NOT the spy
+        # (PromptModule is patched with return_value=spy_module — every call
+        # returns the SAME spy, so spy_module.set_joint_mode.call_count would
+        # actually grow if any AB construction also called it; but A/B path
+        # uses set_active_section, never set_joint_mode).
         spy_module.set_joint_mode.assert_called_with(True)
-        # set_active_section must NOT have been called for joint pipeline
-        assert spy_module.set_active_section.call_count == 0, (
-            f"Joint mode should not call set_active_section; got "
-            f"{spy_module.set_active_section.call_count} calls"
-        )
 
     def test_round_robin_mode_compiles_per_section(self):
         """--mode round-robin routes to per-section for-loop: N compile calls,
@@ -451,12 +467,12 @@ class TestABBaseline:
         import json
 
         fake_sections = _make_fake_sections(3)
-        # Score sequence: baseline_module holdout (4) + evolved_module holdout (4)
-        # + ab_baseline_module holdout (4) = 12 metric calls minimum.
-        # Use 0.5 for baseline, 0.8 for evolved (joint), 0.75 for AB (rr_baseline).
-        # joint(0.8) > rr_baseline(0.75) → soft gate green path → metrics.json
-        # joint_vs_roundrobin_delta_pp = (0.8 - 0.75) * 100 = +5.0
-        scores = [0.5] * 4 + [0.8] * 4 + [0.75] * 4
+        # Score sequence: 4 holdout examples × (baseline call + evolved call)
+        # interleaved (Step 9 loop calls baseline THEN evolved per example),
+        # followed by 4 A/B baseline holdout calls (sequential).
+        # We want joint_score=0.8, baseline_score=0.5, rr_baseline_score=0.75.
+        # Total 12 calls: [0.5, 0.8] × 4 + [0.75] × 4
+        scores = [0.5, 0.8] * 4 + [0.75] * 4
 
         result, mock_gepa, latest = self._ab_patched_run(
             ["--mode", "joint", "--iterations", "2", "--hermes-repo", "/fake"],
@@ -503,9 +519,11 @@ class TestABBaseline:
         import json
 
         fake_sections = _make_fake_sections(3)
-        # joint=0.50, rr_baseline=0.60 → delta = 10pp > 1pp epsilon → warn
+        # Score sequence: 4 holdout × (baseline + evolved) interleaved
+        # + 4 A/B holdout sequential. joint=0.50, rr_baseline=0.60 →
+        # delta = 10pp > 1pp epsilon → warn.
         # joint_vs_roundrobin_delta_pp = (0.50 - 0.60) * 100 = -10.0 (negative = regression)
-        scores = [0.4] * 4 + [0.50] * 4 + [0.60] * 4
+        scores = [0.4, 0.50] * 4 + [0.60] * 4
 
         result, mock_gepa, latest = self._ab_patched_run(
             ["--mode", "joint", "--iterations", "2", "--hermes-repo", "/fake"],
@@ -519,10 +537,12 @@ class TestABBaseline:
             f"Soft gate must not exit non-zero, got {result.exit_code}. "
             f"Output: {result.output[:500]}"
         )
-        # Yellow warning text must be in stdout
-        output = result.output
-        assert "review before deploying" in output, (
-            f"Soft-gate warning text missing. Stdout: {output[:800]}"
+        # Yellow warning text must be in stdout. Rich may wrap long lines at
+        # terminal width, so check for both ends of the phrase as separate
+        # tokens (the phrase itself contains a space that rich may split on).
+        output_normalized = " ".join(result.output.split())
+        assert "review before deploying" in output_normalized, (
+            f"Soft-gate warning text missing. Stdout: {result.output[:800]}"
         )
         # evolved_sections.json still written (not blocked)
         assert latest is not None
@@ -541,8 +561,9 @@ class TestABBaseline:
         import json
 
         fake_sections = _make_fake_sections(3)
-        # baseline holdout (4) + evolved holdout (4) = 8 metric calls
-        scores = [0.5] * 4 + [0.7] * 4
+        # 4 holdout × (baseline + evolved) interleaved = 8 metric calls
+        # No A/B baseline in round-robin mode.
+        scores = [0.5, 0.7] * 4
 
         result, mock_gepa, latest = self._ab_patched_run(
             ["--mode", "round-robin", "--iterations", "2", "--hermes-repo", "/fake"],

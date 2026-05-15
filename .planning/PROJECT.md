@@ -41,7 +41,7 @@
 - [ ] v2: Per-parameter description optimization (TOOL-V2-02)
 - [ ] v2: SessionDB mining for tool/prompt training data (TOOL-V2-01, PMPT-V2-04)
 - [x] v2: Think-augmented tool selection (TOOL-V2-03) — Validated in Phase 15 (pending real-LM UAT for CR-01..04 scenarios)
-- [ ] v2: Joint section optimization (PMPT-V2-01)
+- [x] v2: Joint section optimization (PMPT-V2-01) — Validated in Phase 17 (pending real-LM UAT for joint vs RR holdout comparison + WR-07 [ACTIVE:sid] tag reflection quality)
 - [ ] v2: Personality drift detection (PMPT-V2-02)
 - [ ] v2: Darwinian code evolution (V2-CODE-01)
 - [ ] v2: Continuous evolution loop (V2-LOOP-01)
@@ -117,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-15 — Phase 16 (per-tool-regression-dashboard, TOOL-V2-04) complete with 6 plans + 1 gap closure; verifier passed 6/6 must_haves. Track individual tool selection rates across optimization runs now end-to-end. Phase 17 (joint-section-optimization, PMPT-V2-01) next.*
+*Last updated: 2026-05-15 — Phase 17 (joint-section-optimization, PMPT-V2-01) complete with 3 plans (Wave 1-3); verifier 8/9 truths VERIFIED + 1 mechanism-verified pending real-LM UAT. Code review found 2 BLOCKER + 7 WARNING — all 9 fixed in REVIEW-FIX pass. 514 tests passing, zero regression. Phase 18 (personality-drift-detection, PMPT-V2-02) next.*

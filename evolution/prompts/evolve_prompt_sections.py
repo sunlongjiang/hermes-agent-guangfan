@@ -36,10 +36,18 @@ console = Console()
 
 # ── Module constants ────────────────────────────────────────────────────────
 
+# Unit convention for `_pp`-suffixed values in this module:
+#   1.0 == 1 percentage point (pp) == 0.01 score units.
+# All metrics fields with the `_pp` suffix (`epsilon_pp`,
+# `joint_vs_roundrobin_delta_pp`) are stored as percentage points, so
+# downstream consumers can compare them directly without 100x rescaling.
+# Internal score-space comparisons must divide pp values by 100.
+#
 # Phase 17 / D-AB-03: Soft-gate threshold — joint mode warns (no exit) when
-# joint_score regresses by more than this fraction vs round-robin baseline.
-# Used in Plan 17-03 A/B branch; defined here to keep the file self-contained.
-EPSILON_PP = 0.01
+# joint_score regresses by more than EPSILON_PP percentage points vs the
+# round-robin baseline. CR-02 fix: value is now 1.0 (pp), not 0.01 (score
+# space), so the field name's `_pp` suffix matches its unit.
+EPSILON_PP = 1.0  # percentage points
 
 
 # ── Mode resolution helper (W1: single source of truth) ────────────────────
@@ -664,7 +672,11 @@ def evolve(
         # (which is evolved_score - baseline_score vs UNOPTIMIZED baseline).
         delta_pp = (roundrobin_baseline_score - evolved_score) * 100
         joint_vs_roundrobin_delta_pp = (evolved_score - roundrobin_baseline_score) * 100
-        if evolved_score < roundrobin_baseline_score - EPSILON_PP:
+        # CR-02 fix: EPSILON_PP is in percentage points; convert to score
+        # space for direct comparison with raw scores. (Strictly less-than:
+        # an exactly-epsilon regression is treated as acceptable per WR-06
+        # documented semantics.)
+        if evolved_score < roundrobin_baseline_score - (EPSILON_PP / 100):
             console.print(
                 f"[yellow]Joint score ({evolved_score:.3f}) below "
                 f"round-robin baseline ({roundrobin_baseline_score:.3f}) "
@@ -674,7 +686,7 @@ def evolve(
             console.print(
                 f"[green]Joint score ({evolved_score:.3f}) ≥ "
                 f"round-robin baseline ({roundrobin_baseline_score:.3f}) "
-                f"within epsilon ({EPSILON_PP * 100:.0f}pp)[/green]"
+                f"within epsilon ({EPSILON_PP:.0f}pp)[/green]"
             )
 
     # ── 10. Report results ───────────────────────────────────────────────

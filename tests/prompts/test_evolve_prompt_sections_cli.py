@@ -491,7 +491,10 @@ class TestABBaseline:
         assert metrics["mode"] == "joint"
         assert "joint_score" in metrics
         assert "roundrobin_baseline_score" in metrics
-        assert metrics["epsilon_pp"] == 0.01
+        # CR-02 fix: epsilon_pp is now in percentage points (1.0 == 1pp),
+        # consistent with joint_vs_roundrobin_delta_pp's unit. Previously
+        # stored as 0.01 (score space) despite the `_pp` suffix.
+        assert metrics["epsilon_pp"] == 1.0
         assert "joint_vs_roundrobin_delta_pp" in metrics  # W3 new field
         assert metrics["joint_score"] == 0.8
         assert metrics["roundrobin_baseline_score"] == 0.75

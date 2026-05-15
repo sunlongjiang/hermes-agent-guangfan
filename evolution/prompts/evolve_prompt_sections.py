@@ -284,7 +284,10 @@ def evolve(
         num_predictors = len(list(module.named_predictors()))
         joint_budget = max(iterations * 50, 3 * num_predictors) * num_predictors
     else:
-        num_predictors = len(module._section_ids)
+        # WR-03 fix: removed unused `num_predictors = len(module._section_ids)`.
+        # The round-robin branch does NOT consume num_predictors anywhere —
+        # only joint_budget (set to 0 here) and rr_per_section_budget (below)
+        # are read on this path.
         joint_budget = 0  # not running joint
     rr_per_section_budget = iterations * 50
     rr_total_budget = rr_per_section_budget * len(module._section_ids)

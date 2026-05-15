@@ -298,7 +298,7 @@ Plans:
   1. PromptModule supports all-sections-active mode (all Predicts discoverable)
   2. GEPA can mutate multiple sections in one pass
   3. Joint optimization produces equal or better scores than round-robin on holdout
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 **Wave 1**
@@ -308,7 +308,7 @@ Plans:
 - [x] 17-02-PLAN.md — CLI --mode flag + joint pipeline 分支 + num_predictors-dynamic budget + stdout 预算预估 + TestJointPipeline/TestDryRun 测试
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 17-03-PLAN.md — inline A/B baseline + 软门 [yellow] 警告 + metrics.json 4 新字段 + shared-prefix baseline 副本文件 + TestABBaseline 测试
+- [x] 17-03-PLAN.md — inline A/B baseline + 软门 [yellow] 警告 + metrics.json 4 新字段 + shared-prefix baseline 副本文件 + TestABBaseline 测试
 
 ### Phase 18: Personality Drift Detection
 **Goal**: Detect tone/personality changes between original and evolved prompt sections

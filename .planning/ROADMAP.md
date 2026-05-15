@@ -274,7 +274,7 @@ Plans:
   1. Metrics file records per-tool accuracy before and after optimization
   2. Rich console dashboard shows selection rate changes per tool
   3. Regression threshold configurable (default: 2pp drop triggers warning)
-**Plans:** 6/5 plans complete
+**Plans:** 5/6 plans complete
 
 Plans:
 **Wave 0**
@@ -287,6 +287,8 @@ Plans:
 - [x] 16-03-PLAN.md — ABStudy 区 (三类计数 + top-3 + secret redact) + 跨 CLI source 启发判定 + 三类 fallback + warning 不影响 exit code (D-07 / D-08 / D-13 / D-15)
 **Wave 4** *(blocked on Wave 3)*
 - [x] 16-04-PLAN.md — dashboard.json schema 收口 (8 顶层字段) + E2E 集成测试 + .gitignore 卫生 (D-04 / D-17)
+**Wave 5** *(gap closure — verifier 4/6 → 6/6)*
+- [ ] 16-05-PLAN.md — CR-01/CR-02 (--runs 语义统一) + CR-03 (reasoning joint metric 一致性) + WR-04 (FAILED 分支 persist 顺序反转) + datetime/timezone/IN-02 hygiene
 
 ### Phase 17: Joint Section Optimization
 **Goal**: Optimize all 5 prompt sections simultaneously instead of round-robin

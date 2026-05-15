@@ -1,9 +1,12 @@
 """Wraps prompt sections as GEPA-optimizable DSPy module.
 
 Each prompt section's text is stored as a dspy.Predict instance's Signature
-instructions. Only the active section is discoverable by named_parameters();
-other sections' instructions are held as plain strings in a private dict,
-invisible to the DSPy optimizer.
+instructions. Only the active section is discoverable by named_predictors()
+(the method GEPA introspects to discover optimization parameters); other
+sections' instructions are held as plain strings in a private dict, which
+DSPy's parameter-discovery APIs (named_parameters AND named_predictors)
+never traverse because plain strings are neither dspy.Parameter nor
+dspy.Predict instances.
 """
 
 import dspy
@@ -51,7 +54,8 @@ class PromptModule(dspy.Module):
     to switch which section is being optimized.
 
     Frozen sections are stored as plain instruction strings (not Predict
-    instances) so DSPy's named_parameters() cannot discover them.
+    instances) so DSPy's parameter-discovery APIs (named_parameters AND
+    named_predictors) cannot discover them — GEPA uses named_predictors().
 
     Args:
         sections: List of PromptSection from prompt_loader.extract_prompt_sections()
@@ -59,7 +63,7 @@ class PromptModule(dspy.Module):
 
     def __init__(self, sections: list[PromptSection]):
         super().__init__()
-        # Active section predictor -- discoverable by named_parameters()
+        # Active section predictor -- discoverable by named_predictors()
         self.section_predictors: dict[str, dspy.Predict] = {}
         # Frozen section instructions -- plain strings, NOT discoverable
         self._frozen_instructions: dict[str, str] = {}
@@ -230,6 +234,13 @@ class PromptModule(dspy.Module):
 
         In round-robin mode, selector remains visible (existing behavior — see
         Phase 8 tests that expect selector.predict to be discoverable).
+
+        Note (WR-02): Frozen sections live in `_frozen_instructions` as
+        dict[str, str] — plain strings, NOT dspy.Parameter or dspy.Predict
+        instances. They are therefore invisible to BOTH named_parameters()
+        and named_predictors() via dspy's default traversal, with no special
+        handling required here. This override only additionally excludes
+        selector.predict in joint mode.
         """
         for name, pred in super().named_predictors():
             if self._active_section == JOINT_SENTINEL and name in self._frozen_predictor_ids:

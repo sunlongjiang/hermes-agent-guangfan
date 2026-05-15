@@ -34,6 +34,36 @@ from evolution.prompts.prompt_constraints import PromptRoleChecker
 console = Console()
 
 
+# ── Module constants ────────────────────────────────────────────────────────
+
+# Phase 17 / D-AB-03: Soft-gate threshold — joint mode warns (no exit) when
+# joint_score regresses by more than this fraction vs round-robin baseline.
+# Used in Plan 17-03 A/B branch; defined here to keep the file self-contained.
+EPSILON_PP = 0.01
+
+
+# ── Mode resolution helper (W1: single source of truth) ────────────────────
+
+def _resolve_effective_mode(section: Optional[str], mode: str) -> str:
+    """Return the effective optimization mode after applying D-RR-03 routing.
+
+    D-RR-03 implicit routing: when a single `section` is targeted, the
+    round-robin single-section path is forced regardless of `mode`. This
+    helper is the ONLY place this conditional lives — both the dry-run
+    gate and the main optimization path call it (W1 revision: prevents
+    drift between two code locations).
+
+    Args:
+        section: Optional section_id from CLI --section flag.
+        mode: Raw mode string from CLI --mode flag, already validated by
+            click.Choice to be "joint" or "round-robin".
+
+    Returns:
+        "round-robin" when section is non-empty; otherwise mode unchanged.
+    """
+    return "round-robin" if section else mode
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -83,6 +113,7 @@ def evolve(
     dry_run: bool = False,
     model: Optional[str] = None,
     api_base: Optional[str] = None,
+    mode: str = "joint",
 ):
     """Main evolution function -- orchestrates the full prompt section optimization loop.
 
@@ -94,7 +125,18 @@ def evolve(
         dry_run: If True, validate setup without running optimization.
         model: Override model for all LLM calls.
         api_base: Override API base URL.
+        mode: Optimization mode — 'joint' (default, Phase 17 — all sections
+            optimized simultaneously via GEPA with component_selector='all')
+            or 'round-robin' (legacy, section-by-section). When section is
+            also specified, round-robin single-section path is forced
+            regardless of mode (D-RR-03 implicit routing). Effective mode
+            is computed via _resolve_effective_mode(section, mode).
     """
+
+    # ── 0. Mode resolution (D-RR-03 via single helper, W1 revision) ──────
+    effective_mode = _resolve_effective_mode(section, mode)
+    # Click.Choice already validated the input mode is "joint" or
+    # "round-robin"; the helper applies the --section implicit routing.
 
     # ── 1. Configuration ─────────────────────────────────────────────────
     config = EvolutionConfig.load(
@@ -128,7 +170,7 @@ def evolve(
         table.add_row(s.section_id, str(s.char_count))
     console.print(table)
 
-    # ── 3. Dry-run gate ──────────────────────────────────────────────────
+    # ── 3. Dry-run gate (D-IT-03: budget preview always printed) ─────────
     if dry_run:
         console.print(
             "[bold green]DRY RUN -- setup validated successfully.[/bold green]"
@@ -140,9 +182,37 @@ def evolve(
             console.print(
                 f"  Dataset path: {dataset_path} (exists: {dataset_path.exists()})"
             )
-        console.print(
-            f"  Would run GEPA optimization ({iterations} iterations per section)"
+        # W1 invariant: same helper as main path — single source of truth.
+        effective_mode_dry = _resolve_effective_mode(section, mode)
+        # In dry-run we don't have module yet — use section count as proxy
+        # (Phase 17 selector is frozen in joint mode so num_predictors == N sections).
+        num_predictors_dry = len(original_sections)
+        joint_budget_dry = (
+            max(iterations * 50, 3 * num_predictors_dry) * num_predictors_dry
         )
+        rr_per_section_dry = iterations * 50
+        rr_total_dry = rr_per_section_dry * len(original_sections)
+        console.print(f"  Mode: {effective_mode_dry}")
+        if effective_mode_dry == "joint":
+            console.print(
+                f"  Joint optimization:        "
+                f"iterations={iterations}, max_metric_calls={joint_budget_dry}"
+            )
+            console.print(
+                f"  Round-robin A/B baseline:  "
+                f"iterations={iterations}/section × {len(original_sections)} sections, "
+                f"max_metric_calls={rr_per_section_dry}/section"
+            )
+            console.print(
+                f"  Total est. LM calls:       ~{joint_budget_dry} (joint) + "
+                f"~{rr_total_dry} (baseline) = ~{joint_budget_dry + rr_total_dry}"
+            )
+        else:
+            console.print(
+                f"  Round-robin: iterations={iterations}/section × "
+                f"{len(original_sections)} section(s), "
+                f"max_metric_calls={rr_per_section_dry}/section"
+            )
         if section:
             console.print(f"  Target section: {section}")
         else:
@@ -192,95 +262,180 @@ def evolve(
         f" / {len(dataset.holdout)} holdout"
     )
 
-    # ── 6. Per-section GEPA optimization ─────────────────────────────────
+    # ── 6. Optimization (joint vs round-robin fork) ──────────────────────
     sections_to_optimize = [section] if section else module._section_ids
 
     metric = PromptBehavioralMetric(config)
     section_texts = {s.section_id: s.text for s in original_sections}
 
+    # ── 6a. Compute budget preview (D-IT-03) ─────────────────────────────
+    # For budget purposes, simulate joint mode to capture num_predictors
+    # without permanently mutating module state when we're going round-robin.
+    if effective_mode == "joint":
+        module.set_joint_mode(True)
+        num_predictors = len(list(module.named_predictors()))
+        joint_budget = max(iterations * 50, 3 * num_predictors) * num_predictors
+    else:
+        num_predictors = len(module._section_ids)
+        joint_budget = 0  # not running joint
+    rr_per_section_budget = iterations * 50
+    rr_total_budget = rr_per_section_budget * len(module._section_ids)
+
     console.print(f"\n[bold]Configuring optimizer[/bold]")
-    console.print(f"  Optimizer: GEPA ({iterations} iterations per section)")
+    console.print(f"  Mode: {effective_mode}")
     console.print(f"  Eval model: {config.eval_model}")
-    console.print(
-        f"  Sections to optimize: {len(sections_to_optimize)}"
-    )
+    console.print(f"  Reflection model: {config.optimizer_model}")
+    if effective_mode == "joint":
+        console.print(
+            f"  Joint optimization:        "
+            f"iterations={iterations}, max_metric_calls={joint_budget}"
+        )
+        console.print(
+            f"  Round-robin A/B baseline:  "
+            f"iterations={iterations}/section × {len(module._section_ids)} sections, "
+            f"max_metric_calls={rr_per_section_budget}/section"
+        )
+        console.print(
+            f"  Total est. LM calls:       ~{joint_budget} (joint) + "
+            f"~{rr_total_budget} (baseline) = ~{joint_budget + rr_total_budget}"
+        )
+    else:
+        console.print(
+            f"  Round-robin: iterations={iterations}/section × "
+            f"{len(sections_to_optimize)} section(s), "
+            f"max_metric_calls={rr_per_section_budget}/section"
+        )
 
     lm = dspy.LM(config.eval_model, **config.get_lm_kwargs())
     dspy.configure(lm=lm)
 
     start_time = time.time()
 
-    for active_sid in sections_to_optimize:
+    if effective_mode == "joint":
+        # ── 6b. JOINT branch: single GEPA.compile with component_selector="all" ──
+        # W2 invariant: NO try/except wrapping GEPA.compile here. Joint mode
+        # follows Phase 13 D-15a "loud GEPA failure" pattern — any exception
+        # propagates uncaught to Click main and exits non-zero. This is the
+        # deliberate behavioral DIFFERENCE from the round-robin branch below
+        # (which retains its GEPA → MIPROv2 fallback for legacy parity).
+        # Future PRs MUST NOT silently introduce try/except here without a
+        # CONTEXT decision revision.
         console.print(
-            f"\n[bold cyan]Optimizing section: {active_sid}[/bold cyan]"
+            f"\n[bold cyan]Joint optimization across "
+            f"{len(module._section_ids)} sections[/bold cyan]"
         )
-        module.set_active_section(active_sid)
 
-        # Filter dataset for this section
-        section_train = [
-            ex for ex in dataset.train if ex.section_id == active_sid
-        ]
-        section_val = [
-            ex for ex in dataset.val if ex.section_id == active_sid
-        ]
-
-        # Build DSPy examples from filtered data
-        temp_dataset = PromptBehavioralDataset(
-            train=section_train,
-            val=section_val,
-            holdout=[],
-        )
-        trainset = temp_dataset.to_dspy_examples(
+        trainset = dataset.to_dspy_examples(
             "train", section_texts=section_texts
         )
-        valset = temp_dataset.to_dspy_examples(
+        valset = dataset.to_dspy_examples(
             "val", section_texts=section_texts
         )
 
         if not trainset:
             console.print(
-                f"  [yellow]Warning: No training data for {active_sid}, "
-                f"skipping[/yellow]"
+                "  [yellow]Warning: No training data, "
+                "skipping joint optimization[/yellow]"
             )
-            continue
-
-        console.print(
-            f"  Training examples: {len(trainset)}, "
-            f"Validation examples: {len(valset)}"
-        )
-
-        try:
-            reflection_lm = dspy.LM(config.optimizer_model, **config.get_lm_kwargs())
+        else:
+            console.print(
+                f"  Training examples: {len(trainset)}, "
+                f"Validation examples: {len(valset)}"
+            )
+            reflection_lm = dspy.LM(
+                config.optimizer_model, **config.get_lm_kwargs()
+            )
             optimizer = dspy.GEPA(
                 metric=metric,
-                max_metric_calls=iterations * 50,
+                max_metric_calls=joint_budget,
                 reflection_lm=reflection_lm,
+                component_selector="all",
+                track_stats=True,
+                seed=0,
             )
+            # NO try/except: loud-fail per W2 invariant / D-15a parity
             module = optimizer.compile(
                 module,
                 trainset=trainset,
                 valset=valset,
             )
-        except Exception as e:
-            # Fall back to MIPROv2 if GEPA isn't available
+    else:
+        # ── 6c. ROUND-ROBIN branch: per-section for-loop (legacy preserved) ──
+        # NOTE: This branch INTENTIONALLY retains the GEPA → MIPROv2 fallback
+        # chain (try/except below) — that is the long-standing round-robin
+        # behavior. Joint branch above does NOT have this fallback (W2 invariant).
+        for active_sid in sections_to_optimize:
             console.print(
-                f"  [yellow]GEPA not available ({e}), "
-                f"falling back to MIPROv2[/yellow]"
+                f"\n[bold cyan]Optimizing section: {active_sid}[/bold cyan]"
             )
+            module.set_active_section(active_sid)
+
+            # Filter dataset for this section
+            section_train = [
+                ex for ex in dataset.train if ex.section_id == active_sid
+            ]
+            section_val = [
+                ex for ex in dataset.val if ex.section_id == active_sid
+            ]
+
+            temp_dataset = PromptBehavioralDataset(
+                train=section_train,
+                val=section_val,
+                holdout=[],
+            )
+            trainset = temp_dataset.to_dspy_examples(
+                "train", section_texts=section_texts
+            )
+            valset = temp_dataset.to_dspy_examples(
+                "val", section_texts=section_texts
+            )
+
+            if not trainset:
+                console.print(
+                    f"  [yellow]Warning: No training data for {active_sid}, "
+                    f"skipping[/yellow]"
+                )
+                continue
+
+            console.print(
+                f"  Training examples: {len(trainset)}, "
+                f"Validation examples: {len(valset)}"
+            )
+
             try:
-                optimizer = dspy.MIPROv2(
+                reflection_lm = dspy.LM(
+                    config.optimizer_model, **config.get_lm_kwargs()
+                )
+                optimizer = dspy.GEPA(
                     metric=metric,
-                    auto="light",
+                    max_metric_calls=rr_per_section_budget,
+                    reflection_lm=reflection_lm,
                 )
                 module = optimizer.compile(
                     module,
                     trainset=trainset,
+                    valset=valset,
                 )
-            except Exception as e2:
+            except Exception as e:
+                # Round-robin legacy: fall back to MIPROv2 if GEPA isn't available
                 console.print(
-                    f"  [red]MIPROv2 also failed ({e2}), "
-                    f"skipping section {active_sid}[/red]"
+                    f"  [yellow]GEPA not available ({e}), "
+                    f"falling back to MIPROv2[/yellow]"
                 )
+                try:
+                    optimizer = dspy.MIPROv2(
+                        metric=metric,
+                        auto="light",
+                    )
+                    module = optimizer.compile(
+                        module,
+                        trainset=trainset,
+                    )
+                except Exception as e2:
+                    console.print(
+                        f"  [red]MIPROv2 also failed ({e2}), "
+                        f"skipping section {active_sid}[/red]"
+                    )
 
     elapsed = time.time() - start_time
     console.print(f"\n  Optimization completed in {elapsed:.1f}s")
@@ -500,7 +655,16 @@ def evolve(
 )
 @click.option("--model", default=None, help="Override model for all LLM calls (e.g. openai/qwen-plus)")
 @click.option("--api-base", default=None, help="Override API base URL")
-def main(section, iterations, eval_source, hermes_repo, dry_run, model, api_base):
+@click.option(
+    "--mode",
+    default="joint",
+    type=click.Choice(["joint", "round-robin"]),
+    help="Optimization mode: 'joint' (default, optimizes all sections "
+         "simultaneously via GEPA) or 'round-robin' (legacy, optimizes "
+         "section-by-section). --section <id> implicitly forces round-robin "
+         "single-section even with --mode joint.",
+)
+def main(section, iterations, eval_source, hermes_repo, dry_run, model, api_base, mode):
     """Evolve hermes-agent prompt sections using DSPy + GEPA optimization."""
     evolve(
         section=section,
@@ -510,6 +674,7 @@ def main(section, iterations, eval_source, hermes_repo, dry_run, model, api_base
         dry_run=dry_run,
         model=model,
         api_base=api_base,
+        mode=mode,
     )
 
 

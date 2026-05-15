@@ -28,7 +28,15 @@ def _make_fake_sections(n: int = 3):
 
 
 def _make_mocked_dataset():
-    """Build a fake PromptBehavioralDataset with all required split data."""
+    """Build a fake PromptBehavioralDataset with all required split data.
+
+    holdout is intentionally LEFT EMPTY so we don't run holdout evaluation
+    (which would invoke baseline_module(task_input=...) → ChainOfThought →
+    real LM, AND would inflate set_active_section.call_count via the
+    baseline-priming for-loop). For these CLI tests we only assert
+    optimization-step shape; holdout regression is covered by the existing
+    tests/prompts/test_evolve_prompt_sections.py::TestEvolve suite.
+    """
     from evolution.prompts.prompt_dataset import (
         PromptBehavioralExample,
         PromptBehavioralDataset,
@@ -48,7 +56,7 @@ def _make_mocked_dataset():
     return PromptBehavioralDataset(
         train=list(examples),
         val=list(examples),
-        holdout=list(examples),
+        holdout=[],
     )
 
 
@@ -100,6 +108,12 @@ class TestJointPipeline:
             (f"section_predictors['{sid}']", MagicMock())
             for sid in real_module._section_ids
         ]
+        # Bypass real forward() during holdout eval — we only assert on
+        # set_*_mode / GEPA.compile call shape, not on LM-driven scoring.
+        # Without this, baseline_module(task_input=...) would invoke
+        # ChainOfThought which requires a configured LM.
+        import dspy as _dspy
+        spy_module.return_value = _dspy.Prediction(output="mock output")
 
         runner = CliRunner()
 

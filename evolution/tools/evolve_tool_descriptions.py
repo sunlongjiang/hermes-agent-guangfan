@@ -365,17 +365,28 @@ def evolve(
     evolved_rates = regression_checker.compute_per_tool_rates(evolved_preds)
     regression_result = regression_checker.check_regression(baseline_rates, evolved_rates)
 
+    # WR-04 (Phase 16 gap closure, reverses 16-00-PLAN's "no metrics_extra
+    # in FAILED branch" decision): compute per_tool + raw_predictions BEFORE
+    # the regression-result branch so REGRESSION_FAILED metrics.json carries
+    # the per-tool data that the dashboard needs. Mirrors the sibling pattern
+    # in evolve_tool_params.py:1018-1029. Historical FAILED_<old_ts>/ runs
+    # are NOT backfilled (16-00-PLAN Out-of-scope §6 still holds for old data).
+    metrics_extra = persist_per_tool_rates({}, baseline_rates, evolved_rates)
+    metrics_extra = persist_raw_predictions(metrics_extra, raw_preds)
+
     if not regression_result.passed:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = Path("output") / "tools" / f"FAILED_{timestamp}"
         output_dir.mkdir(parents=True, exist_ok=True)
-        (output_dir / "metrics.json").write_text(json.dumps({
+        failed_metrics = {
             "timestamp": timestamp,
             "status": "REGRESSION_FAILED",
             "baseline_score": baseline_score,
             "evolved_score": evolved_score,
             "regressed_tools": regression_result.regressed_tools,
-        }, indent=2))
+            **metrics_extra,
+        }
+        (output_dir / "metrics.json").write_text(json.dumps(failed_metrics, indent=2))
         console.print("[red]Cross-tool regression detected -- not deploying[/red]")
         console.print(f"  Saved results to {output_dir}/")
         return
@@ -400,10 +411,6 @@ def evolve(
 
     console.print()
     console.print(result_table)
-
-    # ── Phase 16 Wave 0: persist per-tool rates + raw_predictions for dashboard ──
-    metrics_extra = persist_per_tool_rates({}, baseline_rates, evolved_rates)
-    metrics_extra = persist_raw_predictions(metrics_extra, raw_preds)
 
     # ── 11. Save results ─────────────────────────────────────────────────
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

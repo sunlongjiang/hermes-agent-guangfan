@@ -1,9 +1,13 @@
 """Synthetic drift calibration set builder + F1-optimized threshold derivation.
 
 Phase 18 Task 1 (D-CAL-05): MUST run before DriftDetector is deployed.
-Generates 30 paired examples (5 sections x 6 variants: 3 drift + 3 no-drift)
-using config.judge_model (gpt-4.1) — a different model than DriftDetector's
-judge (config.eval_model, gpt-4.1-mini) to reduce same-model bias (RA5).
+Generates 30 paired examples (5 sections x 6 variants: 4 drift + 2 no-drift)
+using config.judge_model — a different model than DriftDetector's judge
+(config.eval_model) to reduce same-model bias (RA5).
+
+Each section produces 4 drift variants (one per DriftDetector dim:
+tone, formality, vocabulary, persona) + 2 no-drift variants so every
+DriftDetector dimension has positive ground-truth labels for F1 derivation.
 
 Pure stdlib F1 derivation (no sklearn / numpy / scipy — RA3).
 """
@@ -98,12 +102,19 @@ class DriftCalibrationBuilder:
     """Generates 30 calibration examples (5 sections x 6 variants).
 
     Per section:
-      - 3 drift variants — one targeted per dim (tone, formality, vocabulary)
-      - 3 no-drift variants — rephrase preserving voice
+      - 4 drift variants — one targeted per DriftDetector dim
+        (tone, formality, vocabulary, persona)
+      - 2 no-drift variants — rephrase preserving voice
 
-    Per D-CAL-03 + RA5: uses config.judge_model (gpt-4.1) with temperature=0.9
-    to diversify generated variants. DriftDetector judge uses config.eval_model
-    (gpt-4.1-mini) — model differentiation reduces same-model bias.
+    Per D-CAL-03 + RA5: uses config.judge_model with temperature=0.9 to
+    diversify generated variants. DriftDetector judge uses config.eval_model
+    — model differentiation reduces same-model bias.
+
+    History note: the original layout was (3 drift + 3 no-drift) with
+    persona omitted from drift coverage, which left persona F1 structurally
+    0.0 (no positive examples for the derivation step). Phase 18-03 (paused)
+    discovered this; the 4 drift + 2 no-drift balance restores full dim
+    coverage while preserving the 30-example total (D-CAL-03).
     """
 
     class GenerateDriftVariant(dspy.Signature):
@@ -134,11 +145,12 @@ class DriftCalibrationBuilder:
             desc="Rewritten section meeting the mode + target_dim requirements"
         )
 
-    # Drift dims sampled across 3 variants per section (D-CAL-03).
-    # tone/formality/vocabulary -> persona left for the no-drift trio.
-    # Per RA5 Mitigation 5: each true-drift variant has EXACTLY ONE
-    # targeted dim so per-dim ground-truth labels are clean.
-    DRIFT_TARGET_DIMS_PER_SECTION = ("tone", "formality", "vocabulary")
+    # Drift dims sampled across 4 variants per section (D-CAL-03).
+    # ALL DriftDetector dims are covered so F1 derivation has positive
+    # ground-truth labels for each dim (persona inclusive). Per RA5
+    # Mitigation 5: each true-drift variant has EXACTLY ONE targeted dim so
+    # per-dim ground-truth labels are clean.
+    DRIFT_TARGET_DIMS_PER_SECTION = ("tone", "formality", "vocabulary", "persona")
 
     def __init__(self, config: EvolutionConfig, seed: int = 42):
         self.config = config
@@ -154,7 +166,7 @@ class DriftCalibrationBuilder:
     def generate(self, sections: list) -> DriftCalibrationDataset:
         """Generate 30 examples (5 sections x 6 variants).
 
-        D-CAL-01..04: 5 sections × (3 drift + 3 preserve) = 30 examples.
+        D-CAL-01..04: 5 sections × (4 drift + 2 preserve) = 30 examples.
         Each example carries generation_metadata with seed, generator_model,
         target_dim, generation_timestamp, mode for reproducibility (D-CAL-02).
         """
@@ -165,7 +177,7 @@ class DriftCalibrationBuilder:
 
         with dspy.context(lm=self._lm):
             for section in sections[:5]:  # D-CAL-03: 5 sections
-                # 3 drift variants — one per target dim
+                # 4 drift variants — one per DriftDetector dim
                 for target_dim in self.DRIFT_TARGET_DIMS_PER_SECTION:
                     result = self.generator(
                         original_text=section.text,
@@ -186,8 +198,8 @@ class DriftCalibrationBuilder:
                             "mode": "drift",
                         },
                     ))
-                # 3 no-drift variants
-                for _ in range(3):
+                # 2 no-drift variants
+                for _ in range(2):
                     result = self.generator(
                         original_text=section.text,
                         mode="preserve",

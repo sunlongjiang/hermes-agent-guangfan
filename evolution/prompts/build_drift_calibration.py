@@ -20,7 +20,9 @@ Usage:
         [--hermes-repo PATH] [--seed N] \\
         [--output-jsonl PATH] [--output-thresholds PATH]
 """
+import dataclasses
 import json
+import os
 import statistics
 from datetime import datetime, timezone
 from pathlib import Path
@@ -141,7 +143,48 @@ def _classify_f1_tier(f1_self: dict, target_self: float = 0.85) -> tuple:
     is_flag=True,
     help="Generate the calibration JSONL only; skip threshold derivation.",
 )
-def main(hermes_repo, seed, output_jsonl, output_thresholds, model, api_base, no_derive):
+@click.option(
+    "--reuse-jsonl",
+    is_flag=True,
+    help=(
+        "Skip generation and re-use the existing JSONL at --output-jsonl "
+        "(re-derive thresholds + F1 only; saves ~$0.50-2 generator cost when "
+        "iterating on --eval-model)."
+    ),
+)
+@click.option(
+    "--eval-model",
+    default=None,
+    help=(
+        "Override eval_model used by the detector / F1 self-eval. Use a "
+        "DIFFERENT model family from the generator to satisfy RA5 (same-model "
+        "bias mitigation). Example: --eval-model openai/gpt-4.1-mini when the "
+        "generator is qwen-plus."
+    ),
+)
+@click.option(
+    "--eval-api-base",
+    default=None,
+    help=(
+        "Override api_base for the detector only (generator keeps its api_base). "
+        "Pair with --eval-model when the two models live on different backends "
+        "(e.g. detector on api.openai.com, generator on dashscope.aliyuncs.com)."
+    ),
+)
+@click.option(
+    "--eval-api-key",
+    default=None,
+    envvar="EVAL_API_KEY",
+    help=(
+        "Override api_key for the detector only. If --eval-model starts with "
+        "'openai/' and --eval-api-key is not provided, falls back to "
+        "$OPENAI_API_KEY when set."
+    ),
+)
+def main(
+    hermes_repo, seed, output_jsonl, output_thresholds, model, api_base,
+    no_derive, reuse_jsonl, eval_model, eval_api_base, eval_api_key,
+):
     """Build the drift calibration set + derive F1-optimized thresholds."""
     console.print("[bold]Phase 18: Drift calibration build[/bold]\n")
     overrides = {}
@@ -152,12 +195,39 @@ def main(hermes_repo, seed, output_jsonl, output_thresholds, model, api_base, no
     if api_base:
         overrides["api_base"] = api_base
     config = EvolutionConfig.load(**overrides)
+
+    # Per-side config: detector (eval/F1) can use a different model + backend
+    # from the generator. Required to satisfy RA5 when evolution.yaml sets
+    # eval == judge (same-model bias collapse).
+    eval_config = dataclasses.replace(config)
+    if eval_model:
+        eval_config.eval_model = eval_model
+    if eval_api_base:
+        eval_config.api_base = eval_api_base
+    if eval_api_key:
+        eval_config.api_key = eval_api_key
+    elif eval_model and eval_model.startswith("openai/") and not eval_api_key:
+        # Sensible default: route OpenAI-prefixed models to $OPENAI_API_KEY
+        # when no explicit key override is given.
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if openai_key:
+            eval_config.api_key = openai_key
+            if not eval_api_base:
+                # Default OpenAI endpoint when api_base is not overridden.
+                eval_config.api_base = None
+
     console.print(f"  hermes-agent repo: {config.hermes_agent_path}")
+    same_model = config.judge_model == eval_config.eval_model
+    ra5_tag = "[red]RA5 VIOLATION: same model[/red]" if same_model else "[green]RA5 OK[/green]"
     console.print(
-        f"  generator (judge_model): {config.judge_model}  "
-        f"[RA5: differs from detector eval_model={config.eval_model}]"
+        f"  generator: model={config.judge_model} api_base={config.api_base or '<default>'}"
+    )
+    console.print(
+        f"  detector:  model={eval_config.eval_model} api_base={eval_config.api_base or '<default>'}  {ra5_tag}"
     )
     console.print(f"  seed: {seed}")
+    if reuse_jsonl:
+        console.print("  [yellow]--reuse-jsonl: generation will be skipped[/yellow]")
 
     # 1. Extract prompt sections
     # NOTE: extract_prompt_sections expects the PATH TO prompt_builder.py,
@@ -178,29 +248,47 @@ def main(hermes_repo, seed, output_jsonl, output_thresholds, model, api_base, no
             f"D-CAL-03 requires >= 5 sections; got {len(sections)}."
         )
 
-    # 2. Generate 30 examples
-    console.print(
-        "\n[bold]2. Generating 30 calibration examples "
-        "(5 sections x 6 variants)[/bold]"
-    )
-    console.print("  This invokes the LLM ~30 times. Expect $0.50-2.00 in API cost.")
-    builder = DriftCalibrationBuilder(config, seed=seed)
-    dataset = builder.generate(sections)
+    # 2. Generate or reuse 30 examples
+    if reuse_jsonl:
+        if not output_jsonl.exists():
+            raise click.ClickException(
+                f"--reuse-jsonl requires {output_jsonl} to exist. Run once "
+                f"without --reuse-jsonl first."
+            )
+        console.print(
+            f"\n[bold]2. Re-using existing calibration set at {output_jsonl}[/bold]"
+        )
+        dataset = DriftCalibrationDataset.load(output_jsonl)
+        drift_count = sum(1 for ex in dataset.examples if ex.is_drift)
+        no_drift_count = len(dataset.examples) - drift_count
+        console.print(
+            f"  Loaded {len(dataset.examples)} examples: "
+            f"{drift_count} drift + {no_drift_count} no-drift"
+        )
+    else:
+        console.print(
+            "\n[bold]2. Generating 30 calibration examples "
+            "(5 sections x 6 variants)[/bold]"
+        )
+        console.print("  This invokes the LLM ~30 times. Expect $0.50-2.00 in API cost.")
+        builder = DriftCalibrationBuilder(config, seed=seed)
+        dataset = builder.generate(sections)
+        drift_count = sum(1 for ex in dataset.examples if ex.is_drift)
+        no_drift_count = len(dataset.examples) - drift_count
+        console.print(
+            f"  Generated {len(dataset.examples)} examples: "
+            f"{drift_count} drift + {no_drift_count} no-drift"
+        )
     if len(dataset.examples) != 30:
         raise click.ClickException(
             f"D-CAL-03 expects 30 examples; got {len(dataset.examples)}."
         )
-    drift_count = sum(1 for ex in dataset.examples if ex.is_drift)
-    no_drift_count = len(dataset.examples) - drift_count
-    console.print(
-        f"  Generated {len(dataset.examples)} examples: "
-        f"{drift_count} drift + {no_drift_count} no-drift"
-    )
 
-    # 3. Persist JSONL
-    console.print(f"\n[bold]3. Saving calibration set to {output_jsonl}[/bold]")
-    dataset.save(output_jsonl)
-    console.print(f"  Wrote {output_jsonl} ({output_jsonl.stat().st_size} bytes)")
+    # 3. Persist JSONL (skipped when re-using)
+    if not reuse_jsonl:
+        console.print(f"\n[bold]3. Saving calibration set to {output_jsonl}[/bold]")
+        dataset.save(output_jsonl)
+        console.print(f"  Wrote {output_jsonl} ({output_jsonl.stat().st_size} bytes)")
 
     if no_derive:
         console.print(
@@ -211,17 +299,17 @@ def main(hermes_repo, seed, output_jsonl, output_thresholds, model, api_base, no
         )
         return
 
-    # 4. Derive thresholds
+    # 4. Derive thresholds (detector-side config → eval_config)
     console.print(
         "\n[bold]4. Deriving F1-optimal thresholds "
         "(brute-scan 17 candidates per dim)[/bold]"
     )
-    thresholds = derive_thresholds(dataset, config)
+    thresholds = derive_thresholds(dataset, eval_config)
     console.print(f"  Thresholds: {thresholds}")
 
-    # 5. Compute F1 self-eval (RA6 / Tier classification)
+    # 5. Compute F1 self-eval (RA6 / Tier classification) — detector-side
     console.print("\n[bold]5. Computing F1 self-eval (calibration set)[/bold]")
-    f1_self = _compute_per_dim_f1(dataset, thresholds, config)
+    f1_self = _compute_per_dim_f1(dataset, thresholds, eval_config)
     tier, warned_dims = _classify_f1_tier(f1_self)
 
     f1_table = Table(title="F1 Calibration Self-Eval")
@@ -272,7 +360,7 @@ def main(hermes_repo, seed, output_jsonl, output_thresholds, model, api_base, no
         "f1_warned_dims": warned_dims,
         "calibration_timestamp": datetime.now(timezone.utc).isoformat(),
         "generator_model": config.judge_model,
-        "judge_model": config.eval_model,
+        "judge_model": eval_config.eval_model,
         "seed": seed,
         "num_examples": len(dataset.examples),
     }

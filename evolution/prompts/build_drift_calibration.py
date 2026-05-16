@@ -223,10 +223,21 @@ def _classify_f1_tier(
         "RESEARCH default 0.80; v1-pragmatic 0.50."
     ),
 )
+@click.option(
+    "--accept-tier-3",
+    is_flag=True,
+    help=(
+        "Persist thresholds.json even when the run lands in Tier 3 "
+        "(default behavior raises ClickException without writing the file). "
+        "Use to ship a v1-pragmatic gate when the available judge can't clear "
+        "the tier targets — `_meta.f1_tier` will record the actual tier (3) "
+        "so downstream operators see the gate is permissive."
+    ),
+)
 def main(
     hermes_repo, seed, output_jsonl, output_thresholds, model, api_base,
     no_derive, reuse_jsonl, eval_model, eval_api_base, eval_api_key,
-    target_self, per_dim_floor, macro_floor,
+    target_self, per_dim_floor, macro_floor, accept_tier_3,
 ):
     """Build the drift calibration set + derive F1-optimized thresholds."""
     console.print("[bold]Phase 18: Drift calibration build[/bold]\n")
@@ -380,38 +391,51 @@ def main(
     f1_table.add_column("Status")
     for dim in DRIFT_DIMENSIONS:
         f = f1_self[dim]
-        if f >= 0.85:
+        if f >= target_self:
             status = "[green]OK[/green]"
-        elif f >= 0.70:
+        elif f >= per_dim_floor:
             status = "[yellow]WARN[/yellow]"
         else:
             status = "[red]FAIL[/red]"
         f1_table.add_row(dim, f"{f:.3f}", status)
+    macro = f1_self["macro"]
     f1_table.add_row(
-        "macro", f"{f1_self['macro']:.3f}",
-        "[green]OK[/green]" if f1_self["macro"] >= 0.85
-        else "[yellow]WARN[/yellow]" if f1_self["macro"] >= 0.80
+        "macro", f"{macro:.3f}",
+        "[green]OK[/green]" if macro >= target_self
+        else "[yellow]WARN[/yellow]" if macro >= macro_floor
         else "[red]FAIL[/red]",
     )
     f1_table.add_row(
         "Tier", str(tier),
         "[green]PASS[/green]" if tier == 1
         else "[yellow]PASS (borderline)[/yellow]" if tier == 2
-        else "[red]FAIL — re-roll calibration[/red]",
+        else (
+            "[yellow]ACCEPTED (--accept-tier-3)[/yellow]" if accept_tier_3
+            else "[red]FAIL — re-roll calibration[/red]"
+        ),
     )
     console.print(f1_table)
 
     if tier == 3:
         console.print(
-            f"\n[red]Tier 3 FAIL: macro-F1 < 0.80 or some dim < 0.70 "
+            f"\n[red]Tier 3 FAIL: macro-F1 {macro:.3f} < {macro_floor} "
+            f"or some dim below per-dim floor {per_dim_floor} "
             f"(warned: {warned_dims}).[/red]"
         )
-        console.print(
-            "[red]This indicates same-model bias collapse or noisy "
-            "calibration; re-run with a different --seed or revise generator "
-            "prompt.[/red]"
-        )
-        raise click.ClickException("Tier 3 F1 failure — calibration unfit for deploy")
+        if accept_tier_3:
+            console.print(
+                "[yellow]--accept-tier-3 set: persisting thresholds anyway "
+                "with _meta.f1_tier=3 so the weak-gate state is auditable. "
+                "Plans 18-04/18-05 will wire the gate using these thresholds; "
+                "re-calibrate with a stronger judge to tighten in a future phase.[/yellow]"
+            )
+        else:
+            console.print(
+                "[red]This indicates same-model bias collapse or noisy "
+                "calibration; re-run with a different --seed, switch judge "
+                "model, or pass --accept-tier-3 to ship a permissive gate.[/red]"
+            )
+            raise click.ClickException("Tier 3 F1 failure — calibration unfit for deploy")
 
     # 6. Persist thresholds JSON with _meta (f1_fresh deferred to Phase 19+)
     thresholds_with_meta = dict(thresholds)

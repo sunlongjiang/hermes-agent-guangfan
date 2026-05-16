@@ -84,21 +84,32 @@ def _compute_per_dim_f1(
     return result
 
 
-def _classify_f1_tier(f1_self: dict, target_self: float = 0.85) -> tuple:
+def _classify_f1_tier(
+    f1_self: dict,
+    target_self: float = 0.85,
+    per_dim_floor: float = 0.70,
+    macro_floor: float = 0.80,
+) -> tuple:
     """RESEARCH §Verification F1 Targets — return (tier, warned_dims).
 
     TIER 1: all 4 dims >= target_self.
-    TIER 2: macro >= target_self AND no dim below 0.70 (some dims may
-            fall in [0.70, target_self)).
-    TIER 3 (fail): any dim < 0.70 OR macro < 0.80.
+    TIER 2: no dim below per_dim_floor AND macro >= macro_floor (some dims
+            may fall in [per_dim_floor, target_self)).
+    TIER 3 (fail): any dim < per_dim_floor OR macro < macro_floor.
+
+    Targets are parametrized so the CLI can opt into a v1-pragmatic preset
+    (0.60 / 0.35 / 0.50) when the available judge model can't clear the
+    research-strict defaults — see `--target-self` / `--per-dim-floor` /
+    `--macro-floor` flags. Whichever values are used at run time get
+    recorded in thresholds.json `_meta.f1_targets` for audit.
     """
     per_dim = [f1_self[d] for d in DRIFT_DIMENSIONS]
     macro = f1_self["macro"]
     if all(f >= target_self for f in per_dim):
         return 1, []
-    if any(f < 0.70 for f in per_dim) or macro < 0.80:
-        return 3, [d for d in DRIFT_DIMENSIONS if f1_self[d] < 0.70]
-    # Tier 2: borderline dims in [0.70, target_self)
+    if any(f < per_dim_floor for f in per_dim) or macro < macro_floor:
+        return 3, [d for d in DRIFT_DIMENSIONS if f1_self[d] < per_dim_floor]
+    # Tier 2: borderline dims in [per_dim_floor, target_self)
     warned = [d for d in DRIFT_DIMENSIONS if f1_self[d] < target_self]
     return 2, warned
 
@@ -181,9 +192,41 @@ def _classify_f1_tier(f1_self: dict, target_self: float = 0.85) -> tuple:
         "$OPENAI_API_KEY when set."
     ),
 )
+@click.option(
+    "--target-self",
+    default=0.85,
+    type=float,
+    show_default=True,
+    help=(
+        "Tier 1 per-dim F1 target on calibration self-eval (RESEARCH default 0.85). "
+        "Lower to e.g. 0.60 to accept the v1-pragmatic preset when the judge can't "
+        "hit research-strict targets."
+    ),
+)
+@click.option(
+    "--per-dim-floor",
+    default=0.70,
+    type=float,
+    show_default=True,
+    help=(
+        "Tier 3 trigger: any dim F1 below this floor fails calibration. "
+        "RESEARCH default 0.70; v1-pragmatic 0.35."
+    ),
+)
+@click.option(
+    "--macro-floor",
+    default=0.80,
+    type=float,
+    show_default=True,
+    help=(
+        "Tier 3 trigger: macro F1 below this floor fails calibration. "
+        "RESEARCH default 0.80; v1-pragmatic 0.50."
+    ),
+)
 def main(
     hermes_repo, seed, output_jsonl, output_thresholds, model, api_base,
     no_derive, reuse_jsonl, eval_model, eval_api_base, eval_api_key,
+    target_self, per_dim_floor, macro_floor,
 ):
     """Build the drift calibration set + derive F1-optimized thresholds."""
     console.print("[bold]Phase 18: Drift calibration build[/bold]\n")
@@ -316,7 +359,20 @@ def main(
     # 5. Compute F1 self-eval (RA6 / Tier classification) — detector-side
     console.print("\n[bold]5. Computing F1 self-eval (calibration set)[/bold]")
     f1_self = _compute_per_dim_f1(dataset, thresholds, eval_config)
-    tier, warned_dims = _classify_f1_tier(f1_self)
+    tier, warned_dims = _classify_f1_tier(
+        f1_self,
+        target_self=target_self,
+        per_dim_floor=per_dim_floor,
+        macro_floor=macro_floor,
+    )
+    is_relaxed = (
+        target_self < 0.85 or per_dim_floor < 0.70 or macro_floor < 0.80
+    )
+    if is_relaxed:
+        console.print(
+            f"  [yellow]Using relaxed F1 targets: target_self={target_self} "
+            f"per_dim_floor={per_dim_floor} macro_floor={macro_floor}[/yellow]"
+        )
 
     f1_table = Table(title="F1 Calibration Self-Eval")
     f1_table.add_column("Dim", style="bold")
@@ -364,9 +420,16 @@ def main(
         "f1_self": f1_self,
         "f1_tier": tier,
         "f1_warned_dims": warned_dims,
+        "f1_targets": {
+            "target_self": target_self,
+            "per_dim_floor": per_dim_floor,
+            "macro_floor": macro_floor,
+            "preset": "v1-pragmatic" if is_relaxed else "research-strict",
+        },
         "calibration_timestamp": datetime.now(timezone.utc).isoformat(),
         "generator_model": config.judge_model,
         "judge_model": eval_config.eval_model,
+        "judge_api_base": eval_config.api_base,
         "seed": seed,
         "num_examples": len(dataset.examples),
     }

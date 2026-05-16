@@ -206,15 +206,21 @@ def main(
         eval_config.api_base = eval_api_base
     if eval_api_key:
         eval_config.api_key = eval_api_key
-    elif eval_model and eval_model.startswith("openai/") and not eval_api_key:
-        # Sensible default: route OpenAI-prefixed models to $OPENAI_API_KEY
-        # when no explicit key override is given.
-        openai_key = os.getenv("OPENAI_API_KEY")
-        if openai_key:
-            eval_config.api_key = openai_key
-            if not eval_api_base:
-                # Default OpenAI endpoint when api_base is not overridden.
-                eval_config.api_base = None
+    elif eval_model and not eval_api_key:
+        # Auto-route ONLY OpenAI-hosted families (gpt-/o1-/chatgpt-) to api.openai.com
+        # via $OPENAI_API_KEY. Other "openai/<name>" model ids (qwen-*, glm-*, etc.)
+        # use the OpenAI-compatible adapter against a non-OpenAI api_base — keep
+        # the inherited config.api_base + config.api_key in that case.
+        m = eval_model.removeprefix("openai/")
+        is_openai_hosted = (
+            m.startswith("gpt-") or m.startswith("o1-") or m.startswith("chatgpt-")
+        )
+        if is_openai_hosted:
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if openai_key:
+                eval_config.api_key = openai_key
+                if not eval_api_base:
+                    eval_config.api_base = None
 
     console.print(f"  hermes-agent repo: {config.hermes_agent_path}")
     same_model = config.judge_model == eval_config.eval_model

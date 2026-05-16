@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Stabilization, Enhancement & Expansion
-status: executing
-stopped_at: Completed 18-02 — DriftDetector + DriftCalibrationBuilder + derive_thresholds (Wave 1)
-last_updated: "2026-05-15T13:54:36.652Z"
-last_activity: 2026-05-15
+status: paused
+stopped_at: Phase 18 paused at Plan 18-03 Task 2 — calibration blockers (zero persona coverage + same-family bias), see 18-03-SUMMARY.md
+last_updated: "2026-05-16T02:55:00Z"
+last_activity: 2026-05-16
 progress:
   total_phases: 11
   completed_phases: 5
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-23)
 
 ## Current Position
 
-Phase: 18 (Personality Drift Detection) — EXECUTING
-Plan: 3 of 5
-Status: Ready to execute
-Last activity: 2026-05-15
+Phase: 18 (Personality Drift Detection) — PAUSED at Plan 18-03 Task 2
+Plan: 3 of 5 (Task 1 ✓ shipped; Task 2 paused for calibration blockers)
+Status: paused — blocked on calibration fix (see todo 2026-05-16-resume-phase-18-calibration.md)
+Last activity: 2026-05-16
 
 Progress: [█████████░] 94%
 
@@ -67,6 +67,7 @@ Progress: [█████████░] 94%
 - [Phase 13-08 2026-05-08]: evolve_tool_params CLI end-to-end pipeline landed at `evolution/tools/evolve_tool_params.py` (991 LoC; 14 flags). Wires all Wave 1-3 atomic components into a single user entry point: discover → ToolModule (13-02) → joint metric+feedback (13-03) → ParamConsistencyChecker (13-04) → CostTracker w/ _CostStopper StopperProtocol adapter (13-05) → persist_per_tool_rates (13-06) → V1BaselineGate (13-07). Loud-by-default GEPA failure (D-15a closure); `--allow-miprov2-fallback` opt-in records `optimizer_used: 'miprov2'` in metrics.json. FAILED_<ts>/ + ABORTED_<ts>/ + success output topology. Hard scope guard verified (`grep -c 'write_back'` = 0). Wave 0 RED tests GREEN; full suite 385 passed + 1 xfailed. Phase 13 = **8/8 plans complete**.
 - [Phase 18-01 2026-05-15]: Wave 0 RED scaffolds — 14 failing pytest scaffolds (10 in tests/prompts/test_drift_detector.py + 4 in tests/prompts/test_drift_calibration.py) plus first-ever tests/prompts/conftest.py (mock_drift_lm, dummy_thresholds, drift_calibration_mini_path fixtures) and 6-row deterministic mini calibration fixture. .gitignore now exempts datasets/prompts/drift_calibration.jsonl + drift_thresholds.json per D-CAL-02. Lazy module imports inside test helpers let pytest --collect-only succeed before Wave 1/3 production code exists; tests fail at run time with ModuleNotFoundError as intended. tests/prompts/ test count rose from 97 to 111 with zero regression. Commits: 97f8c08, bba021c, c00ad1f.
 - [Phase 18-02 2026-05-15]: Wave 1 — DriftDetector + DriftCalibrationBuilder + derive_thresholds shipped (drift_detector.py 258 LoC + drift_calibration.py 271 LoC). DriftDetector uses typed-float DSPy Signature with try/except ValidationError -> 0.0 fallback (NOT 0.5) per RA1/M4 prevention. LM constructed in __init__ with temperature=0.7 + cache=False (RA2/Pitfall A — closes the 'stdev=0 collapses conservative decision' failure mode). check() does 3-run averaging with mean-stdev > threshold conservative rule (D-ROB-02); severity ladder: 0 dims=pass, 1=warn (still deploys), 2+=reject. DriftCalibrationBuilder uses config.judge_model (NOT eval_model) at temperature=0.9 for RA5 model differentiation. derive_thresholds pure-stdlib F1 brute scan over [0.10,0.90] step 0.05 — zero sklearn/numpy/scipy imports (RA3, verified by two-layer source-grep + sys.modules guard). All 13 Wave 0 RED tests turn GREEN; tests/prompts/ 97->110 passed; repo 514->527 passed. Commits: 32324aa, 4821678.
+- [Phase 18-03 2026-05-16] PAUSED: Task 1 shipped (`build_drift_calibration.py` CLI, commit 4251d72) + CLI improvement patch (per-side `--eval-model`/`--eval-api-base`/`--eval-api-key` + `--reuse-jsonl`, commit 23d67b1). Task 2 (live calibration + human spot-check) paused due to two compounding blockers: (a) Wave 1 generator omits `persona` from `DRIFT_TARGET_DIMS_PER_SECTION` → JSONL has zero persona-positive examples → persona F1 structurally 0.0 regardless of judge (design defect in `drift_calibration.py:141`); (b) `evolution.yaml` configures `eval == judge` to same DashScope model (`qwen-plus`) → RA5 same-family bias collapse; qwen-max as detector marginally helps (macro 0.379 → 0.418, still Tier 3); OpenAI gpt-4.1-mini judge would close RA5 but `OPENAI_API_KEY` is quota-exhausted. Tier-3-failing JSONL discarded (untracked, not committed). See `.planning/phases/18-personality-drift-detection/18-03-SUMMARY.md` + `.planning/todos/pending/2026-05-16-resume-phase-18-calibration.md`. Plans 18-04 + 18-05 are now blocked on this todo. **Side note — security incident:** orchestrator's environment-check bash one-liner leaked the user's `OPENAI_API_KEY` to terminal output (`${VAR:-NO}` semantics bug). User advised to rotate the key.
 
 ### Test Coverage (v2 baseline after 2026-05-07 fixes)
 
@@ -82,6 +83,6 @@ Progress: [█████████░] 94%
 
 ## Session Continuity
 
-Last session: 2026-05-15T13:54:36.641Z
-Stopped at: Completed 18-02 — DriftDetector + DriftCalibrationBuilder + derive_thresholds (Wave 1)
-Next: Continue Phase 18 with plan 18-03 (Wave 2 — generate calibration set + derive thresholds.json) or run `/gsd-verify-phase 18` after the remaining Wave 2-5 plans land.
+Last session: 2026-05-16T02:55:00Z
+Stopped at: Phase 18 paused at Plan 18-03 Task 2 (calibration blockers documented)
+Next: Resolve `.planning/todos/pending/2026-05-16-resume-phase-18-calibration.md` (patch drift_calibration.py:141 for 4-dim coverage + acquire non-qwen judge), then re-run `/gsd-execute-phase 18` — Plans 18-01/18-02 and Task 1 of 18-03 are SUMMARY-marked and will be skipped automatically.

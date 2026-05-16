@@ -29,6 +29,7 @@ from evolution.prompts.prompt_dataset import (
 )
 from evolution.prompts.prompt_metric import PromptBehavioralMetric
 from evolution.prompts.prompt_constraints import PromptRoleChecker
+from evolution.prompts.drift_detector import DRIFT_DIMENSIONS, DriftDetector
 
 console = Console()
 
@@ -121,6 +122,7 @@ def evolve(
     model: Optional[str] = None,
     api_base: Optional[str] = None,
     mode: str = "joint",
+    drift_thresholds_path: Path = Path("datasets/prompts/drift_thresholds.json"),
 ):
     """Main evolution function -- orchestrates the full prompt section optimization loop.
 
@@ -138,6 +140,10 @@ def evolve(
             also specified, round-robin single-section path is forced
             regardless of mode (D-RR-03 implicit routing). Effective mode
             is computed via _resolve_effective_mode(section, mode).
+        drift_thresholds_path: Path to drift_thresholds.json with per-dim
+            F1-optimized thresholds (Phase 18 D-BYPASS-02). There is no
+            bypass flag (D-BYPASS-01) -- to disable drift gate, re-calibrate
+            thresholds via `python -m evolution.prompts.build_drift_calibration`.
     """
 
     # ── 0. Mode resolution (D-RR-03 via single helper, W1 revision) ──────
@@ -499,7 +505,118 @@ def evolve(
         if not r.passed:
             all_pass = False
 
-    # 8c. Print all constraint results
+    # 8c. Personality drift detection (Phase 18, 3-run averaging per D-ROB-01/04)
+    console.print("  Running personality drift detection (3-run averaging)...")
+    drift_thresholds_raw = json.loads(drift_thresholds_path.read_text())
+    # Strip _meta if present; DriftDetector only needs the per-dim threshold floats.
+    drift_thresholds = {
+        d: drift_thresholds_raw[d] for d in DRIFT_DIMENSIONS
+    }
+    drift_detector = DriftDetector(config, drift_thresholds)
+    drift_results = drift_detector.check_all(
+        original_sections, evolved_sections,
+    )
+
+    drift_exceeded_dims: list = []
+    drift_per_dim_metrics: dict = {}
+    drift_report_lines: list = []
+
+    for dr in drift_results:
+        all_constraint_results.append(dr["constraint_result"])
+        if not dr["constraint_result"].passed:
+            all_pass = False
+        # D-OUT-02 aggregation for metrics.json
+        drift_per_dim_metrics[dr["section_id"]] = {
+            dim: {
+                "mean": v["mean"],
+                "stdev": v["stdev"],
+                "exceeded": v["exceeded"],
+            }
+            for dim, v in dr["per_dim"].items()
+        }
+        for dim, v in dr["per_dim"].items():
+            if v["exceeded"]:
+                drift_exceeded_dims.append(
+                    {"section": dr["section_id"], "dim": dim}
+                )
+
+        # D-GATE-03 soft warn / D-GATE-04 hard reject stdout
+        if dr["severity"] == "warn":
+            exceeded_dim = next(
+                d for d, v in dr["per_dim"].items() if v["exceeded"]
+            )
+            t_val = drift_thresholds[exceeded_dim]
+            mean_val = dr["per_dim"][exceeded_dim]["mean"]
+            console.print(
+                f"  [yellow]Drift warning: section '{dr['section_id']}' "
+                f"dim '{exceeded_dim}' = {mean_val:.2f} "
+                f"(threshold {t_val:.2f}) -- review evolved text "
+                f"before deploying[/yellow]"
+            )
+        elif dr["severity"] == "reject":
+            console.print(
+                f"  [red]Drift detected: section '{dr['section_id']}' "
+                f"exceeded {dr['exceeded_count']} dims -- REJECTED, "
+                f"evolved prompts NOT deployed[/red]"
+            )
+
+        # D-OUT-03 drift_report.txt sections -- last-run explanation only
+        drift_report_lines.append(f"## Section: {dr['section_id']}\n\n")
+        for dim, v in dr["per_dim"].items():
+            if not v["exceeded"]:
+                decision = "pass"
+            elif dr["severity"] == "warn":
+                decision = "warn"
+            else:
+                decision = "reject"
+            drift_report_lines.append(
+                f"### Dim: {dim}\n"
+                f"- Mean: {v['mean']:.4f}\n"
+                f"- Stdev: {v['stdev']:.4f}\n"
+                f"- Threshold: {drift_thresholds[dim]:.2f}\n"
+                f"- Decision: {decision}\n"
+                f"- Raw scores: {v['raw']}\n\n"
+            )
+        drift_report_lines.append(
+            f"**Explanation:** {dr['explanation']}\n\n"
+        )
+
+    drift_passed = not any(
+        dr["severity"] == "reject" for dr in drift_results
+    )
+
+    # D-OUT-01: Rich Table -- 5 sections x 4 dims = up to 20 rows
+    drift_table = Table(
+        title="Drift Detection (per-section x per-dim, 3-run averaged)"
+    )
+    drift_table.add_column("Section", style="bold")
+    drift_table.add_column("Dim")
+    drift_table.add_column("Mean", justify="right")
+    drift_table.add_column("Stdev", justify="right")
+    drift_table.add_column("Threshold", justify="right")
+    drift_table.add_column("Exceeded", justify="center")
+    drift_table.add_column("Status")
+    for dr in drift_results:
+        for dim in DRIFT_DIMENSIONS:
+            v = dr["per_dim"][dim]
+            exc_str = "[red]x[/red]" if v["exceeded"] else "[green]ok[/green]"
+            status = ""
+            if dr["severity"] == "warn" and v["exceeded"]:
+                status = "[yellow]WARN[/yellow]"
+            elif dr["severity"] == "reject" and v["exceeded"]:
+                status = "[red]REJECT[/red]"
+            drift_table.add_row(
+                dr["section_id"],
+                dim,
+                f"{v['mean']:.3f}",
+                f"{v['stdev']:.3f}",
+                f"{drift_thresholds[dim]:.2f}",
+                exc_str,
+                status,
+            )
+    console.print(drift_table)
+
+    # 8d. Print all constraint results (was step 8c pre-Phase-18)
     for c in all_constraint_results:
         icon = "+" if c.passed else "x"
         color = "green" if c.passed else "red"
@@ -508,20 +625,43 @@ def evolve(
         )
 
     if not all_pass:
-        # Save failed results for inspection
+        # Save failed results for inspection (D-GATE-04 + D-OUT-03)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = Path("output") / "prompts" / f"FAILED_{timestamp}"
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        # FAILED metrics -- include drift_* so post-mortem can read why
+        failed_metrics = {
+            "timestamp": timestamp,
+            "status": "FAILED",
+            "constraints_passed": False,
+        }
+        if drift_results:
+            failed_metrics["drift_passed"] = drift_passed
+            failed_metrics["drift_per_dim"] = drift_per_dim_metrics
+            failed_metrics["drift_thresholds"] = drift_thresholds
+            failed_metrics["drift_exceeded_dims"] = drift_exceeded_dims
         (output_dir / "metrics.json").write_text(
-            json.dumps(
-                {
-                    "timestamp": timestamp,
-                    "status": "FAILED",
-                    "constraints_passed": False,
-                },
-                indent=2,
-            )
+            json.dumps(failed_metrics, indent=2)
         )
+
+        # Also write evolved_sections.json, diff.txt, drift_report.txt
+        # to enable human review of REJECT decision (D-GATE-04 + D-OUT-03)
+        if drift_results:
+            evolved_data_failed = [
+                {"section_id": s.section_id, "text": s.text}
+                for s in evolved_sections
+            ]
+            (output_dir / "evolved_sections.json").write_text(
+                json.dumps(evolved_data_failed, indent=2)
+            )
+            (output_dir / "diff.txt").write_text(
+                _generate_diff(original_sections, evolved_sections)
+            )
+            (output_dir / "drift_report.txt").write_text(
+                "".join(drift_report_lines)
+            )
+
         console.print(
             "[red]Constraint validation FAILED -- not deploying[/red]"
         )
@@ -791,6 +931,26 @@ def evolve(
         metrics["epsilon_pp"] = EPSILON_PP
         metrics["joint_vs_roundrobin_delta_pp"] = joint_vs_roundrobin_delta_pp
         metrics["ab_elapsed_seconds"] = ab_elapsed
+    # Phase 18 / D-OUT-02 + D-ROB-04: drift_* fields written UNCONDITIONALLY
+    # for BOTH joint AND round-robin modes. This block sits at 4-space indent
+    # (function-body level), OUTSIDE the joint-only `if` block above.
+    if drift_results:
+        metrics["drift_per_dim"] = drift_per_dim_metrics
+        metrics["drift_thresholds"] = drift_thresholds
+        metrics["drift_exceeded_dims"] = drift_exceeded_dims
+        metrics["drift_passed"] = drift_passed
+        if drift_exceeded_dims:
+            # D-OUT-02: drift_max_section / drift_max_dim = (section, dim) with highest mean
+            max_entry = max(
+                (
+                    (sid, dim, drift_per_dim_metrics[sid][dim]["mean"])
+                    for sid in drift_per_dim_metrics
+                    for dim in drift_per_dim_metrics[sid]
+                ),
+                key=lambda x: x[2],
+            )
+            metrics["drift_max_section"] = max_entry[0]
+            metrics["drift_max_dim"] = max_entry[1]
     (output_dir / "metrics.json").write_text(
         json.dumps(metrics, indent=2)
     )
@@ -798,6 +958,12 @@ def evolve(
     # Save diff
     diff_text = _generate_diff(original_sections, evolved_sections)
     (output_dir / "diff.txt").write_text(diff_text)
+
+    # D-OUT-03: drift_report.txt (success path)
+    if drift_results:
+        (output_dir / "drift_report.txt").write_text(
+            "".join(drift_report_lines)
+        )
 
     # ── 11.5. Joint mode: persist A/B baseline副本文件(shared-prefix layout, D-OUT-01)
     if effective_mode == "joint" and ab_baseline_evolved_sections:
@@ -874,7 +1040,19 @@ def evolve(
          "section-by-section). --section <id> implicitly forces round-robin "
          "single-section even with --mode joint.",
 )
-def main(section, iterations, eval_source, hermes_repo, dry_run, model, api_base, mode):
+@click.option(
+    "--drift-thresholds-path",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("datasets/prompts/drift_thresholds.json"),
+    help=(
+        "Path to drift_thresholds.json (per-dim F1-optimized thresholds "
+        "derived by `python -m evolution.prompts.build_drift_calibration`). "
+        "Phase 18 D-BYPASS-02. There is no bypass flag (D-BYPASS-01). "
+        "Do not bypass drift detection without re-calibrating thresholds."
+    ),
+)
+def main(section, iterations, eval_source, hermes_repo, dry_run, model,
+         api_base, mode, drift_thresholds_path):
     """Evolve hermes-agent prompt sections using DSPy + GEPA optimization."""
     evolve(
         section=section,
@@ -885,6 +1063,7 @@ def main(section, iterations, eval_source, hermes_repo, dry_run, model, api_base
         model=model,
         api_base=api_base,
         mode=mode,
+        drift_thresholds_path=drift_thresholds_path,
     )
 
 

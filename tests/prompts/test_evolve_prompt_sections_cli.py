@@ -407,6 +407,50 @@ class TestABBaseline:
             # instance via wraps (MagicMock auto-proxies); no override.
             return spy
 
+        # Phase 18 / Plan 18-04: DriftDetector is now part of step 8c.
+        # In the sandboxed tmp_path workdir, the default
+        # `datasets/prompts/drift_thresholds.json` does not exist, so click's
+        # `exists=True` would reject the default flag. Create a stub so the
+        # CLI can boot; DriftDetector itself is patched below to a no-op.
+        import json as _json
+        drift_thresholds_dir = tmp_path / "datasets" / "prompts"
+        drift_thresholds_dir.mkdir(parents=True, exist_ok=True)
+        (drift_thresholds_dir / "drift_thresholds.json").write_text(
+            _json.dumps({
+                "tone": 0.65,
+                "formality": 0.25,
+                "vocabulary": 0.6,
+                "persona": 0.35,
+            })
+        )
+
+        # DriftDetector mock: zero drift across all sections so step 8c passes
+        # and the pipeline proceeds to step 9 (holdout eval) where these
+        # TestABBaseline assertions live.
+        mock_drift = MagicMock()
+        from evolution.core.constraints import ConstraintResult as _CR
+        mock_drift.check_all.return_value = [
+            {
+                "section_id": s.section_id,
+                "per_dim": {
+                    "tone": {"mean": 0.0, "stdev": 0.0, "exceeded": False, "raw": [0.0, 0.0, 0.0]},
+                    "formality": {"mean": 0.0, "stdev": 0.0, "exceeded": False, "raw": [0.0, 0.0, 0.0]},
+                    "vocabulary": {"mean": 0.0, "stdev": 0.0, "exceeded": False, "raw": [0.0, 0.0, 0.0]},
+                    "persona": {"mean": 0.0, "stdev": 0.0, "exceeded": False, "raw": [0.0, 0.0, 0.0]},
+                },
+                "exceeded_count": 0,
+                "severity": "pass",
+                "explanation": "mock",
+                "constraint_result": _CR(
+                    passed=True,
+                    constraint_name="drift_detection",
+                    message=f"Drift OK in '{s.section_id}': no dims exceeded",
+                    details="{}",
+                ),
+            }
+            for s in fake_sections
+        ]
+
         runner = CliRunner()
 
         # Run in tmp_path so output/ folder is sandboxed
@@ -429,6 +473,9 @@ class TestABBaseline:
             ), patch(
                 "evolution.prompts.evolve_prompt_sections.PromptRoleChecker",
                 return_value=mock_role,
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.DriftDetector",
+                return_value=mock_drift,
             ), patch(
                 "evolution.prompts.evolve_prompt_sections.PromptModule",
                 side_effect=_make_spy_module,  # BLOCKER-2: factory per call

@@ -318,7 +318,7 @@ Plans:
   1. DriftDetector compares original vs evolved text on tone, formality, personality dimensions
   2. Constraint gate rejects evolved sections with drift score exceeding threshold
   3. Drift report included in optimization output
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 **Wave 0**
@@ -334,7 +334,7 @@ Plans:
 - [x] 18-04-PLAN.md — evolve_prompt_sections.py step 8c DriftDetector wiring + drift_* metrics fields + drift_report.txt + Rich Table + --drift-thresholds-path Click flag + D-BYPASS-01 absence
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 18-05-PLAN.md — TestDriftGate CLI integration tests (5 tests covering D-OUT-02 / D-BYPASS-01..02 regression / D-GATE-03 soft warn / D-GATE-04 hard reject + FAILED_<ts>/ artifacts)
+- [x] 18-05-PLAN.md — TestDriftGate CLI integration tests (5 tests covering D-OUT-02 / D-BYPASS-01..02 regression / D-GATE-03 soft warn / D-GATE-04 hard reject + FAILED_<ts>/ artifacts)
 
 ### Phase 19: SessionDB Behavioral Mining for Prompts
 **Goal**: Mine session transcripts for behavioral patterns to generate targeted test scenarios

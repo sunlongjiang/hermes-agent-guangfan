@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Stabilization, Enhancement & Expansion
 status: executing
-stopped_at: Completed Plan 18-03 — drift calibration artifacts shipped under v1-pragmatic Tier 2
-last_updated: "2026-05-16T08:36:00Z"
+stopped_at: Plan 18-04 complete — DriftDetector wired into evolve_prompt_sections.py step 8c (Wave 3)
+last_updated: "2026-05-16T08:48:14.510Z"
 last_activity: 2026-05-16
 progress:
   total_phases: 11
   completed_phases: 5
   total_plans: 34
-  completed_plans: 33
-  percent: 97
+  completed_plans: 34
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-23)
 ## Current Position
 
 Phase: 18 (Personality Drift Detection) — EXECUTING
-Plan: 4 of 5 (Plans 18-01/02/03 complete; calibration thresholds shipped)
-Status: Ready to execute Plan 18-04 (drift-gate wiring)
+Plan: 5 of 5 (Plans 18-01/02/03/04 complete; drift gate wired into evolve_prompt_sections.py)
+Status: Ready to execute Plan 18-05 (Wave 5 CLI integration tests)
 Last activity: 2026-05-16
 
-Progress: [██████████] 97%
+Progress: [██████████] 100%
 
 ## Milestone v2.0 Phase Map
 
@@ -68,6 +68,7 @@ Progress: [██████████] 97%
 - [Phase 18-01 2026-05-15]: Wave 0 RED scaffolds — 14 failing pytest scaffolds (10 in tests/prompts/test_drift_detector.py + 4 in tests/prompts/test_drift_calibration.py) plus first-ever tests/prompts/conftest.py (mock_drift_lm, dummy_thresholds, drift_calibration_mini_path fixtures) and 6-row deterministic mini calibration fixture. .gitignore now exempts datasets/prompts/drift_calibration.jsonl + drift_thresholds.json per D-CAL-02. Lazy module imports inside test helpers let pytest --collect-only succeed before Wave 1/3 production code exists; tests fail at run time with ModuleNotFoundError as intended. tests/prompts/ test count rose from 97 to 111 with zero regression. Commits: 97f8c08, bba021c, c00ad1f.
 - [Phase 18-02 2026-05-15]: Wave 1 — DriftDetector + DriftCalibrationBuilder + derive_thresholds shipped (drift_detector.py 258 LoC + drift_calibration.py 271 LoC). DriftDetector uses typed-float DSPy Signature with try/except ValidationError -> 0.0 fallback (NOT 0.5) per RA1/M4 prevention. LM constructed in __init__ with temperature=0.7 + cache=False (RA2/Pitfall A — closes the 'stdev=0 collapses conservative decision' failure mode). check() does 3-run averaging with mean-stdev > threshold conservative rule (D-ROB-02); severity ladder: 0 dims=pass, 1=warn (still deploys), 2+=reject. DriftCalibrationBuilder uses config.judge_model (NOT eval_model) at temperature=0.9 for RA5 model differentiation. derive_thresholds pure-stdlib F1 brute scan over [0.10,0.90] step 0.05 — zero sklearn/numpy/scipy imports (RA3, verified by two-layer source-grep + sys.modules guard). All 13 Wave 0 RED tests turn GREEN; tests/prompts/ 97->110 passed; repo 514->527 passed. Commits: 32324aa, 4821678.
 - [Phase 18-03 2026-05-16] COMPLETE: `build_drift_calibration.py` CLI shipped (~400 LoC, 14 flags) + Wave 1 generator fix for persona coverage (commit c7c334f) + v1-pragmatic tier-target flags (commits 91b2007, 49cc32d) + live calibration artifacts (commit 15b9c4c). Final stack: qwen-plus generator (DashScope) + gpt-5.5 detector (api1.mygod.buzz reseller), Tier 2 borderline pass under v1-pragmatic targets (target_self=0.60 / per_dim_floor=0.35 / macro_floor=0.50). Per-dim F1: tone 0.60 ✓, formality 0.42 WARN, vocabulary 0.40 WARN, persona 0.73 ✓, macro 0.54. 10/10 human spot-check passed on the JSONL — data quality is high; the relaxed targets reflect the available judge's discrimination ceiling, not a data problem. `_meta` audit block records preset/targets/models/endpoint/seed/tier for re-derivation tracking. `datasets/prompts/{drift_calibration.jsonl, drift_thresholds.json}` git-tracked via `.gitignore` exception from Plan 18-01. **Security incidents:** two API keys (`OPENAI_API_KEY` sk-proj-…, reseller sk-b43e…dae1) leaked to terminal during execution; user advised to rotate. **Tech debt:** v1-pragmatic gate is permissive (formality/vocabulary warned dims won't catch subtle drift) — future calibration with a stronger judge can tighten back toward research-strict (0.85/0.70/0.80). See `.planning/phases/18-personality-drift-detection/18-03-SUMMARY.md`.
+- [Phase 18-04 2026-05-16] COMPLETE: Wave 3 — DriftDetector wired into evolve_prompt_sections.py constraint gate via 5 surgical edits (commit b20f83b). Edit-1 import; Edit-2 step 8c gate (3-run severity ladder pass/warn/reject + Rich Table titled "Drift Detection (per-section x per-dim, 3-run averaged)" + drift_report.txt buffer + extended FAILED path); Edit-3 success metrics drift_per_dim/drift_thresholds/drift_exceeded_dims/drift_passed/drift_max_section/drift_max_dim at 4-space function-body indent OUTSIDE the joint-only conditional (D-ROB-04 mechanically — both joint AND round-robin pipelines emit drift_* fields); Edit-4 success-path drift_report.txt write parallel with diff.txt; Edit-5 --drift-thresholds-path Click flag (default datasets/prompts/drift_thresholds.json, click.Path(exists=True, path_type=Path)) threaded through main() → evolve(). D-BYPASS-01 enforced via decorator-anchored grep `@click\.option\(\s*"--(no|skip)-drift-check"` returning 0 — Click rejects --no-drift-check at parse time with exit 2. Rule-3 deviation: TestABBaseline._ab_patched_run patched to stub drift_thresholds.json under tmp_path + mock DriftDetector to no-op so three sandboxed A/B baseline tests continue passing. TestJointPipeline needed no change — its existing dspy.LM mock causes Wave 1's typed-float ValidationError fallback to fire (all dims → 0.0 → severity=pass). tests/prompts/: 110 passed (baseline retained); tests/: 527 passed, 1 skipped, 1 xfailed (Wave 1 repo baseline retained); Wave 1 drift unit tests: 13 passed. Plan 18-05 (Wave 5 CLI integration tests) UNBLOCKED. See `.planning/phases/18-personality-drift-detection/18-04-SUMMARY.md`.
 
 ### Test Coverage (v2 baseline after 2026-05-07 fixes)
 
@@ -83,6 +84,6 @@ Progress: [██████████] 97%
 
 ## Session Continuity
 
-Last session: 2026-05-16T08:36:00Z
-Stopped at: Plan 18-03 complete — calibration thresholds (v1-pragmatic Tier 2) on disk + git-tracked
-Next: Continue Phase 18 with Plan 18-04 (wire DriftDetector into evolve_prompt_sections.py step 8c using `datasets/prompts/drift_thresholds.json`).
+Last session: 2026-05-16T09:30:00Z
+Stopped at: Plan 18-04 complete — DriftDetector integration shipped (commit b20f83b); drift_* metrics emit on both joint and round-robin pipelines; D-BYPASS-01 enforced
+Next: Continue Phase 18 with Plan 18-05 (Wave 5 CLI integration tests — test_metrics_json_has_drift_fields, test_round_robin_metrics_json_has_drift_fields, test_drift_thresholds_path_flag, test_no_skip_drift_flag, test_drift_report_in_output_dir, plus FAILED-path drift_report.txt assertion).

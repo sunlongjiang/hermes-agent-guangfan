@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "calibration_timestamp": "2026-05-16T08:32:47.848584+00:00",
+    "derived_from": "datasets/prompts/drift_calibration.jsonl",
+    "f1_self": {
+      "formality": 0.4167,
+      "macro": 0.536,
+      "persona": 0.7273,
+      "tone": 0.6,
+      "vocabulary": 0.4
+    },
+    "f1_targets": {
+      "macro_floor": 0.5,
+      "per_dim_floor": 0.35,
+      "preset": "v1-pragmatic",
+      "target_self": 0.6
+    },
+    "f1_tier": 2,
+    "f1_warned_dims": [
+      "formality",
+      "vocabulary"
+    ],
+    "generator_model": "openai/qwen-plus",
+    "judge_api_base": "https://api1.mygod.buzz/v1",
+    "judge_model": "openai/gpt-5.5",
+    "num_examples": 30,
+    "seed": 42
+  },
+  "formality": 0.25,
+  "persona": 0.35,
+  "tone": 0.65,
+  "vocabulary": 0.6
+}

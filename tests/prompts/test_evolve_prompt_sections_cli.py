@@ -639,3 +639,529 @@ class TestABBaseline:
 
         # GEPA called N times for per-section round-robin, no extra A/B calls
         assert mock_gepa.return_value.compile.call_count == len(fake_sections)
+
+
+# ── Phase 18 / Wave 4: DriftDetector integration tests ───────────────────
+
+
+class TestDriftGate:
+    """Integration tests for the Wave 3 drift-gate wiring in evolve_prompt_sections.
+
+    Verifies D-OUT-02 metrics fields (joint AND round-robin per D-ROB-04),
+    D-BYPASS-01/02 CLI flag policy, and D-GATE-03/04 soft-warn vs hard-reject
+    output topology.
+    """
+
+    def _drift_run(
+        self,
+        argv: list,
+        fake_sections,
+        scores: list,
+        drift_results: list,
+        tmp_path,
+        thresholds_override: dict = None,
+    ):
+        """Run main() with the drift gate active.
+
+        argv: extra CLI args (e.g. ['--mode', 'joint', '--iterations', '2',
+            '--hermes-repo', '/fake']).
+        drift_results: list of result-dicts that DriftDetector.check_all will
+            return. One dict per section (must match section_id of each
+            fake_section).
+        thresholds_override: if provided, written into a temp thresholds file
+            that the test passes via --drift-thresholds-path.
+        """
+        import json
+        import os
+        from unittest.mock import MagicMock, patch
+        import dspy
+        from click.testing import CliRunner
+        from evolution.prompts.evolve_prompt_sections import main
+        from evolution.prompts.prompt_module import PromptModule
+        from evolution.prompts.prompt_dataset import (
+            PromptBehavioralExample,
+            PromptBehavioralDataset,
+        )
+        from evolution.core.constraints import ConstraintResult
+
+        # Default thresholds — every dim 0.5 so DriftDetector(config, t)
+        # constructor in Wave 3 won't raise ValueError on missing dims.
+        thresholds = thresholds_override or {
+            "tone": 0.5, "formality": 0.5, "vocabulary": 0.5, "persona": 0.5,
+        }
+        # Click.Path(exists=True) requires a real file -> write to tmp_path
+        thresholds_path = tmp_path / "test_drift_thresholds.json"
+        thresholds_path.write_text(json.dumps(thresholds))
+
+        # Build a real dataset with populated splits (holdout must be non-empty
+        # so step-9 holdout eval consumes the scored sequence). Mirrors
+        # TestABBaseline._ab_patched_run dataset shape.
+        examples = [
+            PromptBehavioralExample(
+                section_id=fake_sections[i % len(fake_sections)].section_id,
+                user_message=f"task {i}",
+                expected_behavior=f"behavior {i}",
+                difficulty="easy",
+            )
+            for i in range(4)
+        ]
+        fake_ds = PromptBehavioralDataset(
+            train=examples,
+            val=examples,
+            holdout=examples,
+        )
+
+        mock_metric_instance = MagicMock(side_effect=scores)
+
+        mock_constraint = MagicMock()
+        mock_constraint._check_growth.return_value = ConstraintResult(
+            True, "growth", "OK"
+        )
+        mock_constraint._check_non_empty.return_value = ConstraintResult(
+            True, "non_empty", "OK"
+        )
+
+        # PromptRoleChecker: pass through (drift gate's behavior is what matters).
+        mock_role = MagicMock()
+        mock_role.check_all.return_value = [
+            ConstraintResult(True, "role_preservation", "OK")
+            for _ in fake_sections
+        ]
+
+        # DriftDetector: returns the caller-supplied drift_results.
+        mock_drift = MagicMock()
+        mock_drift.check_all.return_value = drift_results
+
+        mock_builder_instance = MagicMock()
+        mock_builder_instance.generate.return_value = fake_ds
+        mock_builder_instance.build.return_value = fake_ds
+
+        # PromptModule factory: real PromptModule wrapped in a MagicMock spy.
+        # Override __call__ to return a fake Prediction so holdout scoring
+        # consumes metric.side_effect deterministically (mirror TestABBaseline).
+        def _make_spy_module(*args, **kwargs):
+            real = PromptModule(fake_sections)
+            spy = MagicMock(wraps=real)
+            spy._section_ids = real._section_ids
+            spy._frozen_instructions = real._frozen_instructions
+            spy.section_predictors = real.section_predictors
+            spy.get_evolved_sections = MagicMock(return_value=fake_sections)
+            spy.named_predictors = MagicMock(return_value=[
+                (f"section_predictors['{sid}']", MagicMock())
+                for sid in real._section_ids
+            ])
+            spy.return_value = dspy.Prediction(output="mocked output")
+            return spy
+
+        runner = CliRunner()
+        full_argv = list(argv) + [
+            "--drift-thresholds-path", str(thresholds_path),
+        ]
+
+        orig_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            with patch(
+                "evolution.prompts.evolve_prompt_sections.extract_prompt_sections",
+                return_value=fake_sections,
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.PromptDatasetBuilder",
+                return_value=mock_builder_instance,
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.PromptBehavioralMetric",
+                return_value=mock_metric_instance,
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.ConstraintValidator",
+                return_value=mock_constraint,
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.PromptRoleChecker",
+                return_value=mock_role,
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.DriftDetector",
+                return_value=mock_drift,
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.PromptModule",
+                side_effect=_make_spy_module,
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.dspy.GEPA"
+            ) as mock_gepa, patch(
+                "evolution.prompts.evolve_prompt_sections.dspy.LM"
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.dspy.configure"
+            ), patch(
+                "evolution.prompts.evolve_prompt_sections.dspy.context",
+                MagicMock(),
+            ):
+                mock_gepa.return_value.compile.side_effect = (
+                    lambda mod, trainset, valset=None: mod
+                )
+                result = runner.invoke(main, full_argv, catch_exceptions=False)
+
+            # Find output dir (success path under output/prompts/<ts>/ or
+            # failure path under output/prompts/FAILED_<ts>/).
+            output_root = tmp_path / "output" / "prompts"
+            run_dirs = (
+                sorted(output_root.iterdir(), key=lambda p: p.stat().st_mtime)
+                if output_root.exists()
+                else []
+            )
+            latest = run_dirs[-1] if run_dirs else None
+            return result, latest, thresholds_path
+        finally:
+            os.chdir(orig_cwd)
+
+    @staticmethod
+    def _make_drift_result(section_id: str, per_dim_overrides: dict = None):
+        """Construct a Wave-1-shaped drift result dict.
+
+        per_dim_overrides: {<dim>: {"mean": float, "stdev": float, "exceeded": bool}}
+        Missing dims default to mean=0.1 stdev=0.01 exceeded=False (pass).
+        """
+        from evolution.core.constraints import ConstraintResult
+
+        per_dim_overrides = per_dim_overrides or {}
+        per_dim = {}
+        for dim in ("tone", "formality", "vocabulary", "persona"):
+            override = per_dim_overrides.get(dim, {})
+            per_dim[dim] = {
+                "mean": override.get("mean", 0.1),
+                "stdev": override.get("stdev", 0.01),
+                "exceeded": override.get("exceeded", False),
+                "raw": override.get("raw", [0.1, 0.1, 0.1]),
+            }
+        exceeded_count = sum(1 for v in per_dim.values() if v["exceeded"])
+        if exceeded_count == 0:
+            severity, passed = "pass", True
+            message = f"Drift OK in '{section_id}': no dims exceeded"
+        elif exceeded_count == 1:
+            severity, passed = "warn", True
+            message = f"Drift WARN in '{section_id}'"
+        else:
+            severity, passed = "reject", False
+            message = (
+                f"Drift REJECT in '{section_id}': "
+                f"{exceeded_count} dims exceeded"
+            )
+        return {
+            "section_id": section_id,
+            "per_dim": per_dim,
+            "exceeded_count": exceeded_count,
+            "severity": severity,
+            "explanation": f"mock explanation for {section_id}",
+            "constraint_result": ConstraintResult(
+                passed=passed,
+                constraint_name="drift_detection",
+                message=message,
+                details="{}",
+            ),
+        }
+
+    # ── D-OUT-02 metrics.json fields (joint mode) ────────────────────
+
+    def test_metrics_json_has_drift_fields(self, tmp_path):
+        """Success path metrics.json contains drift_per_dim, drift_thresholds,
+        drift_passed, drift_exceeded_dims (D-OUT-02) — JOINT mode."""
+        import json
+
+        fake_sections = _make_fake_sections(3)
+        # All sections drift-pass — 0 exceeded, severity=pass.
+        drift_results = [
+            self._make_drift_result(s.section_id) for s in fake_sections
+        ]
+        # 4 holdout × (baseline + evolved) interleaved + 4 A/B holdout seq.
+        scores = [0.5, 0.8] * 4 + [0.75] * 4
+
+        result, latest, _ = self._drift_run(
+            argv=["--mode", "joint", "--iterations", "2",
+                  "--hermes-repo", "/fake"],
+            fake_sections=fake_sections,
+            scores=scores,
+            drift_results=drift_results,
+            tmp_path=tmp_path,
+        )
+
+        assert result.exit_code == 0, f"Run failed: {result.output[:500]}"
+        assert latest is not None, "Output dir not created"
+        # Success path must NOT be FAILED_*
+        assert not latest.name.startswith("FAILED_"), (
+            f"Expected success path output/prompts/<ts>/, got {latest.name}"
+        )
+        metrics = json.loads((latest / "metrics.json").read_text())
+        # D-OUT-02 — all 4 mandatory drift fields
+        assert "drift_per_dim" in metrics, (
+            f"missing drift_per_dim: {sorted(metrics.keys())}"
+        )
+        assert "drift_thresholds" in metrics
+        assert "drift_passed" in metrics
+        assert "drift_exceeded_dims" in metrics
+        assert metrics["drift_passed"] is True
+        assert metrics["drift_exceeded_dims"] == []
+        # Per-section per-dim shape
+        for sid in (s.section_id for s in fake_sections):
+            assert sid in metrics["drift_per_dim"]
+            for dim in ("tone", "formality", "vocabulary", "persona"):
+                assert dim in metrics["drift_per_dim"][sid]
+                assert "mean" in metrics["drift_per_dim"][sid][dim]
+                assert "exceeded" in metrics["drift_per_dim"][sid][dim]
+
+    # ── D-OUT-02 + D-ROB-04 metrics.json fields (round-robin mode) ──
+    # REGRESSION GUARD for Plan 18-04 Edit-3 indent ambiguity. If a future
+    # executor places the `metrics["drift_per_dim"] = ...` block INSIDE the
+    # joint-only `if effective_mode == "joint" ...` conditional, round-robin
+    # runs would silently skip the assignment and this test fails.
+
+    def test_round_robin_metrics_json_has_drift_fields(self, tmp_path):
+        """Round-robin mode metrics.json MUST contain the same drift_* fields
+        as joint mode (D-ROB-04 — both modes write drift_*).
+
+        This is the regression guard for Plan 18-04 Edit-3 indent placement:
+        the unconditional drift block in evolve_prompt_sections.py MUST sit
+        at function-body indent (NOT inside the joint-only conditional).
+        """
+        import json
+
+        fake_sections = _make_fake_sections(3)
+        drift_results = [
+            self._make_drift_result(s.section_id) for s in fake_sections
+        ]
+        # Round-robin has NO A/B baseline → only 8 metric calls
+        # (4 holdout × baseline+evolved interleaved). No trailing 4 A/B scores.
+        scores = [0.5, 0.8] * 4
+
+        result, latest, _ = self._drift_run(
+            argv=["--mode", "round-robin", "--iterations", "2",
+                  "--hermes-repo", "/fake"],
+            fake_sections=fake_sections,
+            scores=scores,
+            drift_results=drift_results,
+            tmp_path=tmp_path,
+        )
+
+        assert result.exit_code == 0, (
+            f"Round-robin run failed: {result.output[:500]}"
+        )
+        assert latest is not None, "No output dir created"
+        assert not latest.name.startswith("FAILED_"), (
+            f"Expected success path, got {latest.name}"
+        )
+        metrics = json.loads((latest / "metrics.json").read_text())
+        # D-OUT-02 + D-ROB-04 — drift_* MUST be present in round-robin too.
+        # If this assertion fires, the Wave-3 Edit-3 drift block was placed
+        # INSIDE the joint-only conditional (8-space indent) instead of at
+        # function-body level (4-space). Re-read Plan 18-04 Edit-3.
+        assert "drift_per_dim" in metrics, (
+            "D-ROB-04 REGRESSION: round-robin metrics.json missing "
+            "drift_per_dim. The drift_* assignment in "
+            "evolve_prompt_sections.py is incorrectly nested inside "
+            "`if effective_mode == \"joint\" ...`. "
+            f"Got keys: {sorted(metrics.keys())}"
+        )
+        assert "drift_thresholds" in metrics, (
+            "D-ROB-04 REGRESSION: drift_thresholds missing in "
+            "round-robin metrics"
+        )
+        assert "drift_passed" in metrics, (
+            "D-ROB-04 REGRESSION: drift_passed missing in "
+            "round-robin metrics"
+        )
+        assert "drift_exceeded_dims" in metrics, (
+            "D-ROB-04 REGRESSION: drift_exceeded_dims missing in "
+            "round-robin metrics"
+        )
+        # round-robin mode MUST NOT have joint_score / roundrobin_baseline_score
+        # (sanity check that we're actually running round-robin path).
+        assert metrics.get("mode") == "round-robin", (
+            f"Expected mode=round-robin, got {metrics.get('mode')}"
+        )
+
+    # ── D-BYPASS-02 --drift-thresholds-path flag ─────────────────────
+
+    def test_drift_thresholds_path_flag(self, tmp_path):
+        """--drift-thresholds-path accepts a custom file and loads its values."""
+        import json
+
+        fake_sections = _make_fake_sections(3)
+        custom_thresholds = {
+            "tone": 0.42, "formality": 0.55,
+            "vocabulary": 0.61, "persona": 0.33,
+        }
+        drift_results = [
+            self._make_drift_result(s.section_id) for s in fake_sections
+        ]
+        scores = [0.5, 0.8] * 4 + [0.75] * 4
+
+        result, latest, t_path = self._drift_run(
+            argv=["--mode", "joint", "--iterations", "2",
+                  "--hermes-repo", "/fake"],
+            fake_sections=fake_sections,
+            scores=scores,
+            drift_results=drift_results,
+            tmp_path=tmp_path,
+            thresholds_override=custom_thresholds,
+        )
+
+        assert result.exit_code == 0, f"Run failed: {result.output[:500]}"
+        assert latest is not None
+        metrics = json.loads((latest / "metrics.json").read_text())
+        # The custom thresholds must propagate verbatim
+        assert metrics["drift_thresholds"] == custom_thresholds, (
+            f"expected {custom_thresholds}, "
+            f"got {metrics['drift_thresholds']}"
+        )
+
+    # ── D-BYPASS-01 regression guard ─────────────────────────────────
+
+    def test_no_skip_drift_flag(self):
+        """--no-drift-check and --skip-drift-check MUST NOT be registered.
+
+        D-BYPASS-01: removing the bypass flag is non-negotiable. Any future
+        change that re-adds it will fail this regression test loudly.
+        """
+        from click.testing import CliRunner
+        from evolution.prompts.evolve_prompt_sections import main
+
+        runner = CliRunner()
+        for bad_flag in ("--no-drift-check", "--skip-drift-check"):
+            result = runner.invoke(
+                main,
+                [bad_flag, "--hermes-repo", "/fake"],
+                catch_exceptions=False,
+            )
+            assert result.exit_code != 0, (
+                f"D-BYPASS-01 REGRESSION: {bad_flag} was accepted "
+                f"(exit 0). Phase 18 forbids bypass flags."
+            )
+            # Click emits "No such option" or "no such option" on unknown flag.
+            err_text = (result.output or "").lower()
+            assert (
+                "no such option" in err_text
+                or "unrecognized" in err_text
+                or bad_flag.lstrip("-") in err_text
+            ), (
+                f"Expected unknown-option error for {bad_flag}; "
+                f"got: {result.output[:300]!r}"
+            )
+
+    # ── D-GATE-03 soft-warn path ─────────────────────────────────────
+
+    def test_one_dim_drift_warns_but_deploys(self, tmp_path):
+        """1 dim exceeded -> yellow stdout warning AND evolved_sections.json
+        still written under output/prompts/<ts>/ (D-GATE-03)."""
+        import json
+
+        fake_sections = _make_fake_sections(3)
+        # Section 0 has tone exceeded (1 dim) -> warn but still deploys.
+        drift_results = [
+            self._make_drift_result(
+                fake_sections[0].section_id,
+                per_dim_overrides={
+                    "tone": {
+                        "mean": 0.9, "stdev": 0.02, "exceeded": True,
+                        "raw": [0.88, 0.9, 0.92],
+                    },
+                },
+            ),
+            self._make_drift_result(fake_sections[1].section_id),
+            self._make_drift_result(fake_sections[2].section_id),
+        ]
+        scores = [0.5, 0.8] * 4 + [0.75] * 4
+
+        result, latest, _ = self._drift_run(
+            argv=["--mode", "joint", "--iterations", "2",
+                  "--hermes-repo", "/fake"],
+            fake_sections=fake_sections,
+            scores=scores,
+            drift_results=drift_results,
+            tmp_path=tmp_path,
+        )
+
+        assert result.exit_code == 0, (
+            f"Soft-warn must NOT block (D-GATE-03); got "
+            f"{result.exit_code}: {result.output[:300]}"
+        )
+        assert latest is not None
+        # Success path -> NOT in FAILED_* dir
+        assert not latest.name.startswith("FAILED_"), (
+            f"D-GATE-03: 1-dim warn must NOT go to FAILED dir, "
+            f"got {latest.name}"
+        )
+        assert (latest / "evolved_sections.json").exists(), (
+            "D-GATE-03: evolved_sections.json MUST be written on warn"
+        )
+        metrics = json.loads((latest / "metrics.json").read_text())
+        assert metrics["drift_passed"] is True, (
+            "D-GATE-03: 1-dim warn must keep drift_passed=true"
+        )
+        assert len(metrics["drift_exceeded_dims"]) == 1
+        assert metrics["drift_exceeded_dims"][0] == {
+            "section": fake_sections[0].section_id, "dim": "tone",
+        }
+
+    # ── D-GATE-04 hard-reject path ───────────────────────────────────
+
+    def test_two_dim_drift_rejects_and_writes_failed_dir(self, tmp_path):
+        """2+ dims exceeded -> FAILED_<ts>/ created with drift_report.txt +
+        evolved_sections.json + diff.txt + metrics.json drift_passed=false
+        (D-GATE-04)."""
+        import json
+
+        fake_sections = _make_fake_sections(3)
+        # Section 0 has tone AND formality exceeded (2 dims) -> reject.
+        drift_results = [
+            self._make_drift_result(
+                fake_sections[0].section_id,
+                per_dim_overrides={
+                    "tone": {
+                        "mean": 0.9, "stdev": 0.02, "exceeded": True,
+                        "raw": [0.88, 0.9, 0.92],
+                    },
+                    "formality": {
+                        "mean": 0.85, "stdev": 0.03, "exceeded": True,
+                        "raw": [0.82, 0.85, 0.88],
+                    },
+                },
+            ),
+            self._make_drift_result(fake_sections[1].section_id),
+            self._make_drift_result(fake_sections[2].section_id),
+        ]
+        scores = [0.5, 0.8] * 4 + [0.75] * 4
+
+        result, latest, _ = self._drift_run(
+            argv=["--mode", "joint", "--iterations", "2",
+                  "--hermes-repo", "/fake"],
+            fake_sections=fake_sections,
+            scores=scores,
+            drift_results=drift_results,
+            tmp_path=tmp_path,
+        )
+
+        # FAILED path must be created — latest dir name starts with "FAILED_".
+        assert latest is not None
+        assert latest.name.startswith("FAILED_"), (
+            f"D-GATE-04: 2+ dims must route to FAILED_<ts>/; got {latest.name}"
+        )
+        # Required FAILED artifacts (D-GATE-04 + D-OUT-03)
+        assert (latest / "metrics.json").exists()
+        assert (latest / "drift_report.txt").exists(), (
+            "D-OUT-03: drift_report.txt MUST be written in FAILED dir"
+        )
+        assert (latest / "evolved_sections.json").exists()
+        assert (latest / "diff.txt").exists()
+
+        metrics = json.loads((latest / "metrics.json").read_text())
+        assert metrics["status"] == "FAILED"
+        assert metrics["constraints_passed"] is False
+        assert metrics["drift_passed"] is False, (
+            "D-GATE-04: drift_passed MUST be false"
+        )
+        assert len(metrics["drift_exceeded_dims"]) >= 2
+
+        # drift_report.txt has markdown structure.
+        report = (latest / "drift_report.txt").read_text()
+        assert "## Section:" in report, (
+            "drift_report.txt missing markdown section headers"
+        )
+        assert "### Dim:" in report, (
+            "drift_report.txt missing dim subheaders"
+        )
+        assert "Decision:" in report

@@ -42,7 +42,7 @@
 - [ ] v2: SessionDB mining for tool/prompt training data (TOOL-V2-01, PMPT-V2-04)
 - [x] v2: Think-augmented tool selection (TOOL-V2-03) — Validated in Phase 15 (pending real-LM UAT for CR-01..04 scenarios)
 - [x] v2: Joint section optimization (PMPT-V2-01) — Validated in Phase 17 (pending real-LM UAT for joint vs RR holdout comparison + WR-07 [ACTIVE:sid] tag reflection quality)
-- [ ] v2: Personality drift detection (PMPT-V2-02)
+- [x] v2: Personality drift detection (PMPT-V2-02) — Validated in Phase 18 (5 plans, 9/9 must-haves verified; v1-pragmatic Tier 2 calibration ships with formality/vocabulary warned dims — tighten in a follow-up phase when a stronger judge is available)
 - [ ] v2: Darwinian code evolution (V2-CODE-01)
 - [ ] v2: Continuous evolution loop (V2-LOOP-01)
 
@@ -117,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-15 — Phase 17 (joint-section-optimization, PMPT-V2-01) complete with 3 plans (Wave 1-3); verifier 8/9 truths VERIFIED + 1 mechanism-verified pending real-LM UAT. Code review found 2 BLOCKER + 7 WARNING — all 9 fixed in REVIEW-FIX pass. 514 tests passing, zero regression. Phase 18 (personality-drift-detection, PMPT-V2-02) next.*
+*Last updated: 2026-05-16 — Phase 18 (personality-drift-detection, PMPT-V2-02) complete with 5 plans; verifier 9/9 must-haves PASS. DriftDetector (4-dim pairwise judge, 3-run averaging, severity ladder) + calibration pipeline + drift-gate wired into evolve_prompt_sections.py + 6 CLI integration tests. v1-pragmatic Tier 2 calibration on qwen-plus generator + gpt-5.5 reseller detector (formality/vocabulary warned; persona 0.73, tone 0.60). 533 tests passing, zero regression. Phase 19 (sessiondb-behavioral-mining-for-prompts) next.*

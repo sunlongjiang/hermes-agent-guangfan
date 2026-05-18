@@ -10,6 +10,7 @@ Classes:
     PromptDatasetBuilder   -- per-section weighted synthetic generation via DSPy
 """
 
+import hashlib
 import json
 import random
 import re
@@ -25,6 +26,32 @@ from evolution.core.config import EvolutionConfig
 from evolution.prompts.prompt_loader import PromptSection
 
 console = Console()
+
+
+# ── Hash + bucket helpers (D-15, mirror evolution/tools/session_miner.py:50-63) ──
+def _normalize_task_hash(task: str) -> str:
+    """Return sha256(strip + lower + collapse_whitespace(task))[:16].
+
+    Used by SessionPromptMiner (Plan 02) for cross-split dedup and by
+    evolve_prompt_sections.py (Plan 04) for D-16 union dedup. Mirrors
+    evolution/tools/session_miner._normalize_task_hash byte-for-byte.
+    """
+    norm = re.sub(r"\s+", " ", (task or "").lower()).strip()
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:16]
+
+
+def _hash_to_split(h: str) -> str:
+    """Bucket per D-15: <70 train / <85 val / else holdout.
+
+    Deterministic split using first 8 hex chars mod 100. Mirrors
+    evolution/tools/session_miner._hash_to_split byte-for-byte.
+    """
+    bucket = int(h[:8], 16) % 100
+    if bucket < 70:
+        return "train"
+    if bucket < 85:
+        return "val"
+    return "holdout"
 
 
 # ── Data Classes ────────────────────────────────────────────────────────────

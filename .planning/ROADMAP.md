@@ -344,14 +344,14 @@ Plans:
   1. Importer extracts behavioral examples from real sessions (what section guided which behavior)
   2. Mined examples augment synthetic dataset with real-world scenarios
   3. Integration with PromptDatasetBuilder as additional data source
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 **Wave 1**
 - [x] 19-01-dataset-schema-extension-PLAN.md — PromptBehavioralExample.mining_signals 字段 + hash-bucket split 辅助 (D-02 / D-10 / D-15)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 19-02-session-prompt-miner-PLAN.md — SessionPromptMiner 核心 (4 路 extractor + ConfirmBehavioralExample 单 call 5 字段 + DriftDetector 1-run 复用 + split_and_duplicate) (D-01..D-15 / D-18 / D-23 / D-24)
+- [x] 19-02-session-prompt-miner-PLAN.md — SessionPromptMiner 核心 (4 路 extractor + ConfirmBehavioralExample 单 call 5 字段 + DriftDetector 1-run 复用 + split_and_duplicate) (D-01..D-15 / D-18 / D-23 / D-24)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 19-03-mine-prompt-sessions-cli-PLAN.md — mine_prompt_sessions CLI (13 flags + --i-have-consent gate + Rich Table + 5 文件输出 + FAILED 路径) (D-04 / D-14 / D-17 / D-20 / D-25)

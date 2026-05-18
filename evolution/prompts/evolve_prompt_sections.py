@@ -26,6 +26,8 @@ from evolution.prompts.prompt_module import PromptModule
 from evolution.prompts.prompt_dataset import (
     PromptDatasetBuilder,
     PromptBehavioralDataset,
+    PromptBehavioralExample,   # NEW: Phase 19 D-16 union helper 使用
+    _normalize_task_hash,      # NEW: Phase 19 D-15/D-16 hash dedup
 )
 from evolution.prompts.prompt_metric import PromptBehavioralMetric
 from evolution.prompts.prompt_constraints import PromptRoleChecker
@@ -110,6 +112,57 @@ def _generate_diff(
     return "\n".join(diff_parts)
 
 
+# ── Phase 19 D-24: JSONL bad-line tolerance ──────────────────────────
+_SESSION_SOURCE_BAD_LINE_WARN: float = 0.05
+
+
+def _load_session_dataset_resilient(
+    session_dir: Path,
+) -> tuple["PromptBehavioralDataset", dict]:
+    """Load PromptBehavioralDataset from <dir>/{train,val,holdout}.jsonl
+    with per-line try/except. Phase 19 D-24 mirror of Phase 14's
+    _load_jsonl_skip_bad — we do NOT modify PromptBehavioralDataset.load
+    (CONTEXT explicit v2-STAB-01 boundary).
+
+    Args:
+        session_dir: Directory produced by mine_prompt_sessions.
+
+    Returns:
+        (dataset, skipped_counts) where skipped_counts is
+        {"train": int, "val": int, "holdout": int}. Missing files yield
+        an empty split with skip=0.
+
+    Side effects:
+        Prints yellow Rich warning when any split's skip rate > 5%.
+    """
+    dataset = PromptBehavioralDataset()
+    skipped = {"train": 0, "val": 0, "holdout": 0}
+    for split_name in ("train", "val", "holdout"):
+        jp = session_dir / f"{split_name}.jsonl"
+        if not jp.exists():
+            continue
+        kept: list = []
+        sk = 0
+        with open(jp) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    d = json.loads(line)
+                    kept.append(PromptBehavioralExample.from_dict(d))
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    sk += 1
+        setattr(dataset, split_name, kept)
+        skipped[split_name] = sk
+        total = len(kept) + sk
+        if total > 0 and sk / total > _SESSION_SOURCE_BAD_LINE_WARN:
+            console.print(
+                f"[yellow]⚠ session-source {split_name}: skipped {sk}/{total} "
+                f"bad JSONL lines ({sk / total * 100:.1f}%) > 5% threshold[/yellow]"
+            )
+    return dataset, skipped
+
+
 # ── Main Pipeline ────────────────────────────────────────────────────────────
 
 
@@ -123,6 +176,7 @@ def evolve(
     api_base: Optional[str] = None,
     mode: str = "joint",
     drift_thresholds_path: Path = Path("datasets/prompts/drift_thresholds.json"),
+    session_source: Optional[Path] = None,
 ):
     """Main evolution function -- orchestrates the full prompt section optimization loop.
 
@@ -144,6 +198,12 @@ def evolve(
             F1-optimized thresholds (Phase 18 D-BYPASS-02). There is no
             bypass flag (D-BYPASS-01) -- to disable drift gate, re-calibrate
             thresholds via `python -m evolution.prompts.build_drift_calibration`.
+        session_source: Optional Path to a directory produced by
+            `python -m evolution.prompts.mine_prompt_sessions`. When given,
+            the session-mined dataset (train/val/holdout JSONL) is unioned
+            with the synthetic dataset via hash dedup (Phase 19 D-21/D-16).
+            None = pre-Phase-19 behavior (synthetic only). Works in both
+            joint and round-robin modes.
     """
 
     # ── 0. Mode resolution (D-RR-03 via single helper, W1 revision) ──────
@@ -1051,8 +1111,22 @@ def evolve(
         "Do not bypass drift detection without re-calibrating thresholds."
     ),
 )
+@click.option(
+    "--session-source",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help=(
+        "Phase 19 D-21. Path to a directory produced by "
+        "`python -m evolution.prompts.mine_prompt_sessions` containing "
+        "train.jsonl / val.jsonl / holdout.jsonl. When provided, the "
+        "session-mined dataset is UNION-merged (hash dedup, session "
+        "wins on collision per D-16) with the synthetic PromptDatasetBuilder "
+        "output. Works in both --mode joint and --mode round-robin. "
+        "Omitting this flag preserves pre-Phase-19 behavior."
+    ),
+)
 def main(section, iterations, eval_source, hermes_repo, dry_run, model,
-         api_base, mode, drift_thresholds_path):
+         api_base, mode, drift_thresholds_path, session_source):
     """Evolve hermes-agent prompt sections using DSPy + GEPA optimization."""
     evolve(
         section=section,
@@ -1064,6 +1138,7 @@ def main(section, iterations, eval_source, hermes_repo, dry_run, model,
         api_base=api_base,
         mode=mode,
         drift_thresholds_path=drift_thresholds_path,
+        session_source=session_source,
     )
 
 

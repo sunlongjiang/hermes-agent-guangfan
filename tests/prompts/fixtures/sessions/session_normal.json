@@ -1,0 +1,9 @@
+{
+  "messages": [
+    {"role": "user", "content": "What's my schedule today?"},
+    {"role": "assistant", "content": "Let me check your calendar."},
+    {"role": "user", "content": "Wait, I already told you I'm on vacation this week."},
+    {"role": "assistant", "content": "Sorry, I forgot. Let me note that down."},
+    {"role": "user", "content": "Stop apologizing so much, just be concise."}
+  ]
+}

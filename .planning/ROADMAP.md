@@ -344,7 +344,23 @@ Plans:
   1. Importer extracts behavioral examples from real sessions (what section guided which behavior)
   2. Mined examples augment synthetic dataset with real-world scenarios
   3. Integration with PromptDatasetBuilder as additional data source
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+**Wave 1**
+- [ ] 19-01-dataset-schema-extension-PLAN.md — PromptBehavioralExample.mining_signals 字段 + hash-bucket split 辅助 (D-02 / D-10 / D-15)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 19-02-session-prompt-miner-PLAN.md — SessionPromptMiner 核心 (4 路 extractor + ConfirmBehavioralExample 单 call 5 字段 + DriftDetector 1-run 复用 + split_and_duplicate) (D-01..D-15 / D-18 / D-23 / D-24)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 19-03-mine-prompt-sessions-cli-PLAN.md — mine_prompt_sessions CLI (13 flags + --i-have-consent gate + Rich Table + 5 文件输出 + FAILED 路径) (D-04 / D-14 / D-17 / D-20 / D-25)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 19-04-evolve-prompt-sections-integration-PLAN.md — evolve_prompt_sections --session-source union (D-16 hash dedup + joint/round-robin dual-mode + D-22 不动 build_drift_calibration) (D-13 / D-14 / D-16 / D-21 / D-22 / D-24)
+
+**Wave 5** *(blocked on Wave 2 + Wave 3 + Wave 4 completion)*
+- [ ] 19-05-integration-tests-PLAN.md — SessionPromptMiner unit tests + mine_prompt_sessions CLI tests + --session-source 集成测试 + 4 个 fixtures + step 8c / build_drift_calibration regression guard
 
 ### Phase 20: Benchmark-Gated Validation
 **Goal**: Use TBLite as optional hard regression gate after optimization

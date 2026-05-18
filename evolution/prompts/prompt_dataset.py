@@ -42,13 +42,16 @@ class PromptBehavioralExample:
         user_message: Simulated user input.
         expected_behavior: Rubric describing correct agent behavior.
         difficulty: One of 'easy', 'medium', 'hard'.
-        source: Provenance: 'synthetic', 'golden'.
+        source: Provenance: 'synthetic', 'golden', 'session' (Phase 19 D-02 extends enum).
+        mining_signals: Which session-mining signal(s) produced this example;
+            empty for synthetic/golden. Phase 19 D-02.
     """
     section_id: str
     user_message: str
     expected_behavior: str
     difficulty: str = "medium"
     source: str = "synthetic"
+    mining_signals: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Serialize all fields to a dict."""
@@ -58,11 +61,17 @@ class PromptBehavioralExample:
             "expected_behavior": self.expected_behavior,
             "difficulty": self.difficulty,
             "source": self.source,
+            "mining_signals": self.mining_signals,
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> "PromptBehavioralExample":
-        """Deserialize from dict, ignoring unknown keys."""
+        """Deserialize from dict, ignoring unknown keys.
+
+        Backward compatible: pre-Phase-19 JSONL has no mining_signals key →
+        defaults to []. The existing __dataclass_fields__ filter handles
+        unknown keys, so historical Phase 9 datasets load unchanged.
+        """
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 

@@ -10,6 +10,7 @@ Classes:
     PromptDatasetBuilder   -- per-section weighted synthetic generation via DSPy
 """
 
+import hashlib
 import json
 import random
 import re
@@ -27,6 +28,32 @@ from evolution.prompts.prompt_loader import PromptSection
 console = Console()
 
 
+# ── Hash + bucket helpers (D-15, mirror evolution/tools/session_miner.py:50-63) ──
+def _normalize_task_hash(task: str) -> str:
+    """Return sha256(strip + lower + collapse_whitespace(task))[:16].
+
+    Used by SessionPromptMiner (Plan 02) for cross-split dedup and by
+    evolve_prompt_sections.py (Plan 04) for D-16 union dedup. Mirrors
+    evolution/tools/session_miner._normalize_task_hash byte-for-byte.
+    """
+    norm = re.sub(r"\s+", " ", (task or "").lower()).strip()
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:16]
+
+
+def _hash_to_split(h: str) -> str:
+    """Bucket per D-15: <70 train / <85 val / else holdout.
+
+    Deterministic split using first 8 hex chars mod 100. Mirrors
+    evolution/tools/session_miner._hash_to_split byte-for-byte.
+    """
+    bucket = int(h[:8], 16) % 100
+    if bucket < 70:
+        return "train"
+    if bucket < 85:
+        return "val"
+    return "holdout"
+
+
 # ── Data Classes ────────────────────────────────────────────────────────────
 
 
@@ -42,13 +69,16 @@ class PromptBehavioralExample:
         user_message: Simulated user input.
         expected_behavior: Rubric describing correct agent behavior.
         difficulty: One of 'easy', 'medium', 'hard'.
-        source: Provenance: 'synthetic', 'golden'.
+        source: Provenance: 'synthetic', 'golden', 'session' (Phase 19 D-02 extends enum).
+        mining_signals: Which session-mining signal(s) produced this example;
+            empty for synthetic/golden. Phase 19 D-02.
     """
     section_id: str
     user_message: str
     expected_behavior: str
     difficulty: str = "medium"
     source: str = "synthetic"
+    mining_signals: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Serialize all fields to a dict."""
@@ -58,11 +88,17 @@ class PromptBehavioralExample:
             "expected_behavior": self.expected_behavior,
             "difficulty": self.difficulty,
             "source": self.source,
+            "mining_signals": self.mining_signals,
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> "PromptBehavioralExample":
-        """Deserialize from dict, ignoring unknown keys."""
+        """Deserialize from dict, ignoring unknown keys.
+
+        Backward compatible: pre-Phase-19 JSONL has no mining_signals key →
+        defaults to []. The existing __dataclass_fields__ filter handles
+        unknown keys, so historical Phase 9 datasets load unchanged.
+        """
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 

@@ -1,5 +1,6 @@
 """Tests for prompt behavioral dataset classes and builder."""
 
+import collections
 import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -13,6 +14,74 @@ from evolution.prompts.prompt_dataset import (
     PromptDatasetBuilder,
 )
 from evolution.core.config import EvolutionConfig
+
+
+# ── Phase 19 D-15 hash + bucket helpers (RED first) ─────────────────────────
+
+
+class TestHashBucketHelpers:
+    """Phase 19 D-15: module-level _normalize_task_hash / _hash_to_split must
+    mirror evolution/tools/session_miner.py:50-63 byte-for-byte and be
+    importable from evolution.prompts.prompt_dataset so Plan 02 (miner) and
+    Plan 04 (evolve_prompt_sections union) can reuse them.
+    """
+
+    def test_normalize_task_hash_whitespace_and_case(self):
+        """Whitespace collapse + lowercase + strip produce identical hashes."""
+        from evolution.prompts.prompt_dataset import _normalize_task_hash
+        assert _normalize_task_hash("  Hello   WORLD  ") == _normalize_task_hash("hello world")
+
+    def test_normalize_task_hash_empty_and_none_safe(self):
+        """Empty string and None both return a 16-char hex without raising."""
+        from evolution.prompts.prompt_dataset import _normalize_task_hash
+        assert len(_normalize_task_hash("")) == 16
+        assert len(_normalize_task_hash(None)) == 16
+
+    def test_normalize_task_hash_deterministic(self):
+        """Same input gives the same hash on every call."""
+        from evolution.prompts.prompt_dataset import _normalize_task_hash
+        assert _normalize_task_hash("repeat me") == _normalize_task_hash("repeat me")
+
+    def test_hash_to_split_bucket_distribution(self):
+        """Over 1000 unique inputs each bucket gets > 100 entries (70/15/15)."""
+        from evolution.prompts.prompt_dataset import (
+            _normalize_task_hash,
+            _hash_to_split,
+        )
+        counts = collections.Counter(
+            _hash_to_split(_normalize_task_hash(f"msg{i}")) for i in range(1000)
+        )
+        assert counts["train"] > 100
+        assert counts["val"] > 100
+        assert counts["holdout"] > 100
+
+    def test_hash_to_split_value_set(self):
+        """_hash_to_split only ever returns one of three known bucket names."""
+        from evolution.prompts.prompt_dataset import _hash_to_split
+        for h in ("00000000", "47000000", "56000000", "ffffffff"):
+            assert _hash_to_split(h) in {"train", "val", "holdout"}
+
+    def test_helpers_byte_identical_to_session_miner(self):
+        """Phase 19 D-15: helper output must equal Phase 14 session_miner output
+        for the same inputs (byte-for-byte mirror requirement).
+        """
+        from evolution.prompts.prompt_dataset import (
+            _normalize_task_hash as prompt_hash,
+            _hash_to_split as prompt_split,
+        )
+        from evolution.tools.session_miner import (
+            _normalize_task_hash as tool_hash,
+            _hash_to_split as tool_split,
+        )
+        for sample in [
+            "  Hello   WORLD  ",
+            "the quick brown fox",
+            "请帮我搜索 session",
+            "",
+            "  ",
+        ]:
+            assert prompt_hash(sample) == tool_hash(sample)
+            assert prompt_split(prompt_hash(sample)) == tool_split(tool_hash(sample))
 
 
 # ── PromptBehavioralExample Tests ──────────────────────────────────────────
@@ -63,7 +132,7 @@ class TestPromptBehavioralExample:
         assert not hasattr(ex, "extra_field")
 
     def test_to_dict_contains_all_fields(self):
-        """to_dict() includes all five fields."""
+        """to_dict() includes all six fields (Phase 19 D-02: + mining_signals)."""
         ex = PromptBehavioralExample(
             section_id="default_agent_identity",
             user_message="Who are you?",
@@ -74,8 +143,71 @@ class TestPromptBehavioralExample:
         d = ex.to_dict()
         assert set(d.keys()) == {
             "section_id", "user_message", "expected_behavior",
-            "difficulty", "source",
+            "difficulty", "source", "mining_signals",
         }
+
+    # ── Phase 19 D-02 mining_signals tests ──────────────────────────────
+
+    def test_mining_signals_default_empty_list(self):
+        """Phase 19 D-02: mining_signals defaults to []."""
+        ex = PromptBehavioralExample(
+            section_id="memory_guidance",
+            user_message="m",
+            expected_behavior="e",
+        )
+        assert ex.mining_signals == []
+
+    def test_mining_signals_explicit_construction(self):
+        """Phase 19 D-02: mining_signals can be set at construction time."""
+        ex = PromptBehavioralExample(
+            section_id="skills_guidance",
+            user_message="m",
+            expected_behavior="e",
+            mining_signals=["user_correction", "persona_drift"],
+        )
+        assert ex.mining_signals == ["user_correction", "persona_drift"]
+
+    def test_legacy_jsonl_backward_compat(self):
+        """Phase 19 D-02: Pre-Phase-19 dict (no mining_signals key) loads with []."""
+        legacy = {
+            "section_id": "memory_guidance",
+            "user_message": "m",
+            "expected_behavior": "e",
+            "difficulty": "easy",
+            "source": "synthetic",
+        }
+        ex = PromptBehavioralExample.from_dict(legacy)
+        assert ex.mining_signals == []
+        # to_dict round-trip emits the new key
+        assert ex.to_dict()["mining_signals"] == []
+
+    def test_source_session_value_allowed(self):
+        """Phase 19 D-02: source='session' is allowed (no enum validation)."""
+        ex = PromptBehavioralExample(
+            section_id="memory_guidance",
+            user_message="m",
+            expected_behavior="e",
+            source="session",
+            mining_signals=["user_correction"],
+        )
+        assert ex.source == "session"
+        assert ex.mining_signals == ["user_correction"]
+        # Round-trip preserves both new field values
+        restored = PromptBehavioralExample.from_dict(ex.to_dict())
+        assert restored.source == "session"
+        assert restored.mining_signals == ["user_correction"]
+
+    def test_from_dict_still_filters_unknown_keys_with_mining_signals(self):
+        """Phase 19 D-02: from_dict drops unknown keys even with mining_signals present."""
+        ex = PromptBehavioralExample.from_dict({
+            "section_id": "x",
+            "user_message": "m",
+            "expected_behavior": "e",
+            "mining_signals": ["oracle_disagreement"],
+            "rogue_key": "drop_me",
+        })
+        assert ex.mining_signals == ["oracle_disagreement"]
+        assert not hasattr(ex, "rogue_key")
 
 
 # ── PromptBehavioralDataset Tests ──────────────────────────────────────────

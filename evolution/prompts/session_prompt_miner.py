@@ -644,10 +644,146 @@ class SessionPromptMiner:
             lines.append(f"- {sid}: {excerpt}")
         return "\n".join(lines)
 
-    def mine(self, sessions_dir: Path, current_sections: list, limit: int = 0):
-        raise NotImplementedError("Task 2.4 fills this in")
+    def mine(
+        self,
+        sessions_dir: Path,
+        current_sections: list,
+        limit: int = 0,
+    ) -> list[PromptBehavioralExample]:
+        """Orchestrate: load sessions → 4 extractors → secret filter →
+        LLM judge → surface drift filter (D-09) → hash dedup + union
+        mining_signals (D-07).
+
+        Returns flat list of PromptBehavioralExample(source='session')
+        BEFORE bucket-split + train-only duplication. Caller (Plan 03 CLI)
+        invokes split_and_duplicate() to land on the final 3-split layout.
+        """
+        self.metrics = self._fresh_metrics()
+        self.metrics["judge_model"] = getattr(self.config, "judge_model", "") or ""
+
+        current_section_ids: set[str] = {s.section_id for s in current_sections}
+
+        session_paths = sorted(sessions_dir.glob("*.json"))
+        total_sessions = len(session_paths)
+        if limit and limit > 0:
+            session_paths = session_paths[:limit]
+
+        all_cands: list[Candidate] = []
+        for sp in session_paths:
+            session = self._load_session(sp)
+            if not session:
+                continue
+            messages = session.get("messages") or []
+            if not isinstance(messages, list):
+                continue
+            all_cands.extend(self._extract_user_correction(messages, str(sp)))
+            all_cands.extend(self._extract_section_specific_failure(messages, str(sp)))
+            all_cands.extend(self._extract_oracle_disagreement(messages, str(sp)))
+            all_cands.extend(self._extract_persona_drift(messages, str(sp)))
+
+        # D-23: secret filter (pre-judge to save LLM cost)
+        all_cands = self._filter_secrets(all_cands)
+
+        # D-24 + B3 fix: skip-rate warn monitors session_load_failures
+        # (file-level mining scope), NOT jsonl_skipped_lines (Plan 04 helper scope).
+        total_seen = total_sessions
+        session_failures = self.metrics["session_load_failures"]
+        if total_seen > 0 and session_failures / total_seen > JSONL_BAD_LINE_WARN_THRESHOLD:
+            console.print(
+                f"[yellow]⚠ session load: failed {session_failures}/{total_seen} files "
+                f"({session_failures / total_seen * 100:.1f}%)[/yellow]"
+            )
+
+        if not all_cands:
+            return []
+
+        # D-03 single-call LLM judge
+        verdict_pairs = self._judge_candidates(all_cands, current_sections)
+
+        # D-09 surface drift filter (after judge, since section_id comes from verdict)
+        verdict_pairs = self._filter_drift(verdict_pairs, current_section_ids)
+
+        # D-07/D-13 hash-key union into PromptBehavioralExample
+        # Same task_hash + same section_id → union mining_signals (single ex).
+        # Same task_hash + different section_id → multiple ex (D-07).
+        from collections import OrderedDict
+        by_key: "OrderedDict[tuple[str,str], PromptBehavioralExample]" = OrderedDict()
+        for c, v in verdict_pairs:
+            if v.verdict != "confirm_example":
+                continue  # D-05: false_positive already recorded in metrics
+            if (c.task_hash(), v.section_id) not in by_key:
+                by_key[(c.task_hash(), v.section_id)] = PromptBehavioralExample(
+                    section_id=v.section_id,
+                    user_message=c.task,
+                    expected_behavior=v.expected_behavior,
+                    difficulty=v.difficulty if v.difficulty in DIFFICULTY_VALUES else "medium",
+                    source="session",  # D-02 enum
+                    mining_signals=[c.signal],  # D-02 new field
+                )
+            else:
+                prev = by_key[(c.task_hash(), v.section_id)]
+                if c.signal not in prev.mining_signals:
+                    prev.mining_signals = sorted(set(prev.mining_signals) | {c.signal})
+        return list(by_key.values())
 
 
-def split_and_duplicate(*args, **kwargs):
-    """Implemented in Task 2.4. Placeholder so Plan 03 CLI imports don't fail mid-build."""
-    raise NotImplementedError("Task 2.4 fills this in")
+def split_and_duplicate(
+    examples: list[PromptBehavioralExample],
+    multiplier_override: Optional[dict[str, int]] = None,
+    metrics: Optional[dict] = None,
+) -> tuple[
+    list[PromptBehavioralExample],
+    list[PromptBehavioralExample],
+    list[PromptBehavioralExample],
+]:
+    """D-13/D-15: bucket by normalized task hash → 70/85/15 splits →
+    duplicate train-only by max-per-signal multiplier.
+
+    Returns (train, val, holdout) lists. Mutates `metrics` if provided:
+      - final_examples_by_split['<split>'] += per-split unique counts
+      - final_train_after_duplication = post-duplication train length
+      - mining_multiplier_used updated with override entries
+    """
+    train_raw: list[PromptBehavioralExample] = []
+    val_raw: list[PromptBehavioralExample] = []
+    holdout_raw: list[PromptBehavioralExample] = []
+    seen_hashes: set[str] = set()
+    for ex in examples:
+        h = _normalize_task_hash(ex.user_message)
+        if h in seen_hashes:
+            # D-15: same hash already routed; this can happen if two
+            # examples share user_message but differ on section_id —
+            # route both to the SAME split (the first split chosen for
+            # this hash). We compute the split deterministically from
+            # the hash so the same string always lands in the same split.
+            pass
+        seen_hashes.add(h)
+        split = _hash_to_split(h)
+        if split == "train":
+            train_raw.append(ex)
+        elif split == "val":
+            val_raw.append(ex)
+        else:
+            holdout_raw.append(ex)
+
+    # Update split counts (pre-duplication)
+    if metrics is not None:
+        metrics["final_examples_by_split"]["train"] = len(train_raw)
+        metrics["final_examples_by_split"]["val"] = len(val_raw)
+        metrics["final_examples_by_split"]["holdout"] = len(holdout_raw)
+        if multiplier_override:
+            merged = dict(DEFAULT_MULTIPLIER)
+            merged.update(
+                {k: v for k, v in multiplier_override.items() if k in DEFAULT_MULTIPLIER}
+            )
+            metrics["mining_multiplier_used"] = merged
+
+    # D-13: train-only duplication by max-multiplier
+    duped_train: list[PromptBehavioralExample] = []
+    for ex in train_raw:
+        mult = _multiplier_for(ex.mining_signals, multiplier_override)
+        duped_train.extend([ex] * mult)
+    if metrics is not None:
+        metrics["final_train_after_duplication"] = len(duped_train)
+
+    return duped_train, val_raw, holdout_raw

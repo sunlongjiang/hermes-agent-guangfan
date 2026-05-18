@@ -665,3 +665,244 @@ class TestMine:
             m.mine(Path(d), current_sections)
             assert m.metrics["session_load_failures"] == 19
             assert m.metrics["jsonl_skipped_lines"] == 0  # NOT incremented
+
+
+# ── Task 5.1 — Phase 19 Wave 5 integration scenarios ─────────────────────────
+
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+SESSIONS_DIR = FIXTURES_DIR / "sessions"
+
+
+@pytest.fixture
+def dummy_drift_thresholds_w6(monkeypatch):
+    """
+    Stub DriftDetector LM dependency so the detector can be instantiated
+    without a real API key.
+
+    Constraint (W6 fix): DriftDetector instantiation MUST happen AFTER this
+    fixture is applied; monkeypatch.setattr only intercepts subsequent
+    dspy.LM(...) constructions. Therefore consumer tests must call
+    SessionPromptMiner(..., drift_thresholds=dummy_drift_thresholds_w6)
+    inside the test body, AFTER this fixture has run. Constructing the miner
+    eagerly in another fixture would bypass the monkeypatch and trigger a
+    real LM init.
+
+    Lifecycle:
+        1. monkeypatch.setattr patches dspy.LM (active for the duration of
+           the test using this fixture).
+        2. Test body constructs SessionPromptMiner with these thresholds →
+           DriftDetector internally calls dspy.LM(...) → returns MagicMock.
+        3. Fixture teardown reverts the dspy.LM patch automatically.
+    """
+    import dspy
+
+    monkeypatch.setattr(dspy, "LM", lambda *a, **k: MagicMock())
+    # Also patch in the drift_detector module namespace (it imported dspy
+    # directly), mirroring how mock_drift_lm in conftest.py works.
+    import evolution.prompts.drift_detector as dd_mod
+
+    monkeypatch.setattr(dd_mod.dspy, "LM", lambda *a, **k: MagicMock())
+    return {"tone": 0.5, "formality": 0.5, "vocabulary": 0.5, "persona": 0.5}
+
+
+class TestPersonaDriftOneRunRegression:
+    """W3 fix: persona_drift extractor MUST call ._check_one_run (1-run) and
+    NOT ._check (3-run). 3-run is reserved for Phase 18 final gate; the
+    candidate-recall stage uses 1-run to control LLM cost.
+    """
+
+    def test_extract_persona_drift_uses_one_run_not_three_run(
+        self, mock_config, dummy_drift_thresholds_w6
+    ):
+        from evolution.prompts.session_prompt_miner import SessionPromptMiner
+
+        # W6 fix: construct miner inside test body, after fixture-applied
+        # monkeypatch of dspy.LM.
+        m = SessionPromptMiner(
+            mock_config,
+            signals=["persona_drift"],
+            drift_thresholds=dummy_drift_thresholds_w6,
+        )
+        check_one_run_mock = MagicMock(
+            return_value=(
+                {"tone": 0.0, "formality": 0.0, "vocabulary": 0.0, "persona": 0.0},
+                "no drift",
+            )
+        )
+        check_mock = MagicMock()
+        m.drift_detector._check_one_run = check_one_run_mock
+        m.drift_detector.check = check_mock
+        msgs = [{"role": "assistant", "content": f"a{i}"} for i in range(9)]
+        m._extract_persona_drift(msgs, "s")
+        # D-04 explicit regression: 1-run NOT 3-run at recall stage
+        assert check_one_run_mock.called, (
+            "persona_drift extractor must call ._check_one_run (1-run) — "
+            "regression in cost control if 3-run .check is used"
+        )
+        assert not check_mock.called, (
+            "persona_drift extractor must NOT call .check (3-run) — "
+            "3-run is reserved for Phase 18 final gate"
+        )
+
+
+class TestFixtureBasedIntegration:
+    """Exercise the 4 fixtures created in Task 5.1 against the mining pipeline.
+
+    These cover end-to-end loading of real-shape session JSONs and verify the
+    expected secret filter / persona_drift min_turns / regex-recall paths.
+    """
+
+    @pytest.fixture
+    def current_sections_pp(self):
+        """5 named sections + 3 platform_hints sub-sections."""
+        from evolution.prompts.prompt_loader import PromptSection
+
+        return [
+            PromptSection(
+                section_id="default_agent_identity",
+                text="be helpful",
+                char_count=10,
+                line_range=(1, 1),
+                source_path=Path("x"),
+            ),
+            PromptSection(
+                section_id="memory_guidance",
+                text="remember user",
+                char_count=13,
+                line_range=(2, 2),
+                source_path=Path("x"),
+            ),
+            PromptSection(
+                section_id="session_search_guidance",
+                text="search past",
+                char_count=11,
+                line_range=(3, 3),
+                source_path=Path("x"),
+            ),
+            PromptSection(
+                section_id="skills_guidance",
+                text="use skills",
+                char_count=10,
+                line_range=(4, 4),
+                source_path=Path("x"),
+            ),
+            PromptSection(
+                section_id="platform_hints.macos",
+                text="mac",
+                char_count=3,
+                line_range=(5, 5),
+                source_path=Path("x"),
+            ),
+        ]
+
+    def test_session_with_secret_fixture_drops_jwt_user_message(
+        self, mock_config, current_sections_pp, tmp_path
+    ):
+        """T-19-05-I: fixture's synthetic JWT user message must be filtered
+        out via _contains_secret before reaching the LLM judge."""
+        from evolution.prompts.session_prompt_miner import SessionPromptMiner
+
+        # Copy fixture into tmp_path/ so glob('*.json') picks it up.
+        src = SESSIONS_DIR / "session_with_secret.json"
+        assert src.exists()
+        (tmp_path / "session_with_secret.json").write_text(src.read_text())
+
+        m = SessionPromptMiner(mock_config)
+        m.judge = MagicMock()  # should NOT be called (filtered before judge)
+        m.user_correction_judge = MagicMock(
+            return_value=MagicMock(is_correction=True)
+        )
+        out = m.mine(tmp_path, current_sections_pp)
+        # The JWT-containing user message must be filtered; the second user
+        # message ("use /search skill") is a skills_guidance keyword hit
+        # — it may proceed to judge but the JWT one must not.
+        assert m.metrics["secret_filter_skipped"] >= 1, (
+            f"expected secret filter to drop the JWT user message; "
+            f"metrics={m.metrics}"
+        )
+
+    def test_session_persona_drift_fixture_min_turns_satisfied(
+        self, mock_config, current_sections_pp, dummy_drift_thresholds_w6
+    ):
+        """The persona_drift fixture has ≥6 assistant turns so the min_turns
+        gate (6) passes; the drift detector receives one _check_one_run call
+        per session even though the user_correction keyword bank has no hits.
+        """
+        from evolution.prompts.session_prompt_miner import SessionPromptMiner
+
+        src = SESSIONS_DIR / "session_persona_drift.json"
+        assert src.exists()
+        session = json.loads(src.read_text())
+        # Count assistant turns to verify min_turns assumption holds.
+        assistant_turns = [
+            mm for mm in session["messages"]
+            if isinstance(mm, dict) and mm.get("role") == "assistant"
+        ]
+        assert len(assistant_turns) >= 6, (
+            f"fixture must satisfy min_turns=6 gate; got {len(assistant_turns)} "
+            f"assistant turns"
+        )
+
+        m = SessionPromptMiner(
+            mock_config,
+            signals=["persona_drift"],
+            drift_thresholds=dummy_drift_thresholds_w6,
+        )
+        check_one_run_mock = MagicMock(
+            return_value=(
+                {
+                    "tone": 0.9,  # exceeds threshold 0.5
+                    "formality": 0.05,
+                    "vocabulary": 0.05,
+                    "persona": 0.05,
+                },
+                "exp",
+            )
+        )
+        m.drift_detector._check_one_run = check_one_run_mock
+        cands = m._extract_persona_drift(session["messages"], "fixture")
+        assert check_one_run_mock.called, (
+            "persona_drift extractor should reach _check_one_run when "
+            "min_turns gate passes"
+        )
+        assert len(cands) == 1, (
+            f"expected exactly one tone-exceeded candidate; got {len(cands)}"
+        )
+        assert cands[0].signal == "persona_drift"
+
+    def test_session_normal_fixture_user_correction_path(
+        self, mock_config, current_sections_pp, tmp_path
+    ):
+        """The normal fixture has both user_correction keywords ("Stop") and
+        memory section_specific_failure keywords ("I already told you")."""
+        from evolution.prompts.session_prompt_miner import SessionPromptMiner
+
+        src = SESSIONS_DIR / "session_normal.json"
+        assert src.exists()
+        (tmp_path / "session_normal.json").write_text(src.read_text())
+
+        m = SessionPromptMiner(
+            mock_config,
+            signals=["user_correction", "section_specific_failure"],
+        )
+        m.user_correction_judge = MagicMock(
+            return_value=MagicMock(is_correction=True)
+        )
+        m.judge = MagicMock(
+            return_value=MagicMock(
+                verdict="confirm_example",
+                section_id="memory_guidance",
+                expected_behavior="acknowledge user context",
+                difficulty="medium",
+                rationale="user reminded of prior context",
+            )
+        )
+        out = m.mine(tmp_path, current_sections_pp)
+        # At least one candidate should be confirmed — fixture has clear
+        # memory_guidance / user_correction triggers.
+        assert m.metrics["judge_calls"] >= 1
+        assert len(out) >= 1
+        # source is 'session' for all mined examples
+        for ex in out:
+            assert ex.source == "session"

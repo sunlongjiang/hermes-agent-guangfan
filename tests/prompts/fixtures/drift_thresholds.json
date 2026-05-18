@@ -1,0 +1,12 @@
+{
+  "tone": 0.5,
+  "formality": 0.5,
+  "vocabulary": 0.5,
+  "persona": 0.5,
+  "_meta": {
+    "created_by": "fixture",
+    "purpose": "test",
+    "phase": "19-sessiondb-behavioral-mining-for-prompts",
+    "notes": "4-dim drift thresholds fixture for Phase 19 integration tests; consumed by SessionPromptMiner + evolve_prompt_sections --drift-thresholds-path."
+  }
+}

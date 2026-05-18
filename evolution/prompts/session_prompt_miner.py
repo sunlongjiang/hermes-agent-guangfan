@@ -196,16 +196,139 @@ class ConfirmBehavioralExample(dspy.Signature):
     )
 
 
-# ── Main class (placeholder — Tasks 2.2-2.4 fill methods) ───────────────────
+# ── Main class ──────────────────────────────────────────────────────────────
 class SessionPromptMiner:
-    """Implemented in Task 2.2 (constructor) + 2.3 (extractors) + 2.4 (orchestration)."""
+    """Mine prompt behavioral examples from hermes-agent session transcripts.
 
-    # Class-level Signature handles (D-03 / D-18) — Phase 18 DriftDetector style
+    Mirror of evolution/tools/session_miner.SessionToolMiner (Phase 14 D-18).
+    4-way signal extractors (D-01) + ConfirmBehavioralExample LLM judge (D-03)
+    + DriftDetector reuse for persona_drift candidate proposing (D-04).
+    """
+
+    # Class-level Signature handles (D-03 / D-18) — Phase 18 DriftDetector
+    # style: makes Signatures testable via SessionPromptMiner.<name>.
     ConfirmBehavioralExample = ConfirmBehavioralExample
     DetectUserCorrection = DetectUserCorrection
 
-    def __init__(self, *args, **kwargs):
-        raise NotImplementedError("Task 2.2 fills this in")
+    def __init__(
+        self,
+        config: EvolutionConfig,
+        signals: Optional[list[str]] = None,
+        multiplier_override: Optional[dict[str, int]] = None,
+        baseline_module=None,  # PromptModule | None — for oracle_disagreement
+        drift_thresholds: Optional[dict] = None,  # D-04 persona_drift
+    ):
+        self.config = config
+        self.signals = signals or list(VALID_SIGNALS)
+        self.multiplier_override = multiplier_override or {}
+        self.baseline_module = baseline_module
+
+        # DSPy judge predictors. Phase 14 uses ChainOfThought (line 207).
+        self.judge = dspy.ChainOfThought(self.ConfirmBehavioralExample)
+        self.user_correction_judge = dspy.ChainOfThought(self.DetectUserCorrection)
+
+        # D-04: DriftDetector reuse — lazy init only when persona_drift active
+        # AND thresholds provided. Without thresholds we cannot use the
+        # detector; silently disable + warn.
+        self.drift_detector: Optional[DriftDetector] = None
+        if "persona_drift" in self.signals:
+            if drift_thresholds is not None:
+                self.drift_detector = DriftDetector(config, drift_thresholds)
+            else:
+                console.print(
+                    "[yellow]⚠ persona_drift signal requested but "
+                    "drift_thresholds not provided; signal will be skipped."
+                    "[/yellow]"
+                )
+
+        self.metrics: dict = self._fresh_metrics()
+        # Record judge_model for metrics.json
+        self.metrics["judge_model"] = getattr(config, "judge_model", "") or ""
+        if drift_thresholds is not None:
+            self.metrics["persona_drift_thresholds_used"] = dict(drift_thresholds)
+
+    def _fresh_metrics(self) -> dict:
+        """Initialize metrics contract. Extends Phase 14 13-key schema with
+        persona_drift_thresholds_used + oracle_baseline_path + judge_model +
+        session_load_failures (B3 fix: separates file-level session JSON
+        load failures from line-level JSONL bad-line skips).
+
+        Field semantics (B3 fix — explicit):
+            session_load_failures: int
+                File-level — session JSON file load failures from
+                _load_session in mine_prompt_sessions scope. Incremented
+                when a session JSON file fails to parse as a whole.
+            jsonl_skipped_lines: int
+                Line-level — JSONL bad-line skip counter from D-24,
+                maintained by Plan 04 evolve_prompt_sections.py's
+                _load_session_dataset_resilient helper. During mining
+                (this class scope), stays at 0; not incremented here.
+                Plan 04 helper writes to this field independently
+                (separated metric channels).
+        """
+        return {
+            "total_candidates_by_signal": {s: 0 for s in VALID_SIGNALS},
+            "judge_confirmed_by_signal": {s: 0 for s in VALID_SIGNALS},
+            "judge_false_positives_by_signal": {s: 0 for s in VALID_SIGNALS},  # D-05
+            "surface_drift_dropped": 0,  # D-09
+            "surface_drift_sections": {},  # name -> count
+            "secret_filter_skipped": 0,  # D-23
+            "session_load_failures": 0,  # B3 fix: file-level load failures (mine scope)
+            "jsonl_skipped_lines": 0,  # D-24 line-level (Plan 04 helper scope; stays 0 here)
+            "judge_calls": 0,
+            "judge_calls_by_signal": {s: 0 for s in VALID_SIGNALS},
+            "final_examples_by_split": {"train": 0, "val": 0, "holdout": 0},
+            "final_train_after_duplication": 0,
+            "mining_multiplier_used": dict(DEFAULT_MULTIPLIER),
+            "persona_drift_thresholds_used": {},
+            "oracle_baseline_path": None,
+            "judge_model": "",
+        }
+
+    def _load_session(self, sp: Path) -> Optional[dict]:
+        """Read one session JSON file. On parse failure, increment
+        session_load_failures (B3 fix: file-level counter; distinct from
+        jsonl_skipped_lines which is line-level in Plan 04 helper scope)."""
+        try:
+            return json.loads(sp.read_text(encoding="utf-8"))
+        except Exception:
+            self.metrics["session_load_failures"] += 1
+            return None
+
+    def _filter_secrets(self, cands: list[Candidate]) -> list[Candidate]:
+        """Drop candidates whose task or downstream_context contains secrets."""
+        kept: list[Candidate] = []
+        for c in cands:
+            if (
+                _contains_secret(c.task)
+                or _contains_secret(c.downstream_context)
+                or _contains_secret(c.originally_observed_behavior)
+            ):
+                self.metrics["secret_filter_skipped"] += 1
+                continue
+            kept.append(c)
+        return kept
+
+    def _filter_drift(
+        self,
+        verdict_pairs: list[tuple[Candidate, Verdict]],
+        current_section_ids: set[str],
+    ) -> list[tuple[Candidate, Verdict]]:
+        """D-09: drop verdicts whose section_id is not in current surface."""
+        kept: list[tuple[Candidate, Verdict]] = []
+        for cand, v in verdict_pairs:
+            sec = v.section_id
+            if sec not in current_section_ids:
+                self.metrics["surface_drift_dropped"] += 1
+                self.metrics["surface_drift_sections"][sec] = (
+                    self.metrics["surface_drift_sections"].get(sec, 0) + 1
+                )
+                continue
+            kept.append((cand, v))
+        return kept
+
+    def mine(self, sessions_dir: Path, current_sections: list, limit: int = 0):
+        raise NotImplementedError("Task 2.4 fills this in")
 
 
 def split_and_duplicate(*args, **kwargs):

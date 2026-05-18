@@ -63,7 +63,7 @@ class TestPromptBehavioralExample:
         assert not hasattr(ex, "extra_field")
 
     def test_to_dict_contains_all_fields(self):
-        """to_dict() includes all five fields."""
+        """to_dict() includes all six fields (Phase 19 D-02: + mining_signals)."""
         ex = PromptBehavioralExample(
             section_id="default_agent_identity",
             user_message="Who are you?",
@@ -74,8 +74,71 @@ class TestPromptBehavioralExample:
         d = ex.to_dict()
         assert set(d.keys()) == {
             "section_id", "user_message", "expected_behavior",
-            "difficulty", "source",
+            "difficulty", "source", "mining_signals",
         }
+
+    # ── Phase 19 D-02 mining_signals tests ──────────────────────────────
+
+    def test_mining_signals_default_empty_list(self):
+        """Phase 19 D-02: mining_signals defaults to []."""
+        ex = PromptBehavioralExample(
+            section_id="memory_guidance",
+            user_message="m",
+            expected_behavior="e",
+        )
+        assert ex.mining_signals == []
+
+    def test_mining_signals_explicit_construction(self):
+        """Phase 19 D-02: mining_signals can be set at construction time."""
+        ex = PromptBehavioralExample(
+            section_id="skills_guidance",
+            user_message="m",
+            expected_behavior="e",
+            mining_signals=["user_correction", "persona_drift"],
+        )
+        assert ex.mining_signals == ["user_correction", "persona_drift"]
+
+    def test_legacy_jsonl_backward_compat(self):
+        """Phase 19 D-02: Pre-Phase-19 dict (no mining_signals key) loads with []."""
+        legacy = {
+            "section_id": "memory_guidance",
+            "user_message": "m",
+            "expected_behavior": "e",
+            "difficulty": "easy",
+            "source": "synthetic",
+        }
+        ex = PromptBehavioralExample.from_dict(legacy)
+        assert ex.mining_signals == []
+        # to_dict round-trip emits the new key
+        assert ex.to_dict()["mining_signals"] == []
+
+    def test_source_session_value_allowed(self):
+        """Phase 19 D-02: source='session' is allowed (no enum validation)."""
+        ex = PromptBehavioralExample(
+            section_id="memory_guidance",
+            user_message="m",
+            expected_behavior="e",
+            source="session",
+            mining_signals=["user_correction"],
+        )
+        assert ex.source == "session"
+        assert ex.mining_signals == ["user_correction"]
+        # Round-trip preserves both new field values
+        restored = PromptBehavioralExample.from_dict(ex.to_dict())
+        assert restored.source == "session"
+        assert restored.mining_signals == ["user_correction"]
+
+    def test_from_dict_still_filters_unknown_keys_with_mining_signals(self):
+        """Phase 19 D-02: from_dict drops unknown keys even with mining_signals present."""
+        ex = PromptBehavioralExample.from_dict({
+            "section_id": "x",
+            "user_message": "m",
+            "expected_behavior": "e",
+            "mining_signals": ["oracle_disagreement"],
+            "rogue_key": "drop_me",
+        })
+        assert ex.mining_signals == ["oracle_disagreement"]
+        assert not hasattr(ex, "rogue_key")
 
 
 # ── PromptBehavioralDataset Tests ──────────────────────────────────────────

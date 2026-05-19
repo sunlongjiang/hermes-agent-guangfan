@@ -225,13 +225,18 @@ def _one_run_per_tier_pass_rate(
     help="Override API base URL.",
 )
 @click.option(
+    "--allow-dirty-tree",
     "--accept-stale-anchor",
+    "allow_dirty_tree",
     is_flag=True,
     default=False,
     help=(
         "[unsafe] Allow writing the anchor even if hermes-agent has "
         "uncommitted changes. Default is to refuse (D-10). Only use "
-        "for debug runs with --output-json /tmp/anchor.json."
+        "for debug runs with --output-json /tmp/anchor.json. "
+        "WR-07 (2026-05-19): --accept-stale-anchor was misleading "
+        "(implies it affects anchor staleness, but only skips the "
+        "dirty-tree guard) — kept as a deprecated alias."
     ),
 )
 def main(
@@ -242,7 +247,7 @@ def main(
     benchmark_max_cost,
     model,
     api_base,
-    accept_stale_anchor,
+    allow_dirty_tree,
 ):
     """Build TBLite anchor + persist datasets/prompts/tblite_anchor.json."""
     console.print("[bold]Phase 20: TBLite anchor calibration[/bold]\n")
@@ -276,11 +281,11 @@ def main(
             f"prompt_builder.py not found at {prompt_builder}. "
             f"Phase 7 anchor — confirm hermes-agent revision."
         )
-    if not accept_stale_anchor:
+    if not allow_dirty_tree:
         _check_hermes_clean(hermes_path)
     else:
         console.print(
-            "[yellow]--accept-stale-anchor: skipping git-dirty check; "
+            "[yellow]--allow-dirty-tree: skipping git-dirty check; "
             "anchor commit_id will reflect HEAD only.[/yellow]"
         )
     current_commit = _git_head(hermes_path)

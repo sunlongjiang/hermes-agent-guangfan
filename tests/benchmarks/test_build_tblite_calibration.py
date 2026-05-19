@@ -303,10 +303,38 @@ class TestBuildTBLiteCalibration:
         assert easy["n"] == 3
         assert len(easy["scores"]) == 3
 
+    def test_allow_dirty_tree_bypasses_git_check(
+        self, fake_hermes, fake_subset, tmp_path,
+    ):
+        """WR-07: --allow-dirty-tree (the new name) skips _check_hermes_clean."""
+        from evolution.benchmarks import build_tblite_calibration as mod
+        anchor_out = tmp_path / "anchor.json"
+        check_clean_calls = MagicMock()
+        with patch.object(mod, "_check_hermes_clean", check_clean_calls), \
+             patch.object(mod, "_git_head", return_value="commit_x"), \
+             patch.object(mod, "_hf_dataset_revision", return_value="rev"), \
+             patch.object(mod, "TBLiteRunner") as mock_runner_cls:
+            mock_runner_cls.return_value.run.return_value = _make_run_result({
+                "easy": [True], "medium": [True], "hard": [True], "extreme": [True],
+            })
+            result = CliRunner().invoke(mod.main, [
+                "--hermes-repo", str(fake_hermes),
+                "--output-json", str(anchor_out),
+                "--runs", "1",
+                "--benchmark-max-cost", "1000",
+                "--allow-dirty-tree",
+            ])
+        assert result.exit_code == 0, result.output
+        assert not check_clean_calls.called, \
+            "_check_hermes_clean must be skipped with --allow-dirty-tree"
+
     def test_accept_stale_anchor_bypasses_git_check(
         self, fake_hermes, fake_subset, tmp_path,
     ):
-        """--accept-stale-anchor lets calibration run even on dirty tree."""
+        """--accept-stale-anchor lets calibration run even on dirty tree.
+
+        WR-07: kept as a deprecated alias for --allow-dirty-tree.
+        """
         from evolution.benchmarks import build_tblite_calibration as mod
         anchor_out = tmp_path / "anchor.json"
         # If accept-stale-anchor works, _check_hermes_clean is NEVER called.

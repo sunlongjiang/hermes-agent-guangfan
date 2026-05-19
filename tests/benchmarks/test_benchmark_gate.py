@@ -155,9 +155,13 @@ class TestTBLiteBenchmarkGate:
     def test_check_anchor_existence_stale_commit_fails(self, tmp_path):
         from evolution.benchmarks import benchmark_gate as mod
         gate = _make_gate(tmp_path, anchor=_make_anchor(hermes_commit="STALE111"))
-        # Mock git rev-parse to return a DIFFERENT commit.
+        # Mock git rev-parse to return a DIFFERENT commit. returncode=0
+        # ensures we hit the staleness branch, not the CR-03 returncode
+        # guard.
         with patch.object(mod, "subprocess") as mock_subp:
-            mock_subp.run.return_value = MagicMock(stdout="CURRENT222\n")
+            mock_subp.run.return_value = MagicMock(
+                stdout="CURRENT222\n", returncode=0, stderr=""
+            )
             mock_subp.TimeoutExpired = Exception
             mock_subp.CalledProcessError = Exception
             with pytest.raises(SystemExit) as ei:
@@ -167,11 +171,48 @@ class TestTBLiteBenchmarkGate:
     def test_check_overlay_sanity_dirty_git_fails(self, tmp_path):
         from evolution.benchmarks import benchmark_gate as mod
         gate = _make_gate(tmp_path)
+        # returncode=0 so the CR-03 returncode guard does NOT short-circuit;
+        # we want the dirty-stdout branch to fire.
         with patch.object(mod, "subprocess") as mock_subp:
-            mock_subp.run.return_value = MagicMock(stdout=" M agent/prompt_builder.py\n")
+            mock_subp.run.return_value = MagicMock(
+                stdout=" M agent/prompt_builder.py\n", returncode=0, stderr=""
+            )
             mock_subp.TimeoutExpired = Exception
             with pytest.raises(SystemExit) as ei:
                 gate._check_overlay_sanity()
+            assert ei.value.code == 1
+
+    def test_check_overlay_sanity_git_nonzero_returncode_fails(self, tmp_path):
+        """CR-03 regression: non-zero git status returncode with empty
+        stdout must fail loudly, not silently pass the dirty-tree check.
+        """
+        from evolution.benchmarks import benchmark_gate as mod
+        gate = _make_gate(tmp_path)
+        with patch.object(mod, "subprocess") as mock_subp:
+            mock_subp.run.return_value = MagicMock(
+                stdout="", returncode=128, stderr="fatal: not a git repository\n"
+            )
+            mock_subp.TimeoutExpired = Exception
+            with pytest.raises(SystemExit) as ei:
+                gate._check_overlay_sanity()
+            assert ei.value.code == 1
+
+    def test_check_anchor_existence_git_nonzero_returncode_fails(self, tmp_path):
+        """CR-03 regression: non-zero git rev-parse returncode must abort
+        with a clear error rather than reporting a misleading 'anchor
+        stale' diagnostic.
+        """
+        from evolution.benchmarks import benchmark_gate as mod
+        gate = _make_gate(tmp_path)
+        with patch.object(mod, "subprocess") as mock_subp:
+            mock_subp.run.return_value = MagicMock(
+                stdout="", returncode=128,
+                stderr="fatal: ambiguous argument 'HEAD'\n",
+            )
+            mock_subp.TimeoutExpired = Exception
+            mock_subp.CalledProcessError = Exception
+            with pytest.raises(SystemExit) as ei:
+                gate._check_anchor_existence()
             assert ei.value.code == 1
 
     def test_check_overlay_sanity_unwritable_path_fails(self, tmp_path, monkeypatch):

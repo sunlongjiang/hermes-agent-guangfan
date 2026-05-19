@@ -244,6 +244,16 @@ class TBLiteBenchmarkGate:
                 f"[red]git status check failed: {type(e).__name__}: {e}[/red]"
             )
             sys.exit(1)
+        # CR-03 (2026-05-19): inspect returncode. A non-zero exit with
+        # empty stdout (broken repo, corrupted .git/, lock file) would
+        # otherwise silently pass the dirty-tree check — exactly the
+        # failure mode D-10 was added to prevent.
+        if res.returncode != 0:
+            console.print(
+                f"[red]git status failed (exit={res.returncode}): "
+                f"{res.stderr.strip() or '<no stderr>'}[/red]"
+            )
+            sys.exit(1)
         if res.stdout.strip():
             console.print(
                 f"[red]hermes-agent has uncommitted changes — refusing "
@@ -276,6 +286,17 @@ class TBLiteBenchmarkGate:
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             console.print(
                 f"[red]git rev-parse failed: {type(e).__name__}: {e}[/red]"
+            )
+            sys.exit(1)
+        # CR-03 (2026-05-19): inspect returncode. If git rev-parse fails
+        # (detached HEAD with no commits, broken repo, wrong cwd) we must
+        # NOT fall through to the equality check — the resulting empty
+        # current_commit yields the misleading "anchor stale" message
+        # whose recommended fix (re-calibrate) hits the same git error.
+        if res.returncode != 0:
+            console.print(
+                f"[red]git rev-parse HEAD failed (exit={res.returncode}): "
+                f"{res.stderr.strip() or '<no stderr>'}[/red]"
             )
             sys.exit(1)
         current_commit = res.stdout.strip()

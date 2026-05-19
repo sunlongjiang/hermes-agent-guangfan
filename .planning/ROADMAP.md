@@ -370,7 +370,7 @@ Plans:
   1. Optional `--benchmark` flag triggers TBLite evaluation before accepting evolved sections
   2. Configurable pass threshold (default: no regression on core capabilities)
   3. Benchmark results saved to output metrics
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 **Wave 1**
@@ -387,7 +387,7 @@ Plans:
 - [ ] 20-05-anchor-generation-checkpoint-PLAN.md — Path A 实跑 calibration (~$36, 30-90 min) OR Path B mock anchor + 跟踪 todo;datasets/prompts/tblite_anchor.json + 真实 task names 落入 tblite_stratified_subset.json (D-CAL-05)
 
 **Wave 5** *(blocked on Wave 4)*
-- [ ] 20-06-evolve-integration-PLAN.md — evolve_prompt_sections.py step 10.5 插入 + 6 新 Click flags + benchmark_* metrics + total_cost_breakdown + tblite_report.json 落盘 + TestBenchmarkGate 6+ CLI 集成测试 (D-04 / D-05 / D-15 / D-16 / D-18 / D-BYPASS-01 精神)
+- [x] 20-06-evolve-integration-PLAN.md — evolve_prompt_sections.py step 10.5 插入 + 6 新 Click flags + benchmark_* metrics + total_cost_breakdown + tblite_report.json 落盘 + TestBenchmarkGate 6+ CLI 集成测试 (D-04 / D-05 / D-15 / D-16 / D-18 / D-BYPASS-01 精神)
 
 ### Phase 21: Darwinian Code Evolution
 **Goal**: Integrate darwinian-evolver for code-level evolution of hermes-agent components

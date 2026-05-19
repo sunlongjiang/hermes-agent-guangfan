@@ -276,6 +276,7 @@ class SessionPromptMiner:
             "jsonl_skipped_lines": 0,  # D-24 line-level (Plan 04 helper scope; stays 0 here)
             "judge_calls": 0,
             "judge_calls_by_signal": {s: 0 for s in VALID_SIGNALS},
+            "judge_call_failures": 0,  # WR-06: LLM-call exceptions (separated from judge_calls)
             "final_examples_by_split": {"train": 0, "val": 0, "holdout": 0},
             "final_train_after_duplication": 0,
             "mining_multiplier_used": dict(DEFAULT_MULTIPLIER),
@@ -607,6 +608,14 @@ class SessionPromptMiner:
         sections_summary = self._format_sections_summary(current_sections)
         verdicts: list[tuple[Candidate, Verdict]] = []
         for c in cands:
+            # WR-06 fix: track LLM-call exceptions separately from successful
+            # calls. judge_calls counts all attempts that returned a parseable
+            # response (even when the response's verdict/difficulty fields
+            # were bogus and got mapped to false_positive/medium fallbacks);
+            # judge_call_failures counts attempts where self.judge(...)
+            # itself raised. Previously both were folded into judge_calls,
+            # inflating cost-report counts on flaky API conditions.
+            call_failed = False
             try:
                 pred = self.judge(
                     task_description=c.task,
@@ -625,17 +634,28 @@ class SessionPromptMiner:
                     difficulty = "medium"  # D-12 default on parse failure
                 rationale = str(getattr(pred, "rationale", "")).strip()
             except Exception as exc:
-                # Parse failure → conservative false_positive
+                # LLM call itself failed → conservative false_positive AND
+                # increment the dedicated failure counter (WR-06).
+                call_failed = True
                 raw_verdict = "false_positive"
                 section_id = ""
                 expected = ""
                 difficulty = "medium"
                 rationale = f"[Parse failure: {type(exc).__name__}: {exc}]"
 
-            self.metrics["judge_calls"] += 1
-            self.metrics["judge_calls_by_signal"][c.signal] = (
-                self.metrics["judge_calls_by_signal"].get(c.signal, 0) + 1
-            )
+            if call_failed:
+                self.metrics.setdefault("judge_call_failures", 0)
+                self.metrics["judge_call_failures"] += 1
+                # On call failure we still emit a (false_positive) Verdict
+                # so downstream metrics see the candidate as judged-then-rejected,
+                # matching the prior behavior — but we do NOT count this in
+                # judge_calls/judge_calls_by_signal (those reflect successful
+                # LLM round-trips, not attempts).
+            else:
+                self.metrics["judge_calls"] += 1
+                self.metrics["judge_calls_by_signal"][c.signal] = (
+                    self.metrics["judge_calls_by_signal"].get(c.signal, 0) + 1
+                )
 
             # WR-05 fix: scrub LLM-generated expected_behavior / rationale
             # for secret patterns before persisting. Pre-judge _filter_secrets

@@ -424,6 +424,87 @@ class TestTBLiteBenchmarkGate:
         with pytest.raises(ValueError, match="task_filter is empty"):
             TBLiteBenchmarkGate(config, _make_anchor(), bad_subset)
 
+    def test_check_extracts_task_names_from_w7_dict_subset(self, tmp_path):
+        """CR-02 regression: W-7 dict task_filter items must be extracted
+        to plain strings before being passed to TBLiteRunner.run, which
+        rejects non-str items via _validate_task_filter.
+        """
+        from evolution.benchmarks import benchmark_gate as mod
+        # Build a W-7 shaped subset (list of {name, tier} dicts).
+        w7_subset = {
+            "seed": 42,
+            "per_tier_counts": {"easy": 1, "medium": 1, "hard": 1, "extreme": 1},
+            "task_filter": [
+                {"name": "tblite-easy-01", "tier": "easy"},
+                {"name": "tblite-medium-01", "tier": "medium"},
+                {"name": "tblite-hard-01", "tier": "hard"},
+                {"name": "tblite-extreme-01", "tier": "extreme"},
+            ],
+        }
+        gate = _make_gate(tmp_path, subset=w7_subset, runs=1)
+        cache_dir = tmp_path / "cache"
+        sections = [_FakeSection("memory_guidance", "evolved")]
+        captured_task_filter: list = []
+
+        def _capture_run(*, task_filter, output_dir):
+            captured_task_filter.append(task_filter)
+            return _fake_run_result({
+                "easy":    [True],
+                "medium":  [True],
+                "hard":    [True],
+                "extreme": [True],
+            })
+
+        with patch.object(mod, "subprocess"), \
+             patch.object(gate, "_check_overlay_sanity"), \
+             patch.object(gate, "_check_anchor_existence"), \
+             patch.object(gate, "_run_overlay",
+                          return_value=(tmp_path / "snap", tmp_path / "ovl")), \
+             patch.object(gate, "_restore_overlay"), \
+             patch.object(gate.runner, "run", side_effect=_capture_run):
+            gate.check(sections, cache_dir=cache_dir, use_cache=True)
+
+        assert captured_task_filter, "runner.run was never invoked"
+        names = captured_task_filter[0]
+        assert all(isinstance(n, str) for n in names), (
+            f"runner received non-str task_filter items: {names}"
+        )
+        assert names == [
+            "tblite-easy-01", "tblite-medium-01",
+            "tblite-hard-01", "tblite-extreme-01",
+        ], f"name extraction wrong: {names}"
+
+    def test_constructor_accepts_w7_dict_task_filter(self, tmp_path):
+        """CR-02 / WR-03 regression: constructor must accept list[dict] subset
+        items as well as legacy list[str].
+        """
+        from evolution.benchmarks.benchmark_gate import TBLiteBenchmarkGate
+        config = _make_config(tmp_path)
+        w7_subset = {
+            "seed": 42,
+            "per_tier_counts": {"easy": 1, "medium": 1, "hard": 1, "extreme": 1},
+            "task_filter": [
+                {"name": "tblite-easy-01", "tier": "easy"},
+                {"name": "tblite-medium-01", "tier": "medium"},
+                {"name": "tblite-hard-01", "tier": "hard"},
+                {"name": "tblite-extreme-01", "tier": "extreme"},
+            ],
+        }
+        # Must not raise — W-7 schema is accepted.
+        TBLiteBenchmarkGate(config, _make_anchor(), w7_subset)
+
+    def test_constructor_rejects_dict_missing_name_key(self, tmp_path):
+        """CR-02: dict task_filter items must carry a 'name' key."""
+        from evolution.benchmarks.benchmark_gate import TBLiteBenchmarkGate
+        config = _make_config(tmp_path)
+        bad_subset = {
+            "seed": 42,
+            "per_tier_counts": {"easy": 1},
+            "task_filter": [{"tier": "easy"}],  # missing name
+        }
+        with pytest.raises(ValueError, match="missing 'name'"):
+            TBLiteBenchmarkGate(config, _make_anchor(), bad_subset)
+
     def test_run_overlay_preserves_all_sections(self, tmp_path):
         """CR-01 regression: multi-section overlay must keep every evolved section.
 

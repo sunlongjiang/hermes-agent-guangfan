@@ -101,7 +101,8 @@ class TBLiteBenchmarkGate:
         anchor: Loaded contents of datasets/prompts/tblite_anchor.json.
             Required keys per D-CAL-01 (see _ANCHOR_REQUIRED_KEYS).
         stratified_subset: Loaded datasets/prompts/tblite_stratified_subset.json
-            with task_filter (list[str]) + per_tier_counts + seed.
+            with task_filter (list[{name, tier}] per W-7 schema, or
+            legacy list[str]) + per_tier_counts + seed.
         moving_avg_history: List of past accepted tblite_history.json
             entries (most recent first, N <= 10). Empty list -> moving_avg
             falls back to anchor_mean per D-01.
@@ -147,12 +148,31 @@ class TBLiteBenchmarkGate:
                     f"{sorted(missing_inner)}"
                 )
         # ── Stratified subset validation ──
+        # CR-02 / WR-03 (2026-05-19): task_filter under the W-7 schema is
+        # list[{name, tier}], NOT list[str]. Accept both shapes during
+        # transition — extraction to plain names happens in check() before
+        # invoking TBLiteRunner.run.
         if "task_filter" not in stratified_subset or not isinstance(
             stratified_subset["task_filter"], list
         ):
-            raise ValueError("stratified_subset must have task_filter: list[str]")
+            raise ValueError(
+                "stratified_subset must have task_filter: "
+                "list[{name, tier}] (W-7) or list[str] (legacy)"
+            )
         if not stratified_subset["task_filter"]:
             raise ValueError("stratified_subset.task_filter is empty")
+        for item in stratified_subset["task_filter"]:
+            if isinstance(item, dict):
+                if "name" not in item:
+                    raise ValueError(
+                        f"stratified_subset.task_filter dict item missing "
+                        f"'name' key: {item!r}"
+                    )
+            elif not isinstance(item, str):
+                raise ValueError(
+                    f"stratified_subset.task_filter item has unexpected "
+                    f"shape: {item!r} (expected str or {{name, tier}})"
+                )
 
         self.config = config
         self.anchor = anchor
@@ -555,10 +575,25 @@ class TBLiteBenchmarkGate:
                      datetime.now().strftime("%Y%m%d_%H%M%S")
             )
             base_out.mkdir(parents=True, exist_ok=True)
+            # CR-02 (2026-05-19): extract task names from W-7 dict items
+            # before invoking the runner. TBLiteRunner._validate_task_filter
+            # requires list[str] — passing dicts raises ValueError. Tolerate
+            # legacy flat-string schema for older subset files.
+            raw_filter = self.stratified_subset["task_filter"]
+            task_names: list[str] = []
+            for item in raw_filter:
+                if isinstance(item, dict) and "name" in item:
+                    task_names.append(item["name"])
+                elif isinstance(item, str):
+                    task_names.append(item)
+                else:
+                    raise TypeError(
+                        f"task_filter item has unexpected shape: {item!r}"
+                    )
             for run_idx in range(self.runs):
                 run_dir = base_out / f"run_{run_idx}"
                 run_result = self.runner.run(
-                    task_filter=list(self.stratified_subset["task_filter"]),
+                    task_filter=task_names,
                     output_dir=run_dir,
                 )
                 per_run_per_tier.append(

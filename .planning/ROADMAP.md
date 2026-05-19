@@ -370,7 +370,7 @@ Plans:
   1. Optional `--benchmark` flag triggers TBLite evaluation before accepting evolved sections
   2. Configurable pass threshold (default: no regression on core capabilities)
   3. Benchmark results saved to output metrics
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 **Wave 1**
@@ -381,7 +381,7 @@ Plans:
 - [x] 20-03-benchmark-gate-PLAN.md — TBLiteBenchmarkGate Risk_Score 算法 + Virtual Prompt Overlay + Pre-flight (D-10/D-14) + 内容寻址 cache + prompt_loader.write_back_section dest= 扩展 + 14+ 单元测试 (D-01..D-04 / D-09 / D-10 / D-14 / D-15)
 
 **Wave 3** *(blocked on Wave 2)*
-- [ ] 20-04-build-calibration-cli-PLAN.md — build_tblite_calibration CLI (8 flags + CostTracker enforcement + Pre-flight Watermark + HuggingFace dataset_revision_hash 失败开放) + 6 CliRunner 测试 (D-13 / D-15 / D-16 / D-17)
+- [x] 20-04-build-calibration-cli-PLAN.md — build_tblite_calibration CLI (8 flags + CostTracker enforcement + Pre-flight Watermark + HuggingFace dataset_revision_hash 失败开放) + 6 CliRunner 测试 (D-13 / D-15 / D-16 / D-17)
 
 **Wave 4** *(BLOCKING — checkpoint:decision + checkpoint:human-action)*
 - [ ] 20-05-anchor-generation-checkpoint-PLAN.md — Path A 实跑 calibration (~$36, 30-90 min) OR Path B mock anchor + 跟踪 todo;datasets/prompts/tblite_anchor.json + 真实 task names 落入 tblite_stratified_subset.json (D-CAL-05)

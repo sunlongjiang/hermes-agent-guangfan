@@ -747,17 +747,15 @@ def split_and_duplicate(
     train_raw: list[PromptBehavioralExample] = []
     val_raw: list[PromptBehavioralExample] = []
     holdout_raw: list[PromptBehavioralExample] = []
-    seen_hashes: set[str] = set()
+    # CR-01 fix: same hash always lands in the same split because
+    # _hash_to_split is a pure function of the hash. When two examples
+    # share user_message but differ on section_id (D-07), both route to
+    # the SAME split — this is guaranteed by _hash_to_split's determinism,
+    # so no separate `seen_hashes` bookkeeping is needed. (mine()'s
+    # by_key[(task_hash, section_id)] dedup already ensures (hash, section)
+    # uniqueness before reaching this function.)
     for ex in examples:
         h = _normalize_task_hash(ex.user_message)
-        if h in seen_hashes:
-            # D-15: same hash already routed; this can happen if two
-            # examples share user_message but differ on section_id —
-            # route both to the SAME split (the first split chosen for
-            # this hash). We compute the split deterministically from
-            # the hash so the same string always lands in the same split.
-            pass
-        seen_hashes.add(h)
         split = _hash_to_split(h)
         if split == "train":
             train_raw.append(ex)

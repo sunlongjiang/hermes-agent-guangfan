@@ -391,10 +391,14 @@ def main(
                     output_dir=run_out,
                 )
                 if run_result.status != "ok":
+                    # WR-02 (2026-05-19): stderr_tail is already the
+                    # LAST 20 stderr lines; slicing [:5] would yield the
+                    # OLDEST 5 — exactly the opposite of "show me the
+                    # most recent error messages" diagnostic intent.
                     raise click.ClickException(
                         f"TBLite run {r + 1} status={run_result.status} "
                         f"(exit_code={run_result.exit_code}). "
-                        f"stderr tail: {run_result.stderr_tail[:5]}"
+                        f"stderr tail: {run_result.stderr_tail[-5:]}"
                     )
                 per_run_per_tier.append(
                     _one_run_per_tier_pass_rate(run_result)

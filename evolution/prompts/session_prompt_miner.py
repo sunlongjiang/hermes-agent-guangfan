@@ -487,11 +487,19 @@ class SessionPromptMiner:
                     break
             if not next_assistant:
                 continue
+            # WR-04 fix: enforce the cheap-rule the comment had been
+            # promising but never implementing — the assistant message
+            # must be short enough to plausibly signal under-engagement
+            # vs. the user's intent. Without this gate every user→assistant
+            # pair (filtered only by non-empty) was being emitted as a
+            # candidate, forcing 100% LLM-judge cost on the
+            # oracle_disagreement path. Threshold (50 chars) is a
+            # deliberately conservative initial floor; the LLM judge
+            # remains the source of truth (D-04 "proposer just nominates"),
+            # but we no longer hand every pair to it.
+            if len(next_assistant) >= 50:
+                continue
             # Oracle prediction: ask baseline module what it would respond.
-            # Simplified: produce a candidate when (cheap rule) the actual
-            # assistant message is very short / fails a length-style sanity
-            # check vs the user message length — the LLM judge will decide
-            # whether this constitutes a disagreement worth keeping.
             # Real oracle invocation is left to baseline_module.forward when
             # the integration test mocks it; per D-04 the LLM judge is the
             # source of truth, the proposer just nominates.

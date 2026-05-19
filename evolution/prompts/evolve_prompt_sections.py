@@ -118,6 +118,7 @@ _SESSION_SOURCE_BAD_LINE_WARN: float = 0.05
 
 def _load_session_dataset_resilient(
     session_dir: Path,
+    metrics: Optional[dict] = None,
 ) -> tuple["PromptBehavioralDataset", dict]:
     """Load PromptBehavioralDataset from <dir>/{train,val,holdout}.jsonl
     with per-line try/except. Phase 19 D-24 mirror of Phase 14's
@@ -126,6 +127,14 @@ def _load_session_dataset_resilient(
 
     Args:
         session_dir: Directory produced by mine_prompt_sessions.
+        metrics: WR-01 fix: optional dict — when provided, the total
+            JSONL bad-line skip count (sum across all 3 splits) is
+            written to metrics["jsonl_skipped_lines"], satisfying the
+            session_prompt_miner._fresh_metrics docstring contract that
+            this helper "maintains" the line-level counter (B3 fix's
+            second channel). Without this argument the field remains
+            permanently 0 even when bad lines were skipped — the bug
+            this fix addresses.
 
     Returns:
         (dataset, skipped_counts) where skipped_counts is
@@ -134,6 +143,8 @@ def _load_session_dataset_resilient(
 
     Side effects:
         Prints yellow Rich warning when any split's skip rate > 5%.
+        When `metrics` is provided, mutates metrics["jsonl_skipped_lines"]
+        (accumulator: prior value + this run's skip count).
     """
     dataset = PromptBehavioralDataset()
     skipped = {"train": 0, "val": 0, "holdout": 0}
@@ -160,6 +171,14 @@ def _load_session_dataset_resilient(
                 f"[yellow]⚠ session-source {split_name}: skipped {sk}/{total} "
                 f"bad JSONL lines ({sk / total * 100:.1f}%) > 5% threshold[/yellow]"
             )
+    # WR-01 fix: write through to the shared metrics dict so the
+    # `jsonl_skipped_lines` field in _fresh_metrics actually reflects
+    # bad lines skipped (previously the second return value was the
+    # only signal, and callers ignored it — leaving the metric at 0).
+    if metrics is not None:
+        metrics["jsonl_skipped_lines"] = (
+            metrics.get("jsonl_skipped_lines", 0) + sum(skipped.values())
+        )
     return dataset, skipped
 
 

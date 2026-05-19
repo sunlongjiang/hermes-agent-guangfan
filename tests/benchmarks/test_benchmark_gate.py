@@ -344,7 +344,13 @@ class TestTBLiteBenchmarkGate:
         mock_runner = MagicMock()
         gate.runner = mock_runner
 
-        report = gate.check(sections, cache_dir=cache_dir, use_cache=True)
+        # WR-05 (2026-05-19): _check_anchor_existence now runs BEFORE the
+        # cache lookup so stale anchors abort regardless of cache state.
+        # The test still wants to verify the cache short-circuit, so mock
+        # the anchor check to a no-op (the test fixture's hermes-agent dir
+        # is not a real git repo).
+        with patch.object(gate, "_check_anchor_existence"):
+            report = gate.check(sections, cache_dir=cache_dir, use_cache=True)
         assert report["decision"] == "accept"
         assert report["cache_hit"] is True
         assert not mock_runner.run.called, "cache hit must NOT invoke runner.run"
@@ -464,6 +470,54 @@ class TestTBLiteBenchmarkGate:
         }
         with pytest.raises(ValueError, match="task_filter is empty"):
             TBLiteBenchmarkGate(config, _make_anchor(), bad_subset)
+
+    def test_check_runs_anchor_check_before_cache_lookup(self, tmp_path):
+        """WR-05 regression: anchor freshness check must precede cache
+        lookup so a stale anchor aborts even when a cached accept exists.
+
+        The cache key includes dataset_revision_hash but NOT
+        hermes_agent_commit, so a cached accept from a different baseline
+        would otherwise be returned for the wrong prompt revision.
+        """
+        from evolution.benchmarks import benchmark_gate as mod
+        gate = _make_gate(tmp_path)
+
+        # Pre-write a cache entry that would normally short-circuit.
+        sections = [_FakeSection("memory_guidance", "evolved")]
+        cache_dir = tmp_path / "cache"
+        import hashlib
+        import json as _json
+        def _canonical_json(obj) -> str:
+            return _json.dumps(obj, sort_keys=True, separators=(",", ":"))
+        h = hashlib.sha256()
+        h.update(_canonical_json(
+            [{"section_id": s.section_id, "text": s.text} for s in sections]
+        ).encode("utf-8"))
+        h.update(gate.anchor["dataset_revision_hash"].encode("utf-8"))
+        h.update(int(gate.anchor.get("stratified_subset_seed", 42)).to_bytes(4, "big"))
+        from evolution.benchmarks.tblite_runner import TBLITE_RUNNER_VERSION
+        h.update(TBLITE_RUNNER_VERSION.encode("utf-8"))
+        key = h.hexdigest()[:16]
+        (cache_dir / key).mkdir(parents=True)
+        (cache_dir / key / "result.json").write_text(json.dumps({
+            "decision": "accept", "risk_score": 0.0, "per_tier": {},
+        }))
+
+        # _check_anchor_existence should be called BEFORE the cache hit.
+        anchor_check_calls: list[bool] = []
+
+        def _fake_check_anchor():
+            anchor_check_calls.append(True)
+            # Raise SystemExit to mimic a stale anchor.
+            import sys as _sys
+            _sys.exit(1)
+
+        with patch.object(gate, "_check_anchor_existence", side_effect=_fake_check_anchor):
+            with pytest.raises(SystemExit):
+                gate.check(sections, cache_dir=cache_dir, use_cache=True)
+        assert anchor_check_calls, (
+            "anchor freshness check did not run before cache lookup"
+        )
 
     def test_check_extracts_task_names_from_w7_dict_subset(self, tmp_path):
         """CR-02 regression: W-7 dict task_filter items must be extracted

@@ -553,6 +553,13 @@ class TBLiteBenchmarkGate:
              dataset_revision_hash, cache_hit, async_full_verify_pending,
              constraint_result, jsonl_skipped_lines_total}
         """
+        # 0. Anchor freshness check (WR-05: run BEFORE cache lookup so
+        #    stale anchors abort regardless of cache state). The cache
+        #    key includes dataset_revision_hash but NOT hermes_agent_commit,
+        #    so a cached accept from a different baseline would otherwise
+        #    be returned for the wrong prompt revision.
+        self._check_anchor_existence()
+
         # 1. Cache lookup
         cache_key = compute_artifact_hash(
             evolved_sections,
@@ -574,8 +581,8 @@ class TBLiteBenchmarkGate:
                 )
                 return cached
 
-        # 2. Pre-flight
-        self._check_anchor_existence()
+        # 2. Remaining pre-flight (overlay sanity is meaningless on cache
+        #    hits — no overlay happens — so it stays here, post-lookup).
         self._check_overlay_sanity()
 
         # 3. Overlay

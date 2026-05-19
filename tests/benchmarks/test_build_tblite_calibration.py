@@ -328,3 +328,44 @@ class TestBuildTBLiteCalibration:
         assert result.exit_code == 0, result.output
         assert not check_clean_calls.called, \
             "_check_hermes_clean must be skipped with --accept-stale-anchor"
+
+    def test_zero_sample_tier_fails_loudly(self, fake_hermes, fake_subset, tmp_path):
+        """WR-04 regression: a tier with 0 valid samples (mistyped key,
+        all infra_fail, etc.) must raise ClickException rather than
+        silently anchor at 0.0 — which would make the gate permanently
+        accept that tier.
+        """
+        from evolution.benchmarks import build_tblite_calibration as mod
+        anchor_out = tmp_path / "anchor.json"
+        # Drop 'extreme' entirely from the run result; the other 3 tiers
+        # still produce samples.
+        empty_extreme = {
+            "easy":    [True, True],
+            "medium":  [True, False],
+            "hard":    [False, True],
+            # no 'extreme' -> 0 valid samples
+        }
+        patches = _patches_for_happy_path(mod, per_tier_passed=empty_extreme)
+        for p in patches:
+            p.start()
+        try:
+            result = CliRunner().invoke(mod.main, [
+                "--hermes-repo", str(fake_hermes),
+                "--seed", "42",
+                "--runs", "1",
+                "--output-json", str(anchor_out),
+                "--benchmark-max-cost", "1000.0",
+            ])
+        finally:
+            for p in patches:
+                p.stop()
+        # Should fail with the WR-04 actionable error.
+        assert result.exit_code != 0, (
+            f"empty tier should abort calibration: {result.output}"
+        )
+        assert "extreme" in result.output, (
+            f"error must name the empty tier: {result.output}"
+        )
+        assert not anchor_out.exists(), (
+            "anchor must NOT be written when a tier is empty"
+        )

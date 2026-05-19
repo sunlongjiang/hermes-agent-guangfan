@@ -376,6 +376,12 @@ def main(
     runner = TBLiteRunner(config)
     tracker = CostTracker(max_usd=budget)
     per_run_per_tier: list[dict[str, float]] = []
+    # WR-04 (2026-05-19): track per-tier valid-sample counts across runs
+    # so we can fail loudly when a tier produces 0 valid samples instead
+    # of silently anchoring at 0.0 (which makes the gate's
+    # max(0.0, 0.0) - 1.96 * stdev threshold permanently negative,
+    # so candidate pass rates can never breach the empty tier).
+    per_tier_observed: dict[str, int] = {t: 0 for t in TIERS}
     runtime_total = 0.0
     try:
         with tracker:
@@ -403,6 +409,14 @@ def main(
                 per_run_per_tier.append(
                     _one_run_per_tier_pass_rate(run_result)
                 )
+                # WR-04: count valid samples per tier (excludes infra_fail
+                # rows; mirrors _one_run_per_tier_pass_rate's filter).
+                for task in run_result.per_task:
+                    if task.get("infra_fail"):
+                        continue
+                    tier = str(task.get("category", "")).strip().lower()
+                    if tier in per_tier_observed:
+                        per_tier_observed[tier] += 1
                 runtime_total += run_result.subprocess_runtime_seconds
                 if tracker.exceeded():
                     raise CostBudgetExceeded(
@@ -414,6 +428,20 @@ def main(
         )
 
     # ── 6. Aggregate per-tier mean+stdev ──────────────────────────
+    # WR-04: detect zero-sample tiers BEFORE writing the anchor. A
+    # mistyped per_tier_counts key (e.g. 'mediun' instead of 'medium')
+    # would otherwise produce a passing gate forever for the silently
+    # dropped tier.
+    empty_tiers = [t for t in TIERS if per_tier_observed[t] == 0]
+    if empty_tiers:
+        raise click.ClickException(
+            f"Tier(s) {sorted(empty_tiers)} produced 0 valid samples "
+            f"across {n_runs} runs. Check per_tier_counts and the "
+            f"'tier' field of each item in {stratified_path} — a "
+            f"mis-spelled tier name silently disappears here. Observed "
+            f"counts: {per_tier_observed}."
+        )
+
     anchor_per_tier: dict[str, dict] = {}
     for tier in TIERS:
         scores = [run.get(tier, 0.0) for run in per_run_per_tier]

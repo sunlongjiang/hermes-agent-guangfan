@@ -39,7 +39,7 @@
 ### Active
 
 - [ ] v2: Per-parameter description optimization (TOOL-V2-02)
-- [ ] v2: SessionDB mining for tool/prompt training data (TOOL-V2-01, PMPT-V2-04)
+- [x] v2: SessionDB mining for tool/prompt training data (TOOL-V2-01, PMPT-V2-04) — TOOL-V2-01 validated in Phase 14; PMPT-V2-04 validated in Phase 19 (5 plans, 3/3 SC verified, 27/27 threats closed; REVIEW 9/10 issues auto-fixed, WR-08 accepted as deferred protected-region nit)
 - [x] v2: Think-augmented tool selection (TOOL-V2-03) — Validated in Phase 15 (pending real-LM UAT for CR-01..04 scenarios)
 - [x] v2: Joint section optimization (PMPT-V2-01) — Validated in Phase 17 (pending real-LM UAT for joint vs RR holdout comparison + WR-07 [ACTIVE:sid] tag reflection quality)
 - [x] v2: Personality drift detection (PMPT-V2-02) — Validated in Phase 18 (5 plans, 9/9 must-haves verified; v1-pragmatic Tier 2 calibration ships with formality/vocabulary warned dims — tighten in a follow-up phase when a stronger judge is available)
@@ -117,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-16 — Phase 18 (personality-drift-detection, PMPT-V2-02) complete with 5 plans; verifier 9/9 must-haves PASS. DriftDetector (4-dim pairwise judge, 3-run averaging, severity ladder) + calibration pipeline + drift-gate wired into evolve_prompt_sections.py + 6 CLI integration tests. v1-pragmatic Tier 2 calibration on qwen-plus generator + gpt-5.5 reseller detector (formality/vocabulary warned; persona 0.73, tone 0.60). 533 tests passing, zero regression. Phase 19 (sessiondb-behavioral-mining-for-prompts) next.*
+*Last updated: 2026-05-19 — Phase 19 (sessiondb-behavioral-mining-for-prompts, PMPT-V2-04) complete with 5 plans; verifier 3/3 SC PASS, security 27/27 threats closed. SessionPromptMiner (4-way signal extraction: user_correction / section_specific_failure / oracle_disagreement / persona_drift) + mine_prompt_sessions CLI (13 flags, --i-have-consent gate, FAILED_<ts>/ recovery) + evolve_prompt_sections --session-source union (hash dedup, bad-line tolerance, joint+round-robin transparent). Code review surfaced 2 critical + 8 warning + 5 info; 9/10 critical+warning auto-fixed (CR-01/CR-02 dead code+hardcoded path; WR-01..07 metric channels / secret scrubbing / cheap-rule filters). WR-08 (drift_thresholds.json parse guard inside Phase 18 protected region) accepted as deferred. 637 tests passing, zero regression. Phase 20 (benchmark-gated-validation, PMPT-V2-03) next.*

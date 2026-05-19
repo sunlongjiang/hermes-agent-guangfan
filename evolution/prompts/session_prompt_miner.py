@@ -553,6 +553,21 @@ class SessionPromptMiner:
             )
         except Exception:
             return cands
+        # WR-03 fix: guard against partial scores dict from _check_one_run
+        # (e.g. LLM returning a subset of dims under flaky API conditions).
+        # Without this, missing dims silently fall to 0.0 via scores.get(),
+        # masking the detector signal. We skip the whole session for
+        # persona_drift when ANY required dim is missing — conservative,
+        # but auditable (yellow warn) and mirrors DriftDetector's all-or-nothing
+        # semantics.
+        missing = [d for d in DRIFT_DIMENSIONS if d not in scores]
+        if missing:
+            console.print(
+                f"[yellow]⚠ persona_drift scores missing dims "
+                f"{missing} for session {session_path}; "
+                f"skipping persona_drift candidates for this session[/yellow]"
+            )
+            return cands
         task = self._first_user_task(messages) or ""
         for dim in DRIFT_DIMENSIONS:
             score = scores.get(dim, 0.0)

@@ -234,14 +234,41 @@ def _print_summary_table(metrics: dict, total_examples: int, out_dir: Path) -> N
     console.print(f"  Output: {out_dir}")
 
 
-def _write_failed(timestamp: str, error_key: str, extra: Optional[dict] = None) -> Path:
+def _resolve_failed_base(output: Optional[str]) -> Path:
+    """CR-02 fix: derive the FAILED_<ts>/ parent directory from --output
+    (when given) so failed runs land beside successful runs.
+
+    When --output is provided the user expects all artifacts (success +
+    failure) to live under (or beside) that path. When --output is not
+    provided, fall back to the historical default location. This keeps
+    cwd-clobbering failures contained to user-chosen prefixes in
+    CI/scripted runs.
+    """
+    if output:
+        # Mirror the success-path layout: success writes to <output>/,
+        # so failure writes to <output>'s parent — sibling, not nested,
+        # so the FAILED dir does not bury itself inside an empty success
+        # directory the user already named.
+        return Path(output).parent
+    return Path("datasets") / "prompts" / "sessions"
+
+
+def _write_failed(
+    timestamp: str,
+    error_key: str,
+    base_dir: Path,
+    extra: Optional[dict] = None,
+) -> Path:
     """Write FAILED_<ts>/ failure marker directory. Returns its Path.
 
     Mirrors mine_tool_sessions.py:239-247. The extra dict is for diagnostic
     breadcrumbs only — paths, exception type+str. Never includes raw session
     content (T-19-03-I mitigation).
+
+    CR-02 fix: base_dir is computed from --output via _resolve_failed_base,
+    so passing --output redirects FAILED markers along with success output.
     """
-    failed = Path("datasets") / "prompts" / "sessions" / f"FAILED_{timestamp}"
+    failed = base_dir / f"FAILED_{timestamp}"
     failed.mkdir(parents=True, exist_ok=True)
     payload: dict = {"error": error_key}
     if extra:
@@ -300,9 +327,13 @@ def mine(
         Path(output) if output
         else Path("datasets") / "prompts" / "sessions" / timestamp
     )
+    # CR-02 fix: derive the FAILED_<ts>/ parent from --output so failed
+    # runs land beside successful runs instead of polluting cwd.
+    failed_base = _resolve_failed_base(output)
 
     if not sessions_path.exists() or not sessions_path.is_dir():
-        _write_failed(timestamp, "sessions_dir_missing", {"sessions_dir": str(sessions_path)})
+        _write_failed(timestamp, "sessions_dir_missing", failed_base,
+                      {"sessions_dir": str(sessions_path)})
         return 1
 
     # Load config + sections.
@@ -311,7 +342,7 @@ def mine(
             hermes_repo=hermes_repo, model=model, api_base=api_base,
         )
     except Exception as e:
-        _write_failed(timestamp, "config_load_failed",
+        _write_failed(timestamp, "config_load_failed", failed_base,
                       {"detail": f"{type(e).__name__}: {e}"})
         return 1
     if judge_model:
@@ -321,12 +352,12 @@ def mine(
     try:
         current_sections = extract_prompt_sections(prompt_builder_path)
     except Exception as e:
-        _write_failed(timestamp, "prompt_extraction_failed",
+        _write_failed(timestamp, "prompt_extraction_failed", failed_base,
                       {"detail": f"{type(e).__name__}: {e}",
                        "prompt_builder_path": str(prompt_builder_path)})
         return 1
     if not current_sections:
-        _write_failed(timestamp, "no_sections_found",
+        _write_failed(timestamp, "no_sections_found", failed_base,
                       {"prompt_builder_path": str(prompt_builder_path)})
         return 1
 
@@ -428,12 +459,12 @@ def mine(
     try:
         examples = miner.mine(sessions_path, current_sections, limit=limit)
     except Exception as e:
-        _write_failed(timestamp, "mine_exception",
+        _write_failed(timestamp, "mine_exception", failed_base,
                       {"detail": f"{type(e).__name__}: {e}"})
         return 1
 
     if not examples:
-        _write_failed(timestamp, "no_examples_post_judge",
+        _write_failed(timestamp, "no_examples_post_judge", failed_base,
                       {"metrics": miner.metrics})
         return 1
 

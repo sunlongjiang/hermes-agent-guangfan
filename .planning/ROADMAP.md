@@ -370,7 +370,24 @@ Plans:
   1. Optional `--benchmark` flag triggers TBLite evaluation before accepting evolved sections
   2. Configurable pass threshold (default: no regression on core capabilities)
   3. Benchmark results saved to output metrics
-**Plans**: TBD
+**Plans:** 6 plans
+
+Plans:
+**Wave 1**
+- [ ] 20-01-config-scaffolding-PLAN.md — EvolutionConfig 4 新字段 + evolution/benchmarks/ 包脚手架 + tblite_stratified_subset.json 占位 + .gitignore 例外 (D-03 / D-08 / D-11 / D-16 / D-17 / D-CAL-02)
+
+**Wave 2** *(blocked on Wave 1)* — Plans 02 + 03 并行
+- [ ] 20-02-tblite-runner-PLAN.md — TBLiteRunner Async Stream Pipe + State Monitor + samples.jsonl 解析 + compute_artifact_hash + 9 单元测试 (D-11 / D-15 / T-20-05)
+- [ ] 20-03-benchmark-gate-PLAN.md — TBLiteBenchmarkGate Risk_Score 算法 + Virtual Prompt Overlay + Pre-flight (D-10/D-14) + 内容寻址 cache + prompt_loader.write_back_section dest= 扩展 + 14+ 单元测试 (D-01..D-04 / D-09 / D-10 / D-14 / D-15)
+
+**Wave 3** *(blocked on Wave 2)*
+- [ ] 20-04-build-calibration-cli-PLAN.md — build_tblite_calibration CLI (8 flags + CostTracker enforcement + Pre-flight Watermark + HuggingFace dataset_revision_hash 失败开放) + 6 CliRunner 测试 (D-13 / D-15 / D-16 / D-17)
+
+**Wave 4** *(BLOCKING — checkpoint:decision + checkpoint:human-action)*
+- [ ] 20-05-anchor-generation-checkpoint-PLAN.md — Path A 实跑 calibration (~$36, 30-90 min) OR Path B mock anchor + 跟踪 todo;datasets/prompts/tblite_anchor.json + 真实 task names 落入 tblite_stratified_subset.json (D-CAL-05)
+
+**Wave 5** *(blocked on Wave 4)*
+- [ ] 20-06-evolve-integration-PLAN.md — evolve_prompt_sections.py step 10.5 插入 + 6 新 Click flags + benchmark_* metrics + total_cost_breakdown + tblite_report.json 落盘 + TestBenchmarkGate 6+ CLI 集成测试 (D-04 / D-05 / D-15 / D-16 / D-18 / D-BYPASS-01 精神)
 
 ### Phase 21: Darwinian Code Evolution
 **Goal**: Integrate darwinian-evolver for code-level evolution of hermes-agent components

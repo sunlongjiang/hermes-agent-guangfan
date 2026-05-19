@@ -88,3 +88,16 @@ Progress: [██████████] 100%
 Last session: 2026-05-19T07:36:35.842Z
 Stopped at: Phase 20 context gathered
 Next: Phase 18 ready for verification (`/gsd-verify-phase 18`). All 6 CLI integration tests + 13 Wave 1 unit tests + Wave 3 integration tests via TestABBaseline cover the full success-criteria matrix (SC#1 → Wave 1 unit tests; SC#2 → test_two_dim_drift_rejects_and_writes_failed_dir; SC#3 → test_metrics_json_has_drift_fields + round-robin variant + reject path).
+
+## Phase 20 — Wave 4 Deferred
+
+**Plan 20-05 (anchor generation checkpoint) was SKIPPED at user request (2026-05-19).**
+
+The plan is BLOCKING and requires:
+- OPENROUTER_API_KEY + MODAL_TOKEN_ID env vars
+- Clean hermes-agent tree
+- ~$36 budget
+
+Until `datasets/prompts/tblite_anchor.json` exists, `TBLiteBenchmarkGate._check_anchor_existence` raises `SystemExit(1)` — Plan 06 CLI integration is wired up but `--benchmark=tblite` at runtime won't work.
+
+**To resume:** `python -m evolution.benchmarks.build_tblite_calibration --runs 3 --benchmark-max-cost 50.0` then commit the JSON files.

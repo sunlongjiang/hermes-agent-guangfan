@@ -358,21 +358,31 @@ class TestTBLiteBenchmarkGate:
 
         sections = [_FakeSection("memory_guidance", "evolved", (1, 3),
                                   gate._target_path)]
-        with patch("evolution.benchmarks.benchmark_gate.shutil.copy2") as mock_copy:
-            with patch("evolution.benchmarks.benchmark_gate.os.replace") as mock_replace:
-                gate._run_overlay(sections)
-                # Snapshot (always copy2) + cross-fs replace fallback (copy2)
-                # = at least 2 copy2 calls; os.replace NOT called for the
-                # target swap.
-                assert mock_copy.call_count >= 2, \
-                    f"copy2 fallback not taken: {mock_copy.call_count}"
-                # os.replace should NOT replace the target file (cross-fs branch).
-                target_replace_calls = [
-                    c for c in mock_replace.call_args_list
-                    if str(c.args[1]) == str(gate._target_path)
-                ]
-                assert len(target_replace_calls) == 0, \
-                    f"cross-fs path must NOT call os.replace on target: {target_replace_calls}"
+        # Patch write_back_section into a no-op: post-CR-01 the overlay
+        # threads edits through overlay_path, so it needs the file to
+        # exist on disk. shutil.copy2 is mocked below, so the overlay
+        # would never be created — patch write_back_section to skip the
+        # body but stay observable.
+        with patch(
+            "evolution.benchmarks.benchmark_gate.shutil.copy2"
+        ) as mock_copy, patch(
+            "evolution.benchmarks.benchmark_gate.os.replace"
+        ) as mock_replace, patch(
+            "evolution.prompts.prompt_loader.write_back_section"
+        ):
+            gate._run_overlay(sections)
+            # Snapshot (always copy2) + cross-fs replace fallback (copy2)
+            # = at least 2 copy2 calls; os.replace NOT called for the
+            # target swap.
+            assert mock_copy.call_count >= 2, \
+                f"copy2 fallback not taken: {mock_copy.call_count}"
+            # os.replace should NOT replace the target file (cross-fs branch).
+            target_replace_calls = [
+                c for c in mock_replace.call_args_list
+                if str(c.args[1]) == str(gate._target_path)
+            ]
+            assert len(target_replace_calls) == 0, \
+                f"cross-fs path must NOT call os.replace on target: {target_replace_calls}"
 
     def test_restore_overlay_called_on_subprocess_error(self, tmp_path):
         """try/finally guarantee: even when runner.run raises, restore runs."""
@@ -413,3 +423,76 @@ class TestTBLiteBenchmarkGate:
         }
         with pytest.raises(ValueError, match="task_filter is empty"):
             TBLiteBenchmarkGate(config, _make_anchor(), bad_subset)
+
+    def test_run_overlay_preserves_all_sections(self, tmp_path):
+        """CR-01 regression: multi-section overlay must keep every evolved section.
+
+        Before the fix, write_back_section(self._target_path, ..., dest=overlay_path)
+        re-read the (unmodified) target file on every iteration and wrote the
+        full body to overlay_path, overwriting prior iterations' edits. Only
+        the section processed LAST survived in the overlay. With N>=2 evolved
+        sections this silently benchmarks the original prompt with a single
+        section swapped.
+        """
+        from evolution.prompts.prompt_loader import PromptSection
+        # Build a prompt_builder.py with two evolvable top-level str vars
+        # whose line ranges do not overlap (otherwise write_back_section
+        # bottom-up assumption breaks).
+        hermes = tmp_path / "hermes-agent"
+        (hermes / "agent").mkdir(parents=True, exist_ok=True)
+        prompt_builder = hermes / "agent" / "prompt_builder.py"
+        prompt_builder.write_text(
+            'MEMORY_GUIDANCE = (\n'
+            '    "ORIGINAL_MEMORY"\n'
+            ')\n'
+            'SKILLS_GUIDANCE = (\n'
+            '    "ORIGINAL_SKILLS"\n'
+            ')\n'
+        )
+        config = _make_config(hermes)
+        from evolution.benchmarks.benchmark_gate import TBLiteBenchmarkGate
+        gate = TBLiteBenchmarkGate(
+            config,
+            anchor=_make_anchor(),
+            stratified_subset=_make_subset(),
+        )
+
+        # Two real PromptSection objects with non-overlapping line ranges.
+        # source_path is the SAME as the target (real-world shape).
+        evolved = [
+            PromptSection(
+                section_id="memory_guidance",
+                text="EVOLVED_MEMORY",
+                char_count=len("EVOLVED_MEMORY"),
+                line_range=(1, 3),
+                source_path=prompt_builder,
+            ),
+            PromptSection(
+                section_id="skills_guidance",
+                text="EVOLVED_SKILLS",
+                char_count=len("EVOLVED_SKILLS"),
+                line_range=(4, 6),
+                source_path=prompt_builder,
+            ),
+        ]
+        snapshot_path, overlay_path = gate._run_overlay(evolved)
+
+        # The TARGET should now contain BOTH evolved sections — verify the
+        # target file (which os.replace promoted from overlay_path) holds
+        # both evolved strings.
+        target_text = prompt_builder.read_text()
+        assert "EVOLVED_MEMORY" in target_text, (
+            f"first evolved section dropped: target file is\n{target_text}"
+        )
+        assert "EVOLVED_SKILLS" in target_text, (
+            f"second evolved section dropped: target file is\n{target_text}"
+        )
+        assert "ORIGINAL_MEMORY" not in target_text, (
+            f"original memory text leaked past overlay: {target_text}"
+        )
+        assert "ORIGINAL_SKILLS" not in target_text, (
+            f"original skills text leaked past overlay: {target_text}"
+        )
+
+        # Restore so the rest of the test suite sees a clean tree.
+        gate._restore_overlay(snapshot_path)

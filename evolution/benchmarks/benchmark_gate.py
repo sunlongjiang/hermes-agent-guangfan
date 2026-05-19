@@ -326,6 +326,14 @@ class TBLiteBenchmarkGate:
         # Step 2: seed overlay with original, then write evolved sections
         # bottom-up so earlier section line ranges remain valid
         # (prompt_loader.py:153-155 docstring).
+        #
+        # CR-01 fix (2026-05-19): chain the edits through overlay_path so
+        # each iteration preserves the prior iteration's evolved section.
+        # write_back_section ALWAYS reads from its first arg and writes
+        # full file body to dest, so passing the target as the source
+        # would overwrite earlier evolved sections each loop iteration.
+        # Using overlay_path as BOTH source and dest threads edits
+        # cumulatively.
         shutil.copy2(self._target_path, overlay_path)
         sorted_evolved = sorted(
             evolved_sections,
@@ -333,11 +341,8 @@ class TBLiteBenchmarkGate:
             reverse=True,
         )
         for sec in sorted_evolved:
-            # Use prompt_builder_path=target as the SOURCE of line ranges
-            # but write to dest=overlay_path so the original on disk is
-            # untouched until step 3.
             write_back_section(
-                self._target_path,
+                overlay_path,
                 sec,
                 sec.text,
                 dest=overlay_path,

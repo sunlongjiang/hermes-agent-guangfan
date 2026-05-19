@@ -636,6 +636,23 @@ class SessionPromptMiner:
             self.metrics["judge_calls_by_signal"][c.signal] = (
                 self.metrics["judge_calls_by_signal"].get(c.signal, 0) + 1
             )
+
+            # WR-05 fix: scrub LLM-generated expected_behavior / rationale
+            # for secret patterns before persisting. Pre-judge _filter_secrets
+            # only checks user-provided fields (task / downstream_context /
+            # originally_observed_behavior); the judge can still echo a
+            # secret-looking substring into expected_behavior or rationale
+            # when the upstream regex missed an obscure variant. Drop the
+            # verdict entirely on a positive hit — these end up in
+            # train/val/holdout.jsonl, so silent persistence would expand
+            # the secret blast radius beyond miner_log.jsonl (T-19-05-I).
+            if _contains_secret(expected) or _contains_secret(rationale):
+                self.metrics["secret_filter_skipped"] += 1
+                # Note: we already incremented judge_calls above (the LLM
+                # call did happen); we deliberately do NOT count this in
+                # confirmed/false_positive because the verdict is discarded.
+                continue
+
             if raw_verdict == "confirm_example":
                 self.metrics["judge_confirmed_by_signal"][c.signal] = (
                     self.metrics["judge_confirmed_by_signal"].get(c.signal, 0) + 1

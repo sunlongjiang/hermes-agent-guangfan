@@ -183,6 +183,21 @@ def _load_session_dataset_resilient(
     return dataset, skipped
 
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+
+def _cost_breakdown(opt_spent: float, bench_spent: float) -> dict[str, float]:
+    """WR-09: produce the Phase 20 D-16 dual-track cost breakdown.
+
+    Extracted to a single source of truth so the FAILED and success
+    paths cannot drift when a third cost source is added.
+    """
+    return {
+        "optimization": float(opt_spent),
+        "benchmark": float(bench_spent),
+    }
+
+
 # ── Main Pipeline ────────────────────────────────────────────────────────────
 
 
@@ -1315,10 +1330,11 @@ def evolve(
                 # variable established by Edit 0. NO locals().get(...)
                 # fallback — if Edit 0 was skipped, this AttributeError
                 # fails loudly (good) rather than silently reporting 0.0.
-                "total_cost_breakdown": {
-                    "optimization": float(optimization_tracker_spent),
-                    "benchmark": float(benchmark_tracker_spent),
-                },
+                # WR-09: cost breakdown produced via _cost_breakdown to
+                # keep this path and the success path in lockstep.
+                "total_cost_breakdown": _cost_breakdown(
+                    optimization_tracker_spent, benchmark_tracker_spent
+                ),
             }
             (output_dir / "metrics.json").write_text(
                 json.dumps(failed_metrics, indent=2)
@@ -1438,10 +1454,11 @@ def evolve(
     # applied this line raises NameError loudly. Previous draft used a
     # locals-dict fallback which silently masked the missing tracker as
     # 0.0 (the W-2/W-3 bug).
-    metrics["total_cost_breakdown"] = {
-        "optimization": float(optimization_tracker_spent),
-        "benchmark": float(benchmark_tracker_spent),
-    }
+    # WR-09: cost breakdown produced via _cost_breakdown so this path
+    # and the FAILED path share the same shape.
+    metrics["total_cost_breakdown"] = _cost_breakdown(
+        optimization_tracker_spent, benchmark_tracker_spent
+    )
 
     (output_dir / "metrics.json").write_text(
         json.dumps(metrics, indent=2)

@@ -1,0 +1,51 @@
+{
+  "seed": 42,
+  "per_tier_counts": {
+    "easy": 12,
+    "medium": 8,
+    "hard": 7,
+    "extreme": 3
+  },
+  "task_filter": [
+    {"name": "tblite-easy-01", "tier": "easy"},
+    {"name": "tblite-easy-02", "tier": "easy"},
+    {"name": "tblite-easy-03", "tier": "easy"},
+    {"name": "tblite-easy-04", "tier": "easy"},
+    {"name": "tblite-easy-05", "tier": "easy"},
+    {"name": "tblite-easy-06", "tier": "easy"},
+    {"name": "tblite-easy-07", "tier": "easy"},
+    {"name": "tblite-easy-08", "tier": "easy"},
+    {"name": "tblite-easy-09", "tier": "easy"},
+    {"name": "tblite-easy-10", "tier": "easy"},
+    {"name": "tblite-easy-11", "tier": "easy"},
+    {"name": "tblite-easy-12", "tier": "easy"},
+    {"name": "tblite-medium-01", "tier": "medium"},
+    {"name": "tblite-medium-02", "tier": "medium"},
+    {"name": "tblite-medium-03", "tier": "medium"},
+    {"name": "tblite-medium-04", "tier": "medium"},
+    {"name": "tblite-medium-05", "tier": "medium"},
+    {"name": "tblite-medium-06", "tier": "medium"},
+    {"name": "tblite-medium-07", "tier": "medium"},
+    {"name": "tblite-medium-08", "tier": "medium"},
+    {"name": "tblite-hard-01", "tier": "hard"},
+    {"name": "tblite-hard-02", "tier": "hard"},
+    {"name": "tblite-hard-03", "tier": "hard"},
+    {"name": "tblite-hard-04", "tier": "hard"},
+    {"name": "tblite-hard-05", "tier": "hard"},
+    {"name": "tblite-hard-06", "tier": "hard"},
+    {"name": "tblite-hard-07", "tier": "hard"},
+    {"name": "tblite-extreme-01", "tier": "extreme"},
+    {"name": "tblite-extreme-02", "tier": "extreme"},
+    {"name": "tblite-extreme-03", "tier": "extreme"}
+  ],
+  "source": "NousResearch/openthoughts-tblite",
+  "generated_timestamp": "2026-05-19T00:00:00Z",
+  "_meta": {
+    "phase": "20",
+    "wave": 1,
+    "placeholder": true,
+    "schema_version": "2",
+    "schema_note": "task_filter is list of {name, tier} objects (W-7 revision 2026-05-19). Consumers select tasks by tier field, NOT by per_tier_counts index slice.",
+    "note": "Wave 1 placeholder task names. Wave 4 (build_tblite_calibration) overwrites task_filter[].name with real TBLite task names sampled per-tier from the HuggingFace dataset; tier field stays as the per-row label. Schema is final; only string contents change."
+  }
+}

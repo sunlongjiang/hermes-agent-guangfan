@@ -244,6 +244,28 @@ class TestTBLiteRunner:
         # All hex chars.
         int(h1, 16)
 
+    def test_cache_key_missing_dict_keys_raises_typeerror(self):
+        """CR-04 regression: dict items missing 'section_id' or 'text'
+        must raise TypeError consistent with the else branch, not let
+        KeyError leak from bare subscription.
+        """
+        from evolution.benchmarks.tblite_runner import compute_artifact_hash
+        with pytest.raises(TypeError, match="missing required keys"):
+            compute_artifact_hash(
+                [{"id": "memory_guidance", "text": "x"}],  # wrong key
+                "rev_abc", 42,
+            )
+        with pytest.raises(TypeError, match="missing required keys"):
+            compute_artifact_hash(
+                [{"section_id": "memory_guidance", "body": "x"}],  # wrong key
+                "rev_abc", 42,
+            )
+        with pytest.raises(TypeError, match="missing required keys"):
+            compute_artifact_hash(
+                [{"section_id": "memory_guidance"}],  # missing text
+                "rev_abc", 42,
+            )
+
     # ── Test 9: TBLITE_RUNNER_VERSION constant ─────────────────────────────
 
     def test_tblite_runner_version_constant(self):

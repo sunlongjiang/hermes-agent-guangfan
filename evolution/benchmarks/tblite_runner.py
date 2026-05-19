@@ -414,6 +414,16 @@ def compute_artifact_hash(
         if hasattr(s, "section_id") and hasattr(s, "text"):
             normalized.append({"section_id": s.section_id, "text": s.text})
         elif isinstance(s, dict):
+            # CR-04 (2026-05-19): raise TypeError on missing required keys
+            # instead of letting KeyError bubble out of bare subscription.
+            # The gate's check() invokes this; a malformed cache lookup
+            # should fail with a clear error pointing at the offending
+            # dict, not a stack trace inside the cache code.
+            if "section_id" not in s or "text" not in s:
+                raise TypeError(
+                    f"evolved_sections dict missing required keys "
+                    f"'section_id' and/or 'text': got keys={sorted(s.keys())}"
+                )
             normalized.append({
                 "section_id": s["section_id"],
                 "text": s["text"],

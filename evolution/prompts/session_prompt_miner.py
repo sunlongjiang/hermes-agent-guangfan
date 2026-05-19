@@ -22,7 +22,6 @@ READ-ONLY guarantee: never imports or calls prompt_loader.write_back_section
 or any hermes-agent mutation path. Reads session JSON + extract_prompt_sections().
 """
 
-import hashlib
 import json
 import re
 from dataclasses import dataclass, field

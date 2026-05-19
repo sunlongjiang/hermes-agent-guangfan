@@ -273,6 +273,7 @@ class SessionPromptMiner:
             "surface_drift_sections": {},  # name -> count
             "secret_filter_skipped": 0,  # D-23
             "session_load_failures": 0,  # B3 fix: file-level load failures (mine scope)
+            "session_schema_invalid": 0,  # WR-07: messages field present but not a list
             "jsonl_skipped_lines": 0,  # D-24 line-level (Plan 04 helper scope; stays 0 here)
             "judge_calls": 0,
             "judge_calls_by_signal": {s: 0 for s in VALID_SIGNALS},
@@ -734,6 +735,16 @@ class SessionPromptMiner:
                 continue
             messages = session.get("messages") or []
             if not isinstance(messages, list):
+                # WR-07 fix: session JSON parsed fine but the `messages`
+                # field is not a list (schema-invalid payload — e.g. a
+                # dict or string). Previously silent; now counted under a
+                # dedicated key so audit logs distinguish schema errors
+                # from JSON parse errors (the B3 fix "file-level vs
+                # line-level" semantics doesn't cover this case, so a
+                # separate key is the right place).
+                self.metrics["session_schema_invalid"] = (
+                    self.metrics.get("session_schema_invalid", 0) + 1
+                )
                 continue
             all_cands.extend(self._extract_user_correction(messages, str(sp)))
             all_cands.extend(self._extract_section_specific_failure(messages, str(sp)))

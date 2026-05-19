@@ -370,11 +370,11 @@ Plans:
   1. Optional `--benchmark` flag triggers TBLite evaluation before accepting evolved sections
   2. Configurable pass threshold (default: no regression on core capabilities)
   3. Benchmark results saved to output metrics
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 20-01-config-scaffolding-PLAN.md — EvolutionConfig 4 新字段 + evolution/benchmarks/ 包脚手架 + tblite_stratified_subset.json 占位 + .gitignore 例外 (D-03 / D-08 / D-11 / D-16 / D-17 / D-CAL-02)
+- [x] 20-01-config-scaffolding-PLAN.md — EvolutionConfig 4 新字段 + evolution/benchmarks/ 包脚手架 + tblite_stratified_subset.json 占位 + .gitignore 例外 (D-03 / D-08 / D-11 / D-16 / D-17 / D-CAL-02)
 
 **Wave 2** *(blocked on Wave 1)* — Plans 02 + 03 并行
 - [ ] 20-02-tblite-runner-PLAN.md — TBLiteRunner Async Stream Pipe + State Monitor + samples.jsonl 解析 + compute_artifact_hash + 9 单元测试 (D-11 / D-15 / T-20-05)

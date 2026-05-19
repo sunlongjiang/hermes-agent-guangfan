@@ -143,6 +143,8 @@ def write_back_section(
     prompt_builder_path: Path,
     section: PromptSection,
     new_text: str,
+    *,
+    dest: "Path | None" = None,
 ) -> None:
     """Write evolved text back to prompt_builder.py, preserving format.
 
@@ -155,9 +157,20 @@ def write_back_section(
     remain valid.
 
     Args:
-        prompt_builder_path: Path to prompt_builder.py.
+        prompt_builder_path: Path to prompt_builder.py — ALWAYS used as the
+            SOURCE of original content + line range. Even when ``dest`` is
+            provided, the function reads from this path to construct the
+            replacement.
         section: The PromptSection to replace (provides line_range).
         new_text: The evolved text to write back.
+        dest: Phase 20 D-09 Virtual Prompt Overlay extension. When None
+            (the default), the rewritten content is written back in-place
+            to ``prompt_builder_path`` — preserving the Phase 7-19
+            contract. When non-None, the rewritten content is written to
+            ``dest`` instead, leaving ``prompt_builder_path`` untouched.
+            The Overlay uses dest=overlay_path to stage an evolved copy
+            in ~/.hermes/tmp/benchmark_<ts>/, then atomically swaps it
+            into hermes-agent via os.replace.
     """
     source = prompt_builder_path.read_text()
     lines = source.splitlines(keepends=True)
@@ -179,7 +192,13 @@ def write_back_section(
     # Line-level replacement (1-based inclusive -> 0-based slice)
     replacement_lines = replacement.splitlines(keepends=True)
     new_lines = lines[:start_line - 1] + replacement_lines + lines[end_line:]
-    prompt_builder_path.write_text("".join(new_lines))
+
+    # D-09 Virtual Prompt Overlay: write to dest if provided, else in-place.
+    # Both branches do an atomic-ish write — Path.write_text on POSIX is
+    # write-to-temp + rename, but BenchmarkGate's caller can layer an
+    # outer os.replace for cross-fs atomicity.
+    output_path = dest if dest is not None else prompt_builder_path
+    output_path.write_text("".join(new_lines))
 
 
 # ── Formatting Helpers ──────────────────────────────────────────────────────

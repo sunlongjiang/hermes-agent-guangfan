@@ -618,24 +618,36 @@ class TBLiteBenchmarkGate:
                     raise TypeError(
                         f"task_filter item has unexpected shape: {item!r}"
                     )
+            failed_runs = 0
             for run_idx in range(self.runs):
                 run_dir = base_out / f"run_{run_idx}"
                 run_result = self.runner.run(
                     task_filter=task_names,
                     output_dir=run_dir,
                 )
-                per_run_per_tier.append(
-                    self._one_run_per_tier_pass_rate(run_result)
-                )
-                if run_result.samples_jsonl_path:
-                    samples_paths.append(run_result.samples_jsonl_path)
+                # Always accumulate runtime, cost, and jsonl skip counts —
+                # these record what we spent, even on a failed run.
                 total_runtime += run_result.subprocess_runtime_seconds
                 for k, v in run_result.cost_breakdown.items():
                     total_cost[k] = total_cost.get(k, 0.0) + v
                 jsonl_skipped_total += run_result.jsonl_skipped_lines
                 if run_result.status != "ok":
+                    # WR-08 (2026-05-19): exclude failed runs from
+                    # per_run_per_tier AND samples_paths. Including a
+                    # partial/zero pass-rate dict (e.g. all 0.0 from a
+                    # hang_timeout) would artificially widen the
+                    # candidate stdev and could mask a real regression
+                    # on retry. We keep the failure visible through
+                    # stderr_tails and failed_runs.
                     run_status_any_error = True
                     stderr_tails.append(run_result.stderr_tail)
+                    failed_runs += 1
+                    continue
+                per_run_per_tier.append(
+                    self._one_run_per_tier_pass_rate(run_result)
+                )
+                if run_result.samples_jsonl_path:
+                    samples_paths.append(run_result.samples_jsonl_path)
         finally:
             # 5. ALWAYS restore (D-09 step 5)
             self._restore_overlay(snapshot_path)
@@ -646,6 +658,11 @@ class TBLiteBenchmarkGate:
         decision = "reject" if risk_score >= self.reject_threshold else "accept"
         # Subprocess-level failure overrides accept (Plan 06 reviews status field).
         if run_status_any_error and decision == "accept":
+            decision = "reject"
+        # WR-08: if a majority of runs failed, force reject regardless of
+        # the per-tier numbers (which now exclude failed runs and may
+        # therefore look deceptively healthy from very few samples).
+        if failed_runs >= self.runs / 2:
             decision = "reject"
 
         report = {
@@ -663,6 +680,10 @@ class TBLiteBenchmarkGate:
             "jsonl_skipped_lines_total": jsonl_skipped_total,
             "stderr_tails": stderr_tails,
             "artifact_hash": cache_key,
+            # WR-08 (2026-05-19): expose failed-run count so operators can
+            # distinguish 'this is a subprocess error' from 'this is a
+            # quality regression' when reading reject diagnostics.
+            "failed_runs": failed_runs,
         }
         reason = (
             f"Risk_Score {risk_score:.2f} "

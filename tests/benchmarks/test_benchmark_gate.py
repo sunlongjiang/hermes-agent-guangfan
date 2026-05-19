@@ -471,6 +471,91 @@ class TestTBLiteBenchmarkGate:
         with pytest.raises(ValueError, match="task_filter is empty"):
             TBLiteBenchmarkGate(config, _make_anchor(), bad_subset)
 
+    def test_failed_runs_excluded_from_aggregation(self, tmp_path):
+        """WR-08 regression: subprocess failures must NOT pollute the
+        per-tier aggregation. Including a partial/zero pass-rate dict
+        from a hang_timeout would inflate candidate stdev and could mask
+        a real regression on retry.
+        """
+        from evolution.benchmarks import benchmark_gate as mod
+        gate = _make_gate(tmp_path, runs=3)
+        cache_dir = tmp_path / "cache"
+        sections = [_FakeSection("memory_guidance", "evolved")]
+
+        # Pattern: 2 successful runs + 1 hang_timeout. After the fix,
+        # only the 2 successful results enter per_run_per_tier; failed_runs
+        # is 1; decision flips to reject via run_status_any_error.
+        ok_result = _fake_run_result({
+            "easy":    [True] * 4,
+            "medium":  [True] * 4,
+            "hard":    [True] * 4,
+            "extreme": [True] * 4,
+        })
+        failed_result = _fake_run_result(
+            {
+                "easy": [], "medium": [], "hard": [], "extreme": [],
+            },
+            status="hang_timeout",
+        )
+        results = iter([ok_result, ok_result, failed_result])
+
+        with patch.object(mod, "subprocess"), \
+             patch.object(gate.runner, "run", side_effect=lambda **kwargs: next(results)), \
+             patch.object(gate, "_check_overlay_sanity"), \
+             patch.object(gate, "_check_anchor_existence"), \
+             patch.object(gate, "_run_overlay",
+                          return_value=(tmp_path / "snap", tmp_path / "ovl")), \
+             patch.object(gate, "_restore_overlay"):
+            report = gate.check(sections, cache_dir=cache_dir, use_cache=False)
+
+        assert report["failed_runs"] == 1, (
+            f"failed_runs not surfaced: {report.get('failed_runs')}"
+        )
+        # status_any_error path forces reject regardless of per-tier numbers.
+        assert report["decision"] == "reject", (
+            f"subprocess failure should force reject: {report['decision']}"
+        )
+        # The two successful runs each report easy=1.0; their stdev should
+        # be 0.0 — proving the failed run's all-zeros was NOT included.
+        easy = report["per_tier"]["easy"]
+        assert easy["stdev"] == 0.0, (
+            f"failed run leaked into stdev: easy stdev={easy['stdev']}"
+        )
+
+    def test_majority_failed_runs_force_reject(self, tmp_path):
+        """WR-08: if >= runs/2 runs fail, force reject even if the few
+        successful runs happen to pass on a small sample.
+        """
+        from evolution.benchmarks import benchmark_gate as mod
+        gate = _make_gate(tmp_path, runs=3)
+        cache_dir = tmp_path / "cache"
+        sections = [_FakeSection("memory_guidance", "evolved")]
+
+        # 1 success + 2 failures => majority failed.
+        ok_result = _fake_run_result({
+            "easy":    [True] * 4,
+            "medium":  [True] * 4,
+            "hard":    [True] * 4,
+            "extreme": [True] * 4,
+        })
+        failed_result = _fake_run_result(
+            {"easy": [], "medium": [], "hard": [], "extreme": []},
+            status="hang_timeout",
+        )
+        results = iter([ok_result, failed_result, failed_result])
+
+        with patch.object(mod, "subprocess"), \
+             patch.object(gate.runner, "run", side_effect=lambda **kwargs: next(results)), \
+             patch.object(gate, "_check_overlay_sanity"), \
+             patch.object(gate, "_check_anchor_existence"), \
+             patch.object(gate, "_run_overlay",
+                          return_value=(tmp_path / "snap", tmp_path / "ovl")), \
+             patch.object(gate, "_restore_overlay"):
+            report = gate.check(sections, cache_dir=cache_dir, use_cache=False)
+
+        assert report["failed_runs"] == 2
+        assert report["decision"] == "reject"
+
     def test_check_runs_anchor_check_before_cache_lookup(self, tmp_path):
         """WR-05 regression: anchor freshness check must precede cache
         lookup so a stale anchor aborts even when a cached accept exists.

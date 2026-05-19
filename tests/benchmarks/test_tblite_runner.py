@@ -83,6 +83,29 @@ class TestTBLiteRunner:
         assert not mock_subp.Popen.called, \
             "T-20-05 violation: Popen was called despite unsafe task name"
 
+    def test_popen_rejects_path_traversal_task_names(self, tmp_path):
+        """WR-01 regression: '.' and '/' must be rejected.
+
+        Before the fix the regex permitted '.' and '/', so path-traversal
+        strings like 'tblite/../../etc/passwd' passed validation. Now the
+        whitelist matches the docstring claim ([A-Za-z0-9_-]).
+        """
+        from evolution.benchmarks import tblite_runner as mod
+        runner = _make_runner(tmp_path, heartbeat=2)
+        for bad in (
+            "tblite/../../etc/passwd",
+            "a/../../b",
+            "t./../escape",
+            "tblite/path",
+            "tblite.evil",
+        ):
+            with patch.object(mod, "subprocess") as mock_subp:
+                with pytest.raises(ValueError, match="Unsafe task name"):
+                    runner.run([bad], tmp_path / "out")
+                assert not mock_subp.Popen.called, (
+                    f"path-traversal task name {bad!r} reached Popen"
+                )
+
     # ── Test 3: stream pipe marker parsing ────────────────────────────────
 
     def test_stream_pipe_parses_pass_fail_markers(self, tmp_path):

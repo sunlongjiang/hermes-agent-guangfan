@@ -58,7 +58,13 @@ MAX_HANGS = 3
 # Reject anything outside this whitelist BEFORE subprocess construction so
 # shell metachars (';', '$', '`', '|', '&', spaces, newlines) cannot be
 # smuggled in via crafted --benchmark-tier CSV or dataset poisoning.
-_TASK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-./]{0,127}$")
+#
+# WR-01 (2026-05-19): the previous regex permitted '.' and '/', which let
+# strings like 'tblite/../../etc/passwd' or 'a/../../b' through. While the
+# value is only joined into a CSV for --env.task_filter, downstream
+# consumers in hermes-agent's tblite_env.py may interpret it as a path.
+# Match the docstring claim (alphanumeric + '_' + '-') strictly.
+_TASK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,127}$")
 
 # Phase 19 D-24 mirror: warn when bad-line ratio > 5%.
 _JSONL_BAD_LINE_WARN_THRESHOLD = 0.05
@@ -145,8 +151,9 @@ def _validate_task_filter(task_filter: list[str]) -> str:
         if not isinstance(name, str) or not _TASK_NAME_RE.match(name):
             raise ValueError(
                 f"Unsafe task name {name!r}: must match "
-                f"[A-Za-z0-9][A-Za-z0-9_\\-./]{{0,127}}. T-20-05 "
-                f"mitigation: shell metachars are rejected at the gate."
+                f"[A-Za-z0-9][A-Za-z0-9_\\-]{{0,127}}. T-20-05 "
+                f"mitigation: shell metachars and path separators "
+                f"are rejected at the gate."
             )
     return ",".join(task_filter)
 

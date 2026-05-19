@@ -21,6 +21,11 @@ datasets/**/*.json
 # tracked in git so threshold derivation is reproducible across machines / recals.
 !datasets/prompts/drift_calibration.jsonl
 !datasets/prompts/drift_thresholds.json
+# Phase 20: TBLite benchmark anchor + stratified subset (golden-set-like, git-tracked).
+# Same rationale as Phase 18 drift artifacts: stable evaluation references must be
+# reproducible across machines / re-calibrations.
+!datasets/prompts/tblite_anchor.json
+!datasets/prompts/tblite_stratified_subset.json
 
 # Evolution snapshots
 snapshots/
@@ -37,3 +42,7 @@ dashboard_*.json
 .vscode/
 *.swp
 *.swo
+
+# Phase 20 D-08: Soft-Rollback regression audit log. Lives at project root,
+# never committed. Each row is one async-full-verify regression event.
+logs/

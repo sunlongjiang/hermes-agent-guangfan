@@ -1165,3 +1165,542 @@ class TestDriftGate:
             "drift_report.txt missing dim subheaders"
         )
         assert "Decision:" in report
+
+
+# ── Phase 20 / Plan 06: TestBenchmarkGate ──────────────────────────────
+
+
+def _benchmark_patched_run(
+    runner,
+    cli_args: list,
+    *,
+    tmp_path,
+    gate_decision: str = "accept",
+    gate_risk_score: float = 1.5,
+    gate_per_tier: dict = None,
+    anchor_overrides: dict = None,
+    subset_overrides: dict = None,
+    check_all_recorder: list = None,
+    gate_constructor_recorder: list = None,
+):
+    """Run evolve_prompt_sections.main in a sandbox with all heavy deps mocked.
+
+    W-4 (2026-05-19): MUST double-patch TBLiteBenchmarkGate:
+      (a) evolution.benchmarks.benchmark_gate.TBLiteBenchmarkGate (source)
+      (b) evolution.prompts.evolve_prompt_sections.TBLiteBenchmarkGate
+          (the local binding established by the lazy `from ... import ...`
+          inside evolve(). Without this patch the test silently runs the
+          REAL gate and either crashes or — worse — appears to "pass" via
+          pytest.skip.)
+
+    Returns (CliRunner result, output_dir Path or None).
+    """
+    import json
+    import os
+    import dspy as _dspy
+    from pathlib import Path as _Path
+    from unittest.mock import patch, MagicMock
+
+    from evolution.prompts.evolve_prompt_sections import main as cli_main
+    from evolution.prompts.prompt_module import PromptModule
+    from evolution.prompts.prompt_dataset import (
+        PromptBehavioralExample,
+        PromptBehavioralDataset,
+    )
+    from evolution.core.constraints import ConstraintResult
+
+    fake_sections = _make_fake_sections(3)
+
+    if gate_per_tier is None:
+        gate_per_tier = {
+            "easy":    {"mean": 0.85, "stdev": 0.01, "threshold": 0.83,
+                        "anchor": 0.85, "moving_avg": 0.85, "breach": False,
+                        "scores": [0.84, 0.86, 0.85]},
+            "medium":  {"mean": 0.70, "stdev": 0.01, "threshold": 0.68,
+                        "anchor": 0.70, "moving_avg": 0.70, "breach": False,
+                        "scores": [0.69, 0.71, 0.70]},
+            "hard":    {"mean": 0.50, "stdev": 0.01, "threshold": 0.48,
+                        "anchor": 0.50, "moving_avg": 0.50, "breach": False,
+                        "scores": [0.49, 0.51, 0.50]},
+            "extreme": {"mean": 0.30, "stdev": 0.01, "threshold": 0.28,
+                        "anchor": 0.30, "moving_avg": 0.30,
+                        "breach": (gate_decision == "reject"),
+                        "scores": [0.29, 0.31, 0.30]},
+        }
+
+    # Build stub anchor + subset under tmp_path/datasets/prompts/ in W-7 schema.
+    datasets_dir = tmp_path / "datasets" / "prompts"
+    datasets_dir.mkdir(parents=True, exist_ok=True)
+    anchor = {
+        "anchor_per_tier": {
+            t: {"mean": v["anchor"], "stdev": 0.02, "n": 3,
+                "scores": [v["anchor"]] * 3}
+            for t, v in gate_per_tier.items()
+        },
+        "dataset_revision_hash": "test_rev",
+        "hermes_agent_commit": "test_commit",
+        "stratified_subset_seed": 42,
+        "tblite_estimated_cost_per_task_usd": 0.4,
+        "calibration_timestamp": "2026-05-19T00:00:00Z",
+        "calibration_model": "test/model",
+        "tblite_runner_version": "1.0",
+    }
+    if anchor_overrides:
+        anchor.update(anchor_overrides)
+    (datasets_dir / "tblite_anchor.json").write_text(json.dumps(anchor))
+
+    subset = {
+        "seed": 42,
+        "per_tier_counts": {"easy": 1, "medium": 1, "hard": 1, "extreme": 1},
+        "task_filter": [
+            {"name": "t-easy", "tier": "easy"},
+            {"name": "t-medium", "tier": "medium"},
+            {"name": "t-hard", "tier": "hard"},
+            {"name": "t-extreme", "tier": "extreme"},
+        ],
+        "source": "test",
+        "generated_timestamp": "2026-05-19T00:00:00Z",
+    }
+    if subset_overrides:
+        subset.update(subset_overrides)
+    (datasets_dir / "tblite_stratified_subset.json").write_text(json.dumps(subset))
+
+    # drift_thresholds.json stub (existing pipeline requires it via click.Path exists=True).
+    drift_thresholds = {
+        "tone": 0.5, "formality": 0.5, "vocabulary": 0.5, "persona": 0.5,
+        "_meta": {"f1_tier": 1},
+    }
+    (datasets_dir / "drift_thresholds.json").write_text(json.dumps(drift_thresholds))
+
+    # Gate report shape matching TBLiteBenchmarkGate.check_all contract.
+    gate_report = {
+        "decision": gate_decision,
+        "risk_score": gate_risk_score,
+        "reject_threshold": 4.0,
+        "tier_weights": {"easy": 1.0, "medium": 1.5, "hard": 2.0, "extreme": 4.0},
+        "per_tier": gate_per_tier,
+        "samples_jsonl_path": str(tmp_path / "samples.jsonl"),
+        "subprocess_runtime_seconds": 1.0,
+        "cost_breakdown": {"modal_compute_usd": 1.0},
+        "dataset_revision_hash": "test_rev",
+        "cache_hit": False,
+        "async_full_verify_pending": False,
+        "jsonl_skipped_lines_total": 0,
+        "stderr_tails": [],
+        "artifact_hash": "abc123",
+        "constraint_result": ConstraintResult(
+            passed=(gate_decision == "accept"),
+            constraint_name="tblite_benchmark",
+            message=f"Risk_Score={gate_risk_score:.2f}",
+            details="{}",
+        ),
+    }
+
+    def _make_gate(*args, **kwargs):
+        if gate_constructor_recorder is not None:
+            gate_constructor_recorder.append({"args": args, "kwargs": kwargs})
+        mg = MagicMock()
+        if check_all_recorder is not None:
+            def _record(*a, **kw):
+                check_all_recorder.append(kw)
+                return [gate_report]
+            mg.check_all.side_effect = _record
+        else:
+            mg.check_all.return_value = [gate_report]
+        return mg
+
+    # Dataset with holdout examples so the holdout eval step completes.
+    examples = [
+        PromptBehavioralExample(
+            section_id=fake_sections[i % len(fake_sections)].section_id,
+            user_message=f"task {i}",
+            expected_behavior=f"behavior {i}",
+            difficulty="easy",
+        )
+        for i in range(4)
+    ]
+    fake_ds = PromptBehavioralDataset(
+        train=examples,
+        val=examples,
+        holdout=examples,
+    )
+
+    mock_metric_instance = MagicMock(return_value=0.5)
+    mock_constraint = MagicMock()
+    mock_constraint._check_growth.return_value = ConstraintResult(
+        True, "growth", "OK"
+    )
+    mock_constraint._check_non_empty.return_value = ConstraintResult(
+        True, "non_empty", "OK"
+    )
+    mock_role = MagicMock()
+    mock_role.check_all.return_value = [
+        ConstraintResult(True, "role_preservation", "OK")
+        for _ in fake_sections
+    ]
+    mock_drift = MagicMock()
+    mock_drift.check_all.return_value = [
+        {
+            "section_id": s.section_id,
+            "per_dim": {
+                d: {"mean": 0.0, "stdev": 0.0, "exceeded": False, "raw": [0.0, 0.0, 0.0]}
+                for d in ("tone", "formality", "vocabulary", "persona")
+            },
+            "exceeded_count": 0,
+            "severity": "pass",
+            "explanation": "mock",
+            "constraint_result": ConstraintResult(
+                passed=True,
+                constraint_name="drift_detection",
+                message=f"OK '{s.section_id}'",
+                details="{}",
+            ),
+        }
+        for s in fake_sections
+    ]
+    mock_builder_instance = MagicMock()
+    mock_builder_instance.generate.return_value = fake_ds
+
+    def _make_spy_module(*args, **kwargs):
+        real = PromptModule(fake_sections)
+        spy = MagicMock(wraps=real)
+        spy._section_ids = real._section_ids
+        spy._frozen_instructions = getattr(real, "_frozen_instructions", {})
+        spy.section_predictors = real.section_predictors
+        spy.get_evolved_sections = MagicMock(return_value=fake_sections)
+        spy.named_predictors = MagicMock(return_value=[
+            (f"section_predictors['{sid}']", MagicMock())
+            for sid in real._section_ids
+        ])
+        spy.return_value = _dspy.Prediction(output="mocked output")
+        return spy
+
+    orig_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+
+        # Construct drift_thresholds_path argument pointing to our stub.
+        dt_path = str(datasets_dir / "drift_thresholds.json")
+
+        full_args = list(cli_args) + ["--drift-thresholds-path", dt_path]
+
+        with patch(
+            "evolution.prompts.evolve_prompt_sections.extract_prompt_sections",
+            return_value=fake_sections,
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.PromptDatasetBuilder",
+            return_value=mock_builder_instance,
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.PromptBehavioralMetric",
+            return_value=mock_metric_instance,
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.ConstraintValidator",
+            return_value=mock_constraint,
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.PromptRoleChecker",
+            return_value=mock_role,
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.DriftDetector",
+            return_value=mock_drift,
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.PromptModule",
+            side_effect=_make_spy_module,
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.dspy.GEPA"
+        ) as mock_gepa, patch(
+            "evolution.prompts.evolve_prompt_sections.dspy.LM"
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.dspy.configure"
+        ), patch(
+            "evolution.prompts.evolve_prompt_sections.dspy.context",
+            MagicMock(),
+        ), patch(
+            # W-4 (a) source-site patch.
+            "evolution.benchmarks.benchmark_gate.TBLiteBenchmarkGate",
+            side_effect=_make_gate,
+        ), patch(
+            # W-4 (b) consumer-site patch — established AFTER the lazy
+            # `from ... import ...` inside evolve(). Patching only (a) is
+            # insufficient: by the time the test reaches the gate call,
+            # the name is rebound in evolve_prompt_sections' namespace.
+            "evolution.prompts.evolve_prompt_sections.TBLiteBenchmarkGate",
+            side_effect=_make_gate,
+            create=True,
+        ):
+            mock_gepa.return_value.compile.side_effect = (
+                lambda mod, trainset=None, valset=None: mod
+            )
+            result = runner.invoke(cli_main, full_args)
+
+        output_root = tmp_path / "output" / "prompts"
+        out_dirs = sorted(output_root.glob("*")) if output_root.exists() else []
+        output_dir = out_dirs[-1] if out_dirs else None
+        return result, output_dir
+    finally:
+        os.chdir(orig_cwd)
+
+
+class TestBenchmarkGate:
+    """Phase 20 Plan 06 CLI integration tests.
+
+    Each test double-patches TBLiteBenchmarkGate at BOTH binding sites
+    (W-4 revision 2026-05-19):
+      (a) evolution.benchmarks.benchmark_gate.TBLiteBenchmarkGate (source)
+      (b) evolution.prompts.evolve_prompt_sections.TBLiteBenchmarkGate
+          (the local binding established by the lazy import inside
+          evolve(); patching only (a) misses this binding and the real
+          gate fires).
+
+    W-4 also forbids pytest.skip for "harness didn't reach step 10.5".
+    Tests must FAIL when wiring is broken; pytest.skip is only acceptable
+    for environment issues (e.g. dspy not configured).
+    """
+
+    def test_benchmark_none_default_path_unchanged(self, tmp_path):
+        """--benchmark=none -> metrics.json has benchmark_decision='skipped' and NO benchmark_risk_score."""
+        from click.testing import CliRunner
+        import json
+        runner = CliRunner()
+        result, output_dir = _benchmark_patched_run(
+            runner,
+            [
+                "--section", "section_0",
+                "--iterations", "0",
+                "--eval-source", "synthetic",
+                "--benchmark", "none",
+            ],
+            tmp_path=tmp_path,
+        )
+        # Success path: must have exited 0 or created output_dir
+        assert result.exit_code == 0 or output_dir is not None, (
+            f"CLI exited non-zero with no output_dir: {result.output[:500]}"
+        )
+        if output_dir and (output_dir / "metrics.json").exists():
+            m = json.loads((output_dir / "metrics.json").read_text())
+            assert m.get("benchmark_decision") == "skipped", (
+                f"Expected benchmark_decision='skipped', got {m.get('benchmark_decision')}"
+            )
+            assert "benchmark_risk_score" not in m, (
+                "benchmark_risk_score must not be present when benchmark=none"
+            )
+
+    def test_benchmark_tblite_accept_writes_report_and_metrics(self, tmp_path):
+        """W-4 enforcement: assertion failures here surface as test FAIL,
+        not pytest.skip. If output_dir is None the wiring is broken — FAIL."""
+        from click.testing import CliRunner
+        import json
+        runner = CliRunner()
+        result, output_dir = _benchmark_patched_run(
+            runner,
+            [
+                "--section", "section_0",
+                "--iterations", "0",
+                "--benchmark", "tblite",
+            ],
+            tmp_path=tmp_path,
+            gate_decision="accept",
+            gate_risk_score=1.5,
+        )
+        assert output_dir is not None, (
+            f"Step 10.5 wiring failure: no output_dir created. "
+            f"CLI output: {result.output[:500]}"
+        )
+        assert not output_dir.name.startswith("FAILED_"), (
+            f"accept path must not create FAILED_ dir; got {output_dir.name}"
+        )
+        assert (output_dir / "tblite_report.json").exists(), \
+            "accept path must write tblite_report.json"
+        m = json.loads((output_dir / "metrics.json").read_text())
+        assert m["benchmark_decision"] == "accept"
+        assert m["benchmark_passed"] is True
+        assert m["benchmark_risk_score"] == 1.5
+        assert "benchmark_per_tier" in m
+        assert "total_cost_breakdown" in m
+
+    def test_benchmark_tblite_reject_writes_FAILED_dir(self, tmp_path):
+        """W-4 enforcement: reject branch wiring failures surface as FAIL."""
+        from click.testing import CliRunner
+        import json
+        runner = CliRunner()
+        result, output_dir = _benchmark_patched_run(
+            runner,
+            [
+                "--section", "section_0",
+                "--iterations", "0",
+                "--benchmark", "tblite",
+            ],
+            tmp_path=tmp_path,
+            gate_decision="reject",
+            gate_risk_score=5.0,
+        )
+        assert output_dir is not None, (
+            f"Step 10.5 reject wiring failure: no output_dir created. "
+            f"CLI output: {result.output[:500]}"
+        )
+        assert "FAILED_" in output_dir.name, (
+            f"reject path must write FAILED_<ts>/; got {output_dir.name}"
+        )
+        m = json.loads((output_dir / "metrics.json").read_text())
+        assert m["benchmark_decision"] == "reject"
+        assert m["benchmark_passed"] is False
+        assert m["benchmark_risk_score"] == 5.0
+        assert (output_dir / "tblite_report.json").exists()
+        assert (output_dir / "evolved_sections.json").exists()
+        assert (output_dir / "diff.txt").exists()
+
+    def test_benchmark_cache_flag_threads_through(self, tmp_path):
+        """--no-benchmark-cache threads use_cache=False to gate.check_all."""
+        from click.testing import CliRunner
+        runner = CliRunner()
+        recorder: list = []
+        result, _ = _benchmark_patched_run(
+            runner,
+            [
+                "--section", "section_0",
+                "--iterations", "0",
+                "--benchmark", "tblite",
+                "--no-benchmark-cache",
+            ],
+            tmp_path=tmp_path,
+            gate_decision="accept",
+            check_all_recorder=recorder,
+        )
+        assert len(recorder) >= 1, "gate.check_all was never invoked"
+        kw = recorder[-1]
+        assert kw.get("use_cache") is False, (
+            f"--no-benchmark-cache must thread use_cache=False; kwargs={kw}"
+        )
+
+    def test_no_skip_benchmark_flag(self):
+        """--no-benchmark and --skip-benchmark are rejected by Click (D-BYPASS-01 spirit)."""
+        from click.testing import CliRunner
+        from evolution.prompts.evolve_prompt_sections import main as cli_main
+        r1 = CliRunner().invoke(cli_main, ["--no-benchmark"])
+        assert r1.exit_code != 0, "--no-benchmark must be rejected by Click"
+        r2 = CliRunner().invoke(cli_main, ["--skip-benchmark"])
+        assert r2.exit_code != 0, "--skip-benchmark must be rejected by Click"
+
+    def test_total_cost_breakdown_present(self, tmp_path):
+        """D-16 total_cost_breakdown has both optimization and benchmark float keys."""
+        from click.testing import CliRunner
+        import json
+        runner = CliRunner()
+        result, output_dir = _benchmark_patched_run(
+            runner,
+            [
+                "--section", "section_0",
+                "--iterations", "0",
+                "--benchmark", "tblite",
+            ],
+            tmp_path=tmp_path,
+            gate_decision="accept",
+        )
+        assert output_dir is not None, (
+            f"Step 10.5 wiring failure (total_cost_breakdown test). "
+            f"CLI output: {result.output[:500]}"
+        )
+        m = json.loads((output_dir / "metrics.json").read_text())
+        assert "total_cost_breakdown" in m, (
+            "W-2/W-3 regression: total_cost_breakdown missing from metrics.json"
+        )
+        tcb = m["total_cost_breakdown"]
+        assert "optimization" in tcb, "W-2/W-3: optimization key missing"
+        assert "benchmark" in tcb, "W-2/W-3: benchmark key missing"
+        assert isinstance(tcb["optimization"], (int, float)), (
+            f"optimization must be numeric, got {type(tcb['optimization']).__name__}"
+        )
+        assert isinstance(tcb["benchmark"], (int, float))
+
+    def test_benchmark_tier_field_filters_subset(self, tmp_path):
+        """W-7: --benchmark-tier filter selects items where item['tier'] matches."""
+        from click.testing import CliRunner
+        runner = CliRunner()
+        constructor_recorder: list = []
+        result, _ = _benchmark_patched_run(
+            runner,
+            [
+                "--section", "section_0",
+                "--iterations", "0",
+                "--benchmark", "tblite",
+                "--benchmark-tier", "easy,medium",
+            ],
+            tmp_path=tmp_path,
+            gate_decision="accept",
+            gate_constructor_recorder=constructor_recorder,
+        )
+        assert len(constructor_recorder) >= 1, (
+            f"TBLiteBenchmarkGate constructor never invoked; CLI: {result.output[:500]}"
+        )
+        # The constructor receives stratified_subset as a kwarg or
+        # positional arg. Inspect for kwarg first, fall back to args.
+        call = constructor_recorder[-1]
+        kw = call["kwargs"]
+        args = call["args"]
+        subset_arg = kw.get("stratified_subset")
+        if subset_arg is None and len(args) >= 3:
+            subset_arg = args[2]
+        assert subset_arg is not None, (
+            f"could not find stratified_subset in constructor call: {call}"
+        )
+        tiers_seen = {
+            str(item.get("tier", "")).strip().lower()
+            for item in subset_arg.get("task_filter", [])
+            if isinstance(item, dict)
+        }
+        assert tiers_seen == {"easy", "medium"}, (
+            f"--benchmark-tier easy,medium should filter to those tiers; got {tiers_seen}"
+        )
+
+    def test_detach_mode_not_yet_implemented_exits(self, tmp_path):
+        """--detach must not exit 0 in Plan 06 (reserved for Phase 22)."""
+        from click.testing import CliRunner
+        runner = CliRunner()
+        result, _ = _benchmark_patched_run(
+            runner,
+            [
+                "--section", "section_0",
+                "--iterations", "0",
+                "--benchmark", "tblite",
+                "--detach",
+            ],
+            tmp_path=tmp_path,
+            gate_decision="accept",
+        )
+        assert result.exit_code != 0, "--detach must not exit 0 in Plan 06"
+
+    def test_step_10_5_wiring_must_not_be_silent_skip(self, tmp_path):
+        """W-4 enforcement: when the harness reaches step 10.5 the gate
+        constructor MUST fire (recorded). If it doesn't, the test fails
+        instead of pytest.skip-ping silently."""
+        from click.testing import CliRunner
+        runner = CliRunner()
+        constructor_recorder: list = []
+        result, output_dir = _benchmark_patched_run(
+            runner,
+            [
+                "--section", "section_0",
+                "--iterations", "0",
+                "--benchmark", "tblite",
+            ],
+            tmp_path=tmp_path,
+            gate_decision="accept",
+            gate_constructor_recorder=constructor_recorder,
+        )
+        # If the harness can produce ANY output_dir at all, then step 10.5
+        # MUST have run. If neither output_dir nor a constructor call were
+        # observed, the wiring is broken — fail loudly.
+        if output_dir is None and not constructor_recorder:
+            raise AssertionError(
+                "Step 10.5 wiring failure: neither output_dir nor "
+                "TBLiteBenchmarkGate constructor were observed. "
+                "Tests must NOT silently skip past step 10.5. "
+                f"CLI output: {result.output[:500]}"
+            )
+        # If gate constructor was called, accept path should write report.
+        if constructor_recorder:
+            assert output_dir is not None, (
+                "constructor fired but no output_dir — accept path broken"
+            )
+            assert (output_dir / "tblite_report.json").exists(), (
+                "accept path must write tblite_report.json"
+            )

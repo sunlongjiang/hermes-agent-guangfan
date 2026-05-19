@@ -21,6 +21,7 @@ from rich.table import Table
 
 from evolution.core.config import EvolutionConfig
 from evolution.core.constraints import ConstraintValidator
+from evolution.core.cost_tracker import CostTracker, CostBudgetExceeded
 from evolution.prompts.prompt_loader import extract_prompt_sections, PromptSection
 from evolution.prompts.prompt_module import PromptModule
 from evolution.prompts.prompt_dataset import (
@@ -196,6 +197,13 @@ def evolve(
     mode: str = "joint",
     drift_thresholds_path: Path = Path("datasets/prompts/drift_thresholds.json"),
     session_source: Optional[Path] = None,
+    # Phase 20 D-12 + D-15 + D-16
+    benchmark: str = "none",
+    benchmark_tier: Optional[str] = None,
+    benchmark_cache: bool = True,
+    benchmark_max_cost: float = 50.0,
+    wait_mode: str = "wait",
+    async_full_verify: bool = True,
 ):
     """Main evolution function -- orchestrates the full prompt section optimization loop.
 
@@ -470,131 +478,158 @@ def evolve(
 
     start_time = time.time()
 
-    if effective_mode == "joint":
-        # ── 6b. JOINT branch: single GEPA.compile with component_selector="all" ──
-        # W2 invariant: NO try/except wrapping GEPA.compile here. Joint mode
-        # follows Phase 13 D-15a "loud GEPA failure" pattern — any exception
-        # propagates uncaught to Click main and exits non-zero. This is the
-        # deliberate behavioral DIFFERENCE from the round-robin branch below
-        # (which retains its GEPA → MIPROv2 fallback for legacy parity).
-        # Future PRs MUST NOT silently introduce try/except here without a
-        # CONTEXT decision revision.
-        console.print(
-            f"\n[bold cyan]Joint optimization across "
-            f"{len(module._section_ids)} sections[/bold cyan]"
-        )
-
-        trainset = dataset.to_dspy_examples(
-            "train", section_texts=section_texts
-        )
-        valset = dataset.to_dspy_examples(
-            "val", section_texts=section_texts
-        )
-
-        if not trainset:
-            console.print(
-                "  [yellow]Warning: No training data, "
-                "skipping joint optimization[/yellow]"
-            )
-        else:
-            console.print(
-                f"  Training examples: {len(trainset)}, "
-                f"Validation examples: {len(valset)}"
-            )
-            reflection_lm = dspy.LM(
-                config.optimizer_model, **config.get_lm_kwargs()
-            )
-            optimizer = dspy.GEPA(
-                metric=metric,
-                max_metric_calls=joint_budget,
-                reflection_lm=reflection_lm,
-                component_selector="all",
-                track_stats=True,
-                seed=0,
-            )
-            # NO try/except: loud-fail per W2 invariant / D-15a parity
-            module = optimizer.compile(
-                module,
-                trainset=trainset,
-                valset=valset,
-            )
-    else:
-        # ── 6c. ROUND-ROBIN branch: per-section for-loop (legacy preserved) ──
-        # NOTE: This branch INTENTIONALLY retains the GEPA → MIPROv2 fallback
-        # chain (try/except below) — that is the long-standing round-robin
-        # behavior. Joint branch above does NOT have this fallback (W2 invariant).
-        for active_sid in sections_to_optimize:
-            console.print(
-                f"\n[bold cyan]Optimizing section: {active_sid}[/bold cyan]"
-            )
-            module.set_active_section(active_sid)
-
-            # Filter dataset for this section
-            section_train = [
-                ex for ex in dataset.train if ex.section_id == active_sid
-            ]
-            section_val = [
-                ex for ex in dataset.val if ex.section_id == active_sid
-            ]
-
-            temp_dataset = PromptBehavioralDataset(
-                train=section_train,
-                val=section_val,
-                holdout=[],
-            )
-            trainset = temp_dataset.to_dspy_examples(
-                "train", section_texts=section_texts
-            )
-            valset = temp_dataset.to_dspy_examples(
-                "val", section_texts=section_texts
-            )
-
-            if not trainset:
+    # W-2/W-3 (2026-05-19): Phase 13 declared max_cost_usd but
+    # evolve_prompt_sections.py never instantiated a tracker. Plan 06 wires
+    # the missing optimization-side CostTracker so total_cost_breakdown's
+    # 'optimization' field reports the real LM spend across GEPA + MIPROv2
+    # + A/B baseline runs. Without this wrap the field is permanently 0.0.
+    optimization_tracker = CostTracker(max_usd=config.max_cost_usd)
+    optimization_tracker_spent: float = 0.0
+    try:
+        with optimization_tracker:
+            if effective_mode == "joint":
+                # ── 6b. JOINT branch: single GEPA.compile with component_selector="all" ──
+                # W2 invariant: NO try/except wrapping GEPA.compile here. Joint mode
+                # follows Phase 13 D-15a "loud GEPA failure" pattern — any exception
+                # propagates uncaught to Click main and exits non-zero. This is the
+                # deliberate behavioral DIFFERENCE from the round-robin branch below
+                # (which retains its GEPA → MIPROv2 fallback for legacy parity).
+                # Future PRs MUST NOT silently introduce try/except here without a
+                # CONTEXT decision revision.
                 console.print(
-                    f"  [yellow]Warning: No training data for {active_sid}, "
-                    f"skipping[/yellow]"
+                    f"\n[bold cyan]Joint optimization across "
+                    f"{len(module._section_ids)} sections[/bold cyan]"
                 )
-                continue
 
-            console.print(
-                f"  Training examples: {len(trainset)}, "
-                f"Validation examples: {len(valset)}"
-            )
+                trainset = dataset.to_dspy_examples(
+                    "train", section_texts=section_texts
+                )
+                valset = dataset.to_dspy_examples(
+                    "val", section_texts=section_texts
+                )
 
-            try:
-                reflection_lm = dspy.LM(
-                    config.optimizer_model, **config.get_lm_kwargs()
-                )
-                optimizer = dspy.GEPA(
-                    metric=metric,
-                    max_metric_calls=rr_per_section_budget,
-                    reflection_lm=reflection_lm,
-                )
-                module = optimizer.compile(
-                    module,
-                    trainset=trainset,
-                    valset=valset,
-                )
-            except Exception as e:
-                # Round-robin legacy: fall back to MIPROv2 if GEPA isn't available
-                console.print(
-                    f"  [yellow]GEPA not available ({e}), "
-                    f"falling back to MIPROv2[/yellow]"
-                )
-                try:
-                    optimizer = dspy.MIPROv2(
-                        metric=metric,
-                        auto="light",
+                if not trainset:
+                    console.print(
+                        "  [yellow]Warning: No training data, "
+                        "skipping joint optimization[/yellow]"
                     )
+                else:
+                    console.print(
+                        f"  Training examples: {len(trainset)}, "
+                        f"Validation examples: {len(valset)}"
+                    )
+                    reflection_lm = dspy.LM(
+                        config.optimizer_model, **config.get_lm_kwargs()
+                    )
+                    optimizer = dspy.GEPA(
+                        metric=metric,
+                        max_metric_calls=joint_budget,
+                        reflection_lm=reflection_lm,
+                        component_selector="all",
+                        track_stats=True,
+                        seed=0,
+                    )
+                    # NO try/except: loud-fail per W2 invariant / D-15a parity
                     module = optimizer.compile(
                         module,
                         trainset=trainset,
+                        valset=valset,
                     )
-                except Exception as e2:
+            else:
+                # ── 6c. ROUND-ROBIN branch: per-section for-loop (legacy preserved) ──
+                # NOTE: This branch INTENTIONALLY retains the GEPA → MIPROv2 fallback
+                # chain (try/except below) — that is the long-standing round-robin
+                # behavior. Joint branch above does NOT have this fallback (W2 invariant).
+                for active_sid in sections_to_optimize:
                     console.print(
-                        f"  [red]MIPROv2 also failed ({e2}), "
-                        f"skipping section {active_sid}[/red]"
+                        f"\n[bold cyan]Optimizing section: {active_sid}[/bold cyan]"
                     )
+                    module.set_active_section(active_sid)
+
+                    # Filter dataset for this section
+                    section_train = [
+                        ex for ex in dataset.train if ex.section_id == active_sid
+                    ]
+                    section_val = [
+                        ex for ex in dataset.val if ex.section_id == active_sid
+                    ]
+
+                    temp_dataset = PromptBehavioralDataset(
+                        train=section_train,
+                        val=section_val,
+                        holdout=[],
+                    )
+                    trainset = temp_dataset.to_dspy_examples(
+                        "train", section_texts=section_texts
+                    )
+                    valset = temp_dataset.to_dspy_examples(
+                        "val", section_texts=section_texts
+                    )
+
+                    if not trainset:
+                        console.print(
+                            f"  [yellow]Warning: No training data for {active_sid}, "
+                            f"skipping[/yellow]"
+                        )
+                        continue
+
+                    console.print(
+                        f"  Training examples: {len(trainset)}, "
+                        f"Validation examples: {len(valset)}"
+                    )
+
+                    try:
+                        reflection_lm = dspy.LM(
+                            config.optimizer_model, **config.get_lm_kwargs()
+                        )
+                        optimizer = dspy.GEPA(
+                            metric=metric,
+                            max_metric_calls=rr_per_section_budget,
+                            reflection_lm=reflection_lm,
+                        )
+                        module = optimizer.compile(
+                            module,
+                            trainset=trainset,
+                            valset=valset,
+                        )
+                    except Exception as e:
+                        # Round-robin legacy: fall back to MIPROv2 if GEPA isn't available
+                        console.print(
+                            f"  [yellow]GEPA not available ({e}), "
+                            f"falling back to MIPROv2[/yellow]"
+                        )
+                        try:
+                            optimizer = dspy.MIPROv2(
+                                metric=metric,
+                                auto="light",
+                            )
+                            module = optimizer.compile(
+                                module,
+                                trainset=trainset,
+                            )
+                        except Exception as e2:
+                            console.print(
+                                f"  [red]MIPROv2 also failed ({e2}), "
+                                f"skipping section {active_sid}[/red]"
+                            )
+
+            optimization_tracker_spent = optimization_tracker.spent_usd
+    except CostBudgetExceeded as e:
+        console.print(f"[red]Optimization cost budget exceeded: {e}[/red]")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        aborted_dir = Path("output") / "prompts" / f"ABORTED_{timestamp}"
+        aborted_dir.mkdir(parents=True, exist_ok=True)
+        (aborted_dir / "metrics.json").write_text(
+            json.dumps({
+                "timestamp": timestamp,
+                "status": "ABORTED",
+                "reason": "optimization_cost_budget_exceeded",
+                "max_cost_usd": config.max_cost_usd,
+                "spent_usd": getattr(e, "spent_usd", 0.0),
+            }, indent=2)
+        )
+        console.print(f"  Saved aborted-cost state to {aborted_dir}/")
+        return
 
     elapsed = time.time() - start_time
     console.print(f"\n  Optimization completed in {elapsed:.1f}s")
@@ -1020,6 +1055,304 @@ def evolve(
     console.print()
     console.print(result_table)
 
+    # ── 10.5. Benchmark gate (Phase 20 D-18) — opt-in, OUT OF GEPA loop ─
+    # Decision lattice:
+    #   benchmark == "none"   -> skip (default; pre-Phase-20 behavior).
+    #   benchmark == "tblite" -> stratified 30-task subset, 3-run avg.
+    #   benchmark == "tblite-full" -> CONTEXT D-06 — NOT YET IMPLEMENTED
+    #       in Plan 06 (full 100-task run is reserved for Phase 22
+    #       async-full-verify orchestration). Surfaced as
+    #       click.ClickException.
+    # wait_mode == "detach"  -> NOT YET IMPLEMENTED. exits non-zero.
+    benchmark_results: list = []
+    benchmark_decision = "skipped"
+    benchmark_risk_score: Optional[float] = None
+    benchmark_per_tier: dict = {}
+    benchmark_passed: Optional[bool] = None
+    benchmark_tracker_spent = 0.0
+
+    if benchmark != "none":
+        if benchmark == "tblite-full":
+            raise click.ClickException(
+                "--benchmark=tblite-full is reserved for Phase 22 "
+                "(async full verify). Use --benchmark=tblite for the "
+                "stratified 30-task subset."
+            )
+        if wait_mode == "detach":
+            click.echo(
+                "--detach is reserved for Phase 22 "
+                "(see .planning/todos/pending/2026-05-19-benchmark-detach-subcommands.md). "
+                "Plan 06 ships synchronous --wait only.",
+                err=True,
+            )
+            sys.exit(1)
+
+        console.print(
+            f"\n[bold]Running TBLite benchmark gate (mode={benchmark})[/bold]"
+        )
+        # D-Discretion-1 lazy import: never import benchmark_gate at module
+        # load time. Plan 01's evolution/benchmarks/__init__.py is a
+        # lazy-guard so callers running with --benchmark=none on a host
+        # without hermes-agent / huggingface_hub still work.
+        #
+        # W-4 (2026-05-19): tests must double-patch this lazy import. After
+        # the next line executes, `TBLiteBenchmarkGate` is bound as a NAME
+        # in the evolve_prompt_sections module namespace AS WELL AS being
+        # available at evolution.benchmarks.benchmark_gate.TBLiteBenchmarkGate.
+        # Patching only the source site does NOT intercept this binding.
+        from evolution.benchmarks.benchmark_gate import TBLiteBenchmarkGate
+
+        # Load anchor + stratified subset (Wave 4 artifacts).
+        anchor_path = Path("datasets/prompts/tblite_anchor.json")
+        subset_path = Path("datasets/prompts/tblite_stratified_subset.json")
+        if not anchor_path.exists():
+            raise click.ClickException(
+                f"{anchor_path} not found. Run "
+                f"`python -m evolution.benchmarks.build_tblite_calibration` first "
+                f"(Phase 20 D-13 prerequisite — Plan 05 produces this; "
+                f"B-1 forbids mock fallback)."
+            )
+        if not subset_path.exists():
+            raise click.ClickException(
+                f"{subset_path} not found. Plan 01 should have placed "
+                f"a placeholder; check phase 20 wave 1 completion."
+            )
+        anchor = json.loads(anchor_path.read_text())
+        subset = json.loads(subset_path.read_text())
+
+        # Mock-tier audit: warn loudly so accept decisions are recognized
+        # as non-authoritative. Per Plan 05's B-1 revision (2026-05-19)
+        # no mock anchor SHOULD ever ship — this warning is a runtime
+        # guard against historical / external archive artifacts that
+        # bypass the planning flow.
+        if anchor.get("_meta", {}).get("tier") == "mock":
+            console.print(
+                "[bold yellow]⚠ Anchor is _meta.tier='mock' — gate "
+                "accept/reject decisions are NOT trustworthy. Plan 05 "
+                "(B-1) forbids mock-anchor authoring; this file appears "
+                "to be a stale or external artifact. Re-run "
+                "build_tblite_calibration before relying on the "
+                "gate.[/bold yellow]"
+            )
+
+        # D-05 + W-7 (2026-05-19): --benchmark-tier CSV subset filter.
+        # Reads item['tier'] directly (W-7 schema: task_filter is list of
+        # {name, tier} dicts). NO index slicing — the previous
+        # offset-based implementation depended on subset being sorted
+        # easy→medium→hard→extreme, which is no longer a contract.
+        if benchmark_tier:
+            selected_tiers = set(
+                t.strip().lower() for t in benchmark_tier.split(",") if t.strip()
+            )
+            bad = selected_tiers - {"easy", "medium", "hard", "extreme"}
+            if bad:
+                raise click.ClickException(
+                    f"--benchmark-tier contains unknown tiers: {sorted(bad)} "
+                    f"(expected subset of easy,medium,hard,extreme)"
+                )
+            subset = dict(subset)
+            full_filter = subset.get("task_filter", [])
+            # Tolerate both W-7 object form AND legacy flat-string form
+            # during transition: if items are strings, fall back to the
+            # per_tier_counts index slice as last resort with a warning.
+            if full_filter and isinstance(full_filter[0], dict):
+                new_filter = [
+                    item for item in full_filter
+                    if str(item.get("tier", "")).strip().lower() in selected_tiers
+                ]
+                new_counts = {}
+                for item in new_filter:
+                    t = str(item["tier"]).strip().lower()
+                    new_counts[t] = new_counts.get(t, 0) + 1
+            else:
+                # Legacy schema — log + best-effort index slice.
+                console.print(
+                    "[yellow]Subset uses legacy flat-string task_filter "
+                    "(pre-W-7 schema). --benchmark-tier filter will fall "
+                    "back to per_tier_counts index slicing.[/yellow]"
+                )
+                full_counts = subset.get("per_tier_counts", {})
+                new_filter = []
+                offset = 0
+                new_counts = {}
+                for tier_name in ("easy", "medium", "hard", "extreme"):
+                    n = full_counts.get(tier_name, 0)
+                    if tier_name in selected_tiers:
+                        new_filter.extend(full_filter[offset:offset + n])
+                        new_counts[tier_name] = n
+                    offset += n
+            subset["task_filter"] = new_filter
+            subset["per_tier_counts"] = new_counts
+            if not new_filter:
+                raise click.ClickException(
+                    f"--benchmark-tier produced an empty subset. "
+                    f"Pick at least one of: easy,medium,hard,extreme."
+                )
+
+        # Load moving_avg_history if present (D-01 first-run-falls-back-to-anchor).
+        history_path = Path("output/prompts/tblite_history.json")
+        moving_avg_history: list = []
+        if history_path.exists():
+            try:
+                moving_avg_history = json.loads(history_path.read_text())
+                if not isinstance(moving_avg_history, list):
+                    moving_avg_history = []
+            except json.JSONDecodeError:
+                console.print(
+                    f"[yellow]{history_path} malformed; using empty history "
+                    f"(moving_avg falls back to anchor per D-01).[/yellow]"
+                )
+                moving_avg_history = []
+
+        gate = TBLiteBenchmarkGate(
+            config,
+            anchor=anchor,
+            stratified_subset=subset,
+            moving_avg_history=moving_avg_history,
+        )
+
+        cache_dir = (
+            Path.home() / ".cache" / "hermes-evolution" / "tblite"
+        )
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # D-16: dual-track budget. The benchmark tracker is independent
+        # from the optimization tracker (Edit 0 wires that one).
+        benchmark_tracker = CostTracker(max_usd=benchmark_max_cost)
+        try:
+            with benchmark_tracker:
+                benchmark_results = gate.check_all(
+                    original_sections,
+                    evolved_sections,
+                    cache_dir=cache_dir,
+                    use_cache=benchmark_cache,
+                )
+            benchmark_tracker_spent = benchmark_tracker.spent_usd
+        except CostBudgetExceeded as e:
+            console.print(f"[red]Benchmark cost budget exceeded: {e}[/red]")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            aborted_dir = Path("output") / "prompts" / f"ABORTED_{timestamp}"
+            aborted_dir.mkdir(parents=True, exist_ok=True)
+            (aborted_dir / "metrics.json").write_text(
+                json.dumps({
+                    "timestamp": timestamp,
+                    "status": "ABORTED",
+                    "benchmark_decision": "aborted_cost",
+                    "benchmark_max_cost_usd": benchmark_max_cost,
+                    "benchmark_spent_usd": getattr(e, "spent_usd", 0.0),
+                }, indent=2)
+            )
+            console.print(f"  Saved aborted-cost state to {aborted_dir}/")
+            return
+
+        # Single-element list per TBLiteBenchmarkGate.check_all contract.
+        bench = benchmark_results[0]
+        benchmark_decision = bench["decision"]
+        benchmark_risk_score = bench["risk_score"]
+        benchmark_per_tier = bench["per_tier"]
+        benchmark_passed = (benchmark_decision == "accept")
+
+        # D-OUT-01-style Rich Table (mirror Phase 18 drift_table at line 722).
+        bench_table = Table(
+            title=(
+                f"TBLite Benchmark Gate "
+                f"(Risk_Score={benchmark_risk_score:.2f} / "
+                f"reject_threshold={bench['reject_threshold']:.2f})"
+            )
+        )
+        bench_table.add_column("Tier", style="bold")
+        bench_table.add_column("Mean", justify="right")
+        bench_table.add_column("Stdev", justify="right")
+        bench_table.add_column("Threshold", justify="right")
+        bench_table.add_column("Anchor", justify="right")
+        bench_table.add_column("MovingAvg", justify="right")
+        bench_table.add_column("Breach", justify="center")
+        for tier in ("easy", "medium", "hard", "extreme"):
+            v = benchmark_per_tier.get(tier, {})
+            if not v:
+                continue
+            breach_icon = (
+                "[red]x[/red]" if v.get("breach")
+                else "[green]ok[/green]"
+            )
+            bench_table.add_row(
+                tier,
+                f"{v.get('mean', 0):.3f}",
+                f"{v.get('stdev', 0):.3f}",
+                f"{v.get('threshold', 0):.3f}",
+                f"{v.get('anchor', 0):.3f}",
+                f"{v.get('moving_avg', 0):.3f}",
+                breach_icon,
+            )
+        console.print(bench_table)
+
+        # Hard reject -> FAILED_<ts>/ + return BEFORE write-back (D-18 + D-GATE-04 mirror).
+        if benchmark_decision == "reject":
+            console.print(
+                f"[red]Benchmark gate REJECTED "
+                f"(Risk_Score={benchmark_risk_score:.2f} >= "
+                f"{bench['reject_threshold']:.2f}) — "
+                f"evolved prompts NOT deployed[/red]"
+            )
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = (
+                Path("output") / "prompts" / f"FAILED_{timestamp}"
+            )
+            output_dir.mkdir(parents=True, exist_ok=True)
+            failed_metrics = {
+                "timestamp": timestamp,
+                "status": "FAILED",
+                "constraints_passed": True,  # in-loop constraints passed; benchmark gate rejected
+                "benchmark_decision": "reject",
+                "benchmark_passed": False,
+                "benchmark_risk_score": benchmark_risk_score,
+                "benchmark_per_tier": benchmark_per_tier,
+                "benchmark_reason": (
+                    f"Risk_Score {benchmark_risk_score:.2f} >= "
+                    f"{bench['reject_threshold']:.2f}"
+                ),
+                # W-2/W-3: optimization_tracker_spent is now a real local
+                # variable established by Edit 0. NO locals().get(...)
+                # fallback — if Edit 0 was skipped, this AttributeError
+                # fails loudly (good) rather than silently reporting 0.0.
+                "total_cost_breakdown": {
+                    "optimization": float(optimization_tracker_spent),
+                    "benchmark": float(benchmark_tracker_spent),
+                },
+            }
+            (output_dir / "metrics.json").write_text(
+                json.dumps(failed_metrics, indent=2)
+            )
+            # tblite_report.json (D-04 schema sans constraint_result).
+            serializable_report = {
+                k: v for k, v in bench.items()
+                if k != "constraint_result"
+            }
+            (output_dir / "tblite_report.json").write_text(
+                json.dumps(serializable_report, indent=2, sort_keys=True)
+            )
+            (output_dir / "evolved_sections.json").write_text(
+                json.dumps(
+                    [
+                        {"section_id": s.section_id, "text": s.text}
+                        for s in evolved_sections
+                    ],
+                    indent=2,
+                )
+            )
+            (output_dir / "diff.txt").write_text(
+                _generate_diff(original_sections, evolved_sections)
+            )
+            console.print(f"  Saved failed results to {output_dir}/")
+            return
+
+        # If we reach here, gate accepted. Step 11 continues normally.
+        console.print(
+            f"[green]Benchmark gate ACCEPTED "
+            f"(Risk_Score={benchmark_risk_score:.2f} < "
+            f"{bench['reject_threshold']:.2f})[/green]"
+        )
+
     # ── 11. Save results ─────────────────────────────────────────────────
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = Path("output") / "prompts" / timestamp
@@ -1084,6 +1417,32 @@ def evolve(
             )
             metrics["drift_max_section"] = max_entry[0]
             metrics["drift_max_dim"] = max_entry[1]
+
+    # Phase 20 D-04: benchmark_* fields. ALWAYS write benchmark_decision
+    # (default 'skipped') so Phase 16 dashboard can filter by status.
+    metrics["benchmark_decision"] = benchmark_decision
+    if benchmark_results:
+        metrics["benchmark_passed"] = benchmark_passed
+        metrics["benchmark_risk_score"] = benchmark_risk_score
+        metrics["benchmark_per_tier"] = benchmark_per_tier
+        metrics["benchmark_tier_weights"] = benchmark_results[0]["tier_weights"]
+        metrics["benchmark_reject_threshold"] = (
+            benchmark_results[0]["reject_threshold"]
+        )
+
+    # Phase 20 D-16: dual-track cost breakdown.
+    # W-2/W-3 (2026-05-19): optimization_tracker_spent is captured by
+    # Edit 0's `with optimization_tracker:` context at line ~616.
+    # optimization_tracker.spent_usd holds the real GEPA + MIPROv2 + A/B
+    # baseline LM spend. NO locals-dict fallback — if Edit 0 was not
+    # applied this line raises NameError loudly. Previous draft used a
+    # locals-dict fallback which silently masked the missing tracker as
+    # 0.0 (the W-2/W-3 bug).
+    metrics["total_cost_breakdown"] = {
+        "optimization": float(optimization_tracker_spent),
+        "benchmark": float(benchmark_tracker_spent),
+    }
+
     (output_dir / "metrics.json").write_text(
         json.dumps(metrics, indent=2)
     )
@@ -1096,6 +1455,18 @@ def evolve(
     if drift_results:
         (output_dir / "drift_report.txt").write_text(
             "".join(drift_report_lines)
+        )
+
+    # Phase 20 D-04: tblite_report.json side-by-side with evolved_sections.json
+    # so Phase 16 dashboard can ingest per-tier breakdown without re-reading
+    # metrics.json.
+    if benchmark_results:
+        serializable_report = {
+            k: v for k, v in benchmark_results[0].items()
+            if k != "constraint_result"
+        }
+        (output_dir / "tblite_report.json").write_text(
+            json.dumps(serializable_report, indent=2, sort_keys=True)
         )
 
     # ── 11.5. Joint mode: persist A/B baseline副本文件(shared-prefix layout, D-OUT-01)
@@ -1198,8 +1569,64 @@ def evolve(
         "Omitting this flag preserves pre-Phase-19 behavior."
     ),
 )
+@click.option(
+    "--benchmark",
+    type=click.Choice(["none", "tblite", "tblite-full"]),
+    default="none",
+    help=(
+        "Phase 20 D-18. Run TBLite benchmark gate after step 10 (out "
+        "of GEPA loop, PITFALL #7). 'none' (default) = pre-Phase-20 "
+        "behavior. 'tblite' = stratified 30-task subset. "
+        "'tblite-full' = reserved for Phase 22 (errors out)."
+    ),
+)
+@click.option(
+    "--benchmark-tier",
+    default=None,
+    help=(
+        "CSV of tiers to include (subset of easy,medium,hard,extreme). "
+        "Default = all four. Phase 20 D-05 + W-7 (filters by item['tier'])."
+    ),
+)
+@click.option(
+    "--benchmark-cache/--no-benchmark-cache",
+    default=True,
+    help=(
+        "Content-addressed cache at ~/.cache/hermes-evolution/tblite/ "
+        "(Phase 20 D-15). Disable for a single forced re-run."
+    ),
+)
+@click.option(
+    "--benchmark-max-cost",
+    default=50.0,
+    type=float,
+    help=(
+        "USD cap for the benchmark cost tracker (Phase 20 D-16 dual-track). "
+        "Distinct from --max-cost-usd which governs GEPA + LLM judge."
+    ),
+)
+@click.option(
+    "--wait/--detach",
+    default=True,
+    help=(
+        "Phase 20 D-12. --wait blocks until TBLite subprocess exits then "
+        "decides write-back (DEFAULT). --detach is reserved for Phase 22 "
+        "(currently exits non-zero)."
+    ),
+)
+@click.option(
+    "--async-full-verify/--no-async-full-verify",
+    default=True,
+    help=(
+        "Phase 20 D-07. NO-OP in Plan 06 — accepted for forward "
+        "compatibility but the background full-verify dispatch is "
+        "reserved for Phase 22."
+    ),
+)
 def main(section, iterations, eval_source, hermes_repo, dry_run, model,
-         api_base, mode, drift_thresholds_path, session_source):
+         api_base, mode, drift_thresholds_path, session_source,
+         benchmark, benchmark_tier, benchmark_cache, benchmark_max_cost,
+         wait, async_full_verify):
     """Evolve hermes-agent prompt sections using DSPy + GEPA optimization."""
     evolve(
         section=section,
@@ -1212,6 +1639,12 @@ def main(section, iterations, eval_source, hermes_repo, dry_run, model,
         mode=mode,
         drift_thresholds_path=drift_thresholds_path,
         session_source=session_source,
+        benchmark=benchmark,
+        benchmark_tier=benchmark_tier,
+        benchmark_cache=benchmark_cache,
+        benchmark_max_cost=benchmark_max_cost,
+        wait_mode="wait" if wait else "detach",
+        async_full_verify=async_full_verify,
     )
 
 

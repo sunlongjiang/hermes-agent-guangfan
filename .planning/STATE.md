@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: — Stabilization, Enhancement & Expansion
 status: executing
 stopped_at: Phase 21 context gathered
-last_updated: "2026-05-20T08:28:20.378Z"
-last_activity: 2026-05-20 -- Phase 21 planning complete
+last_updated: "2026-05-20T08:42:43.769Z"
+last_activity: 2026-05-20
 progress:
   total_phases: 11
   completed_phases: 7
   total_plans: 53
-  completed_plans: 45
-  percent: 85
+  completed_plans: 46
+  percent: 87
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** 让 GEPA 优化循环能覆盖工具描述和系统提示词，使 hermes-agent 的核心文本制品都能被系统性地自动改进
-**Current focus:** Phase 20 — benchmark-gated-validation
+**Current focus:** Phase 21 — darwinian-code-evolution
 
 ## Current Position
 
-Phase: 21
-Plan: Not started
+Phase: 21 (darwinian-code-evolution) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-05-20 -- Phase 21 planning complete
+Last activity: 2026-05-20
 
-Progress: [██████████] 100%
+Progress: [█████████░] 87%
 
 ## Milestone v2.0 Phase Map
 
@@ -70,6 +70,7 @@ Progress: [██████████] 100%
 - [Phase 18-03 2026-05-16] COMPLETE: `build_drift_calibration.py` CLI shipped (~400 LoC, 14 flags) + Wave 1 generator fix for persona coverage (commit c7c334f) + v1-pragmatic tier-target flags (commits 91b2007, 49cc32d) + live calibration artifacts (commit 15b9c4c). Final stack: qwen-plus generator (DashScope) + gpt-5.5 detector (api1.mygod.buzz reseller), Tier 2 borderline pass under v1-pragmatic targets (target_self=0.60 / per_dim_floor=0.35 / macro_floor=0.50). Per-dim F1: tone 0.60 ✓, formality 0.42 WARN, vocabulary 0.40 WARN, persona 0.73 ✓, macro 0.54. 10/10 human spot-check passed on the JSONL — data quality is high; the relaxed targets reflect the available judge's discrimination ceiling, not a data problem. `_meta` audit block records preset/targets/models/endpoint/seed/tier for re-derivation tracking. `datasets/prompts/{drift_calibration.jsonl, drift_thresholds.json}` git-tracked via `.gitignore` exception from Plan 18-01. **Security incidents:** two API keys (`OPENAI_API_KEY` sk-proj-…, reseller sk-b43e…dae1) leaked to terminal during execution; user advised to rotate. **Tech debt:** v1-pragmatic gate is permissive (formality/vocabulary warned dims won't catch subtle drift) — future calibration with a stronger judge can tighten back toward research-strict (0.85/0.70/0.80). See `.planning/phases/18-personality-drift-detection/18-03-SUMMARY.md`.
 - [Phase 18-04 2026-05-16] COMPLETE: Wave 3 — DriftDetector wired into evolve_prompt_sections.py constraint gate via 5 surgical edits (commit b20f83b). Edit-1 import; Edit-2 step 8c gate (3-run severity ladder pass/warn/reject + Rich Table titled "Drift Detection (per-section x per-dim, 3-run averaged)" + drift_report.txt buffer + extended FAILED path); Edit-3 success metrics drift_per_dim/drift_thresholds/drift_exceeded_dims/drift_passed/drift_max_section/drift_max_dim at 4-space function-body indent OUTSIDE the joint-only conditional (D-ROB-04 mechanically — both joint AND round-robin pipelines emit drift_* fields); Edit-4 success-path drift_report.txt write parallel with diff.txt; Edit-5 --drift-thresholds-path Click flag (default datasets/prompts/drift_thresholds.json, click.Path(exists=True, path_type=Path)) threaded through main() → evolve(). D-BYPASS-01 enforced via decorator-anchored grep `@click\.option\(\s*"--(no|skip)-drift-check"` returning 0 — Click rejects --no-drift-check at parse time with exit 2. Rule-3 deviation: TestABBaseline._ab_patched_run patched to stub drift_thresholds.json under tmp_path + mock DriftDetector to no-op so three sandboxed A/B baseline tests continue passing. TestJointPipeline needed no change — its existing dspy.LM mock causes Wave 1's typed-float ValidationError fallback to fire (all dims → 0.0 → severity=pass). tests/prompts/: 110 passed (baseline retained); tests/: 527 passed, 1 skipped, 1 xfailed (Wave 1 repo baseline retained); Wave 1 drift unit tests: 13 passed. Plan 18-05 (Wave 5 CLI integration tests) UNBLOCKED. See `.planning/phases/18-personality-drift-detection/18-04-SUMMARY.md`.
 - [Phase 18-05 2026-05-16] COMPLETE: Wave 4 — 6 CLI integration tests appended to tests/prompts/test_evolve_prompt_sections_cli.py::TestDriftGate (commit b04b108, +526 LoC). Coverage: D-OUT-02 joint mode (`test_metrics_json_has_drift_fields`), D-OUT-02 + D-ROB-04 round-robin (`test_round_robin_metrics_json_has_drift_fields` — regression guard for Plan 18-04 Edit-3 indent placement; fires with explicit "D-ROB-04 REGRESSION" message if drift_* block is ever nested inside the joint-only conditional), D-BYPASS-02 custom thresholds path verbatim propagation (`test_drift_thresholds_path_flag`), D-BYPASS-01 bypass-flag absence (`test_no_skip_drift_flag` — both --no-drift-check and --skip-drift-check rejected by Click at parse time with exit_code != 0), D-GATE-03 soft warn keeps exit 0 + evolved_sections.json (`test_one_dim_drift_warns_but_deploys`), D-GATE-04 hard reject + D-OUT-03 FAILED dir artifacts (`test_two_dim_drift_rejects_and_writes_failed_dir` — asserts FAILED_<ts>/ contains drift_report.txt + evolved_sections.json + diff.txt + metrics.json drift_passed=false). Multi-patch topology mirrors TestABBaseline._ab_patched_run: tmp_path stub thresholds + DriftDetector mock + PromptModule spy factory + dspy LM/configure/context/GEPA mocks. All 6 tests PASS in 0.44s. tests/prompts/ 110 → 116 passed (1 skipped retained); tests/ 527 → 533 passed (1 skipped, 1 xfailed retained). Zero regression. Phase 18 verify gate fully covered: SC#1 (4-dim DriftDetector) → Wave 1 unit tests; SC#2 (constraint gate rejects on multi-dim drift) → `test_two_dim_drift_rejects_and_writes_failed_dir`; SC#3 (drift report in output) → `test_metrics_json_has_drift_fields` + round-robin variant + reject path. Phase 18 = **5/5 plans complete**, ready for verification. See `.planning/phases/18-personality-drift-detection/18-05-SUMMARY.md`.
+- [Phase 21-01 2026-05-20] COMPLETE: Infrastructure bootstrap — 3 atomic commits (678bf53 pyproject.toml; 6352603 .pre-commit-config.yaml; 468cf40 LICENSE) close D-02 / D-13 / D-17 / D-18 (layer 1). pyproject.toml: removed [darwinian]=[darwinian-evolver] (PyPI 404), added [code]=[openevolve>=0.2.27] (Apache-2.0 sole evolutionary code search lib; AGPL boundary permanently closed), added "ruff" to [dev] extra + [tool.ruff] line-length=120 select=["E","F","W"]. .pre-commit-config.yaml (first ever in repo): local hook `openevolve-single-import-surface` greps `^import openevolve` / `^from openevolve` in evolution/**.py and rejects any match NOT in evolution/code/code_evolver_adapter.py; always_run=true, pass_filenames=false. Passes vacuously today (no openevolve imports yet) — Plan 21-04 creates code_evolver_adapter.py. T-21-IMPORT first defense layer landed; Plan 06 pytest gate = second layer. LICENSE: standard MIT text with `Copyright (c) 2026 Longjiang Sun` — D-17 irreversible. Checkpoint pre-resolved via orchestrator: user explicitly chose English transliteration "Longjiang Sun" over Chinese git config name "龙江 孙"; year 2026 confirmed. All 6 PLAN <verification> commands PASS (TOML syntax + extras shape + ruff config + hook id + MIT header + output/ gitignore). 9 task-level <done> criteria PASS. Zero deviations. Self-Check PASSED (3 files + 3 commits all found). See `.planning/phases/21-darwinian-code-evolution/21-01-SUMMARY.md`.
 
 ### Test Coverage (v2 baseline after 2026-05-07 fixes)
 
@@ -85,7 +86,7 @@ Progress: [██████████] 100%
 
 ## Session Continuity
 
-Last session: 2026-05-20T06:37:39.602Z
+Last session: 2026-05-20T08:42:36.294Z
 Stopped at: Phase 21 context gathered
 Next: Phase 18 ready for verification (`/gsd-verify-phase 18`). All 6 CLI integration tests + 13 Wave 1 unit tests + Wave 3 integration tests via TestABBaseline cover the full success-criteria matrix (SC#1 → Wave 1 unit tests; SC#2 → test_two_dim_drift_rejects_and_writes_failed_dir; SC#3 → test_metrics_json_has_drift_fields + round-robin variant + reject path).
 

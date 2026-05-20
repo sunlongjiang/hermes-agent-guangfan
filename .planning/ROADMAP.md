@@ -401,7 +401,7 @@ Plans:
 **Plans**: 8 plans
 
 **Wave 0** *(infrastructure — blocking)*
-- [ ] 21-01-PLAN.md — LICENSE (MIT, D-17 not-reversible checkpoint) + pyproject.toml [code] extra (openevolve>=0.2.27) + .pre-commit-config.yaml CI lint gate (D-18 layer-1)
+- [x] 21-01-PLAN.md — LICENSE (MIT, D-17 not-reversible checkpoint) + pyproject.toml [code] extra (openevolve>=0.2.27) + .pre-commit-config.yaml CI lint gate (D-18 layer-1)
 
 **Wave 1** *(parallel — depends on Wave 0)*
 - [ ] 21-02-PLAN.md — evolution/code/ package skeleton: __init__.py lazy guard + LICENSING.md + tests/code/__init__.py + output/code/.gitkeep (D-21)

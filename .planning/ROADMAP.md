@@ -411,8 +411,8 @@ Plans:
 - [x] 21-06-PLAN.md — code_evolver_adapter.py (唯一 import openevolve 文件, D-03) + tests/code/test_import_boundary.py (D-18 layer-2 pytest gate)
 
 **Wave 2** *(depends on Wave 1)*
-- [ ] 21-07-PLAN.md — evolve_code.py Click CLI (--component/--iterations/--dry-run/--max-cost, EvolutionConfig.load 5-param, NOTICE.md D-19) + tests/code/test_evolve_code_cli.py (3 E2E dry-run tests)
-- [ ] 21-08-PLAN.md — tests/code/test_ansi_strip_holdout.py: 9-10 edge case holdout tests (D-07: 超长/Unicode/嵌套/截断CSI/OSC/无效字节/CRLF)
+- [x] 21-07-PLAN.md — evolve_code.py Click CLI (--component/--iterations/--dry-run/--max-cost, EvolutionConfig.load 5-param, NOTICE.md D-19) + tests/code/test_evolve_code_cli.py (3 E2E dry-run tests)
+- [x] 21-08-PLAN.md — tests/code/test_ansi_strip_holdout.py: 9-10 edge case holdout tests (D-07: 超长/Unicode/嵌套/截断CSI/OSC/无效字节/CRLF)
 
 ### Phase 22: Continuous Evolution Loop
 **Goal**: Automated pipeline that periodically runs optimization, validates, and creates PRs

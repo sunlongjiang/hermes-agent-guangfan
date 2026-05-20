@@ -370,7 +370,7 @@ Plans:
   1. Optional `--benchmark` flag triggers TBLite evaluation before accepting evolved sections
   2. Configurable pass threshold (default: no regression on core capabilities)
   3. Benchmark results saved to output metrics
-**Plans:** 5/6 plans executed
+**Plans:** 5/6 plans complete
 
 Plans:
 **Wave 1**

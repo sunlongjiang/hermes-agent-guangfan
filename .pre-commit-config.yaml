@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: openevolve-single-import-surface
+        name: Block openevolve import outside code_evolver_adapter
+        entry: bash -c 'grep -rn "^import openevolve\|^from openevolve" evolution/ --include="*.py" --exclude-dir=__pycache__ | grep -v "evolution/code/code_evolver_adapter.py" && exit 1 || exit 0'
+        language: system
+        pass_filenames: false
+        always_run: true

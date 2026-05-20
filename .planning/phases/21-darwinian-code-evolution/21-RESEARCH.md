@@ -726,22 +726,25 @@ class CodeFitness:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **evolve_code 在 pre-flight 检查中如何优雅处理 pytest-json-report 未安装？**
    - What we know：pytest-json-report 不在 dev deps；`--tb=line -q` stdout 解析可行（FAILED 行格式稳定）
    - What's unclear：是否值得添加 pytest-json-report 以获得结构化输出
    - Recommendation：不添加；用正则解析 `FAILED {test_id} - {exception_type}: {msg}` 已经足够（D-16 feedback 只需 test_name + assertion_msg）
+   - **RESOLVED**: 不添加 pytest-json-report。sandbox_runner 用 `--tb=line -q` 输出 + 正则提取 FAILED 行，结构已足够满足 D-16 feedback 字段需求。
 
 2. **openevolve 内部 evolution_trace log 落在哪里？如何对接 metrics.json？**
    - What we know：EvolutionTraceConfig.enabled 默认 False；output_dir 下有 checkpoint/ 目录
    - What's unclear：是否需要启用 trace 来获取 per-iteration fitness 历史
    - Recommendation：D-05 说明 feedback 写入 openevolve trajectory log，cleanup=False 保留 output_dir 即可供人工审计；metrics.json 只记录 final best candidate 的指标
+   - **RESOLVED**: evolution marker 只包裹 `strip_ansi` 函数体（第 36-44 行），保留 `import re` 和模块级正则常量在 EVOLVE-BLOCK 之外。adapter 写入 initial_program 时注入 `# EVOLVE-BLOCK-START` / `# EVOLVE-BLOCK-END`，不需要修改 hermes-agent 原文件。
 
 3. **test_ansi_strip.py 中 `test_none` 断言 `strip_ansi(None) is None`，而函数签名 `text: str`——evolved 版本可能改类型注解导致测试失败？**
    - What we know：当前实现 `if not text or not _HAS_ESCAPE.search(text)` 对 None 直接走 `if not text` 分支返回 None
    - What's unclear：openevolve 是否会修改函数签名或 None 处理
    - Recommendation：在 evaluator feedback 中不特殊处理 None 测试；如果 openevolve 生成的代码改了 None 行为，pytest 就会抓到——这正是测试的价值
+   - **RESOLVED**: `--allow-fallback` 本期作为 CLI 占位符实现（click option 存在但函数体为 pass + warn），不实现真实降级路径。deferred 到后续 Phase。
 
 ---
 

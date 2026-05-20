@@ -59,7 +59,7 @@ created: 2026-05-20
 | test_evolve_code_cli::test_dry_run_exits_0_without_openevolve_call | TBD | 2 | V2-CODE-01 | — | --dry-run 不真调 openevolve | E2E | `pytest tests/code/test_evolve_code_cli.py::test_dry_run_exits_0_without_openevolve_call -x` | ❌ W0 | ⬜ pending |
 | test_evolve_code_cli::test_preflight_fails_without_license | TBD | 2 | V2-CODE-01 | — | LICENSE 缺失 pre-flight 即 fail | E2E | `pytest tests/code/test_evolve_code_cli.py::test_preflight_fails_without_license -x` | ❌ W0 | ⬜ pending |
 | test_evolve_code_cli::test_cli_passes_model_to_evolution_config | TBD | 2 | V2-CODE-01 | — | --model 传入 EvolutionConfig | E2E | `pytest tests/code/test_evolve_code_cli.py::test_cli_passes_model_to_evolution_config -x` | ❌ W0 | ⬜ pending |
-| test_ansi_strip_holdout（≥9 tests） | TBD | 1 | V2-CODE-01 | — | edge case 真实回放 | unit | `pytest tests/code/test_ansi_strip_holdout.py -x` | ❌ W0 | ⬜ pending |
+| test_ansi_strip_holdout（≥9 tests） | TBD | 2 | V2-CODE-01 | — | edge case 真实回放 | unit | `pytest tests/code/test_ansi_strip_holdout.py -x` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

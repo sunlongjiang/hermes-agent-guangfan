@@ -404,11 +404,11 @@ Plans:
 - [x] 21-01-PLAN.md — LICENSE (MIT, D-17 not-reversible checkpoint) + pyproject.toml [code] extra (openevolve>=0.2.27) + .pre-commit-config.yaml CI lint gate (D-18 layer-1)
 
 **Wave 1** *(parallel — depends on Wave 0)*
-- [ ] 21-02-PLAN.md — evolution/code/ package skeleton: __init__.py lazy guard + LICENSING.md + tests/code/__init__.py + output/code/.gitkeep (D-21)
-- [ ] 21-03-PLAN.md — code_target_loader.py: CodeTarget dataclass + find_target (D-06/D-08 evolution/ path reject) + find_target_tests AST scan + stratify_tests 20/10 split; 4 unit tests (T-21-RECURSE)
-- [ ] 21-04-PLAN.md — code_fitness.py: CodeFitness dataclass + score_candidate (D-11/D-12/D-13/D-14 no-LLM); 6 unit tests (pytest pass/fail × size × ruff)
-- [ ] 21-05-PLAN.md — sandbox_runner.py: build_restricted_env (API key strip, D-20/T-21-SECRET) + run_pytest_in_sandbox (timeout 120s, eval_dir cleanup); 4 unit tests
-- [ ] 21-06-PLAN.md — code_evolver_adapter.py (唯一 import openevolve 文件, D-03) + tests/code/test_import_boundary.py (D-18 layer-2 pytest gate)
+- [x] 21-02-PLAN.md — evolution/code/ package skeleton: __init__.py lazy guard + LICENSING.md + tests/code/__init__.py + output/code/.gitkeep (D-21)
+- [x] 21-03-PLAN.md — code_target_loader.py: CodeTarget dataclass + find_target (D-06/D-08 evolution/ path reject) + find_target_tests AST scan + stratify_tests 20/10 split; 4 unit tests (T-21-RECURSE)
+- [x] 21-04-PLAN.md — code_fitness.py: CodeFitness dataclass + score_candidate (D-11/D-12/D-13/D-14 no-LLM); 6 unit tests (pytest pass/fail × size × ruff)
+- [x] 21-05-PLAN.md — sandbox_runner.py: build_restricted_env (API key strip, D-20/T-21-SECRET) + run_pytest_in_sandbox (timeout 120s, eval_dir cleanup); 4 unit tests
+- [x] 21-06-PLAN.md — code_evolver_adapter.py (唯一 import openevolve 文件, D-03) + tests/code/test_import_boundary.py (D-18 layer-2 pytest gate)
 
 **Wave 2** *(depends on Wave 1)*
 - [ ] 21-07-PLAN.md — evolve_code.py Click CLI (--component/--iterations/--dry-run/--max-cost, EvolutionConfig.load 5-param, NOTICE.md D-19) + tests/code/test_evolve_code_cli.py (3 E2E dry-run tests)

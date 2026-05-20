@@ -43,6 +43,7 @@
 - [x] v2: Think-augmented tool selection (TOOL-V2-03) — Validated in Phase 15 (pending real-LM UAT for CR-01..04 scenarios)
 - [x] v2: Joint section optimization (PMPT-V2-01) — Validated in Phase 17 (pending real-LM UAT for joint vs RR holdout comparison + WR-07 [ACTIVE:sid] tag reflection quality)
 - [x] v2: Personality drift detection (PMPT-V2-02) — Validated in Phase 18 (5 plans, 9/9 must-haves verified; v1-pragmatic Tier 2 calibration ships with formality/vocabulary warned dims — tighten in a follow-up phase when a stronger judge is available)
+- [x] v2: TBLite benchmark-gated validation (PMPT-V2-03) — Code-level validated in Phase 20 (5/6 plans executed; Plan 20-05 live calibration deferred at user direction — anchor.json + real TBLite task names pending. Gate fails-closed without anchor, so runtime is safe. Resume via `python -m evolution.benchmarks.build_tblite_calibration`)
 - [ ] v2: Darwinian code evolution (V2-CODE-01)
 - [ ] v2: Continuous evolution loop (V2-LOOP-01)
 
@@ -68,6 +69,9 @@
 - ✓ Prompt behavioral metric (PromptBehavioralMetric) — Phase 9
 - ✓ PromptRoleChecker (role preservation constraint) — Phase 10
 - ✓ evolve_prompt_sections CLI entry point — Phase 10
+- ✓ TBLiteRunner + TBLiteBenchmarkGate (Risk_Score + Virtual Prompt Overlay) — Phase 20
+- ✓ build_tblite_calibration CLI (live anchor generation) — Phase 20
+- ✓ `--benchmark=tblite` flag wired into evolve_prompt_sections step 10.5 — Phase 20
 
 ### Out of Scope
 
@@ -118,3 +122,5 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 *Last updated: 2026-05-19 — Phase 19 (sessiondb-behavioral-mining-for-prompts, PMPT-V2-04) complete with 5 plans; verifier 3/3 SC PASS, security 27/27 threats closed. SessionPromptMiner (4-way signal extraction: user_correction / section_specific_failure / oracle_disagreement / persona_drift) + mine_prompt_sessions CLI (13 flags, --i-have-consent gate, FAILED_<ts>/ recovery) + evolve_prompt_sections --session-source union (hash dedup, bad-line tolerance, joint+round-robin transparent). Code review surfaced 2 critical + 8 warning + 5 info; 9/10 critical+warning auto-fixed (CR-01/CR-02 dead code+hardcoded path; WR-01..07 metric channels / secret scrubbing / cheap-rule filters). WR-08 (drift_thresholds.json parse guard inside Phase 18 protected region) accepted as deferred. 637 tests passing, zero regression. Phase 20 (benchmark-gated-validation, PMPT-V2-03) next.*
+
+*Last updated: 2026-05-20 — Phase 20 (benchmark-gated-validation, PMPT-V2-03) complete at code level with 5/6 plans (Plan 20-05 live calibration deferred at user direction — anchor.json + real TBLite task names pending). Shipped: TBLiteRunner (async stream pipe + state monitor, daemon threads, heartbeat hang detection), TBLiteBenchmarkGate (Risk_Score weighted algorithm + Virtual Prompt Overlay + content-addressed cache + sliding-window adaptive thresholds), build_tblite_calibration CLI (Watermark check, HF revision pinning, 3-run median, Rich Table), and --benchmark=tblite wired into evolve_prompt_sections step 10.5 (post-GEPA, pre-write-back). CostTracker(max_cost_usd) finally instantiated in prompt evolution path (closed Phase 13 gap). Code review surfaced 4 critical + 9 warning + 5 info; 4/4 critical + 8/9 warning auto-fixed (CR-01 multi-section overlay loss / CR-02 W-7 dict-to-runner mismatch / CR-03 git returncode ignored / CR-04 KeyError vs TypeError; WR-01 path traversal in task name regex / WR-04 zero-sample tier / WR-08 failed runs polluting aggregation). WR-06 (1300+ line evolve() refactor) deferred. 695 tests passing (+13 regression tests). Verification: 19/20 must-haves code-level PASS, status human_needed pending live calibration via `python -m evolution.benchmarks.build_tblite_calibration --runs 3 --benchmark-max-cost 50.0`. HUMAN-UAT.md persisted. Phase 21 (darwinian-code-evolution, V2-CODE-01) next.*

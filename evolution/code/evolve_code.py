@@ -285,6 +285,7 @@ def evolve(
         eval_dir_base,
         target.baseline_size_bytes,
         splits["train_ids"],
+        test_file_path=target.test_file_path,
     )
     console.print(
         Panel.fit(
@@ -334,6 +335,7 @@ def evolve(
         eval_dir_base,
         target.baseline_size_bytes,
         splits["holdout_ids"],
+        test_file_path=target.test_file_path,
     )
 
     # Step 9 — D-15 gate

@@ -25,6 +25,7 @@ normal outcome, NOT a subprocess error.
 
 import json
 import subprocess
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -205,6 +206,7 @@ def score_candidate(
     baseline_size: int,
     train_test_ids: Optional[list[str]] = None,
     *,
+    test_file_path: Optional[Path] = None,
     size_soft_threshold: float = _DEFAULT_SIZE_SOFT_THRESHOLD,
     size_hard_threshold: float = _DEFAULT_SIZE_HARD_THRESHOLD,
 ) -> CodeFitness:
@@ -216,16 +218,24 @@ def score_candidate(
 
     Args:
         target_path: Path to the ORIGINAL hermes-agent file (read-only; used
-            for context, never modified).
+            for context, never modified). When ``test_file_path`` is not
+            provided we fall back to the sibling-test convention
+            ``<target_path.parent.parent>/tests/<target_path.parent.name>/test_<stem>.py``.
         evolved_path: Path to the candidate file produced by openevolve.
             Must exist on disk because ruff + size both read it.
-        eval_dir: Working directory for the pytest sandbox. The sandbox_runner
-            owns lifecycle (creation + cleanup).
+        eval_dir: Sandbox PARENT directory (forwarded to sandbox_runner as
+            ``eval_dir_base``). Per-candidate subdirectories are created and
+            destroyed by ``run_pytest_in_sandbox``.
         baseline_size: Byte count of the original target file. Used as the
             denominator of the size ratio.
-        train_test_ids: Optional list of pytest node-ids restricting the
-            evaluator to the training split. ``None`` runs every discovered
-            test.
+        train_test_ids: Optional list of pytest node-ids identifying the
+            training split. Advisory only — the current sandbox_runner runs
+            the entire test file (no -k filtering); test-ID filtering is
+            tracked as a follow-up enhancement. Pass anyway so callers stay
+            forward-compatible.
+        test_file_path: Pytest file that exercises the candidate. Required
+            by ``run_pytest_in_sandbox`` — if the caller omits it we infer
+            from ``target_path`` via the sibling-test convention.
 
     Returns:
         ``CodeFitness`` with all three components populated. ``decision`` is
@@ -236,6 +246,7 @@ def score_candidate(
             (Plan 05 has not landed yet). We intentionally do NOT silently
             substitute a stub — a missing sandbox would silently report every
             candidate as a pass, which is a critical correctness hole.
+        FileNotFoundError: When ``test_file_path`` cannot be resolved.
     """
     # Deferred import: sandbox_runner ships in Plan 21-05. Until then this
     # module is still importable (for unit-testing fitness math in isolation),
@@ -249,11 +260,29 @@ def score_candidate(
             "can be invoked end-to-end."
         ) from exc
 
+    # Resolve test_file_path via sibling-test convention if caller omitted it.
+    # We do NOT validate existence here — the real sandbox_runner will raise a
+    # clear FileNotFoundError when it tries to ``shutil.copy2`` a missing file,
+    # and stubbed sandbox_runners used by unit tests never read the path.
+    if test_file_path is None:
+        # tools/ansi_strip.py  →  tests/tools/test_ansi_strip.py (under the
+        # same project root as target_path's grandparent).
+        stem = target_path.stem
+        parent_name = target_path.parent.name
+        project_root = target_path.parent.parent
+        test_file_path = project_root / "tests" / parent_name / f"test_{stem}.py"
+
+    # Unique per-candidate sandbox leaf — sandbox_runner builds eval_dir_base/run_id/.
+    run_id = f"score_{uuid.uuid4().hex[:8]}"
+
     # ── 1. pytest hard gate (D-11) ─────────────────────────────────────────
+    # NOTE: ``train_test_ids`` is currently advisory — sandbox_runner runs the
+    # full test file. Filtering by node-id is a follow-up enhancement.
     pytest_passed, pytest_total, pytest_failures = run_pytest_in_sandbox(
-        candidate_path=evolved_path,
-        eval_dir=eval_dir,
-        train_test_ids=train_test_ids,
+        evolved_path,
+        eval_dir,
+        Path(test_file_path),
+        run_id,
     )
 
     size_evolved_bytes = evolved_path.stat().st_size

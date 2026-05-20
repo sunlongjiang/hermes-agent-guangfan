@@ -34,7 +34,7 @@ def _install_fake_sandbox_runner(monkeypatch, *, passed: int, total: int, failur
     """
     fake_module = types.ModuleType("evolution.code.sandbox_runner")
 
-    def run_pytest_in_sandbox(candidate_path, eval_dir, train_test_ids=None):
+    def run_pytest_in_sandbox(candidate_path, eval_dir_base, test_file_path, run_id, timeout_seconds=120):
         return passed, total, list(failures)
 
     fake_module.run_pytest_in_sandbox = run_pytest_in_sandbox
@@ -260,3 +260,60 @@ class TestCodeFitness:
         # composite math: 0.80*1.0 + 0.10*1.0 + 0.10*0.4 = 0.94
         assert result.composite == pytest.approx(0.94, abs=1e-9)
         assert result.decision == "accept"
+
+
+# ── 21-04↔21-05 contract integration test (no mock sandbox_runner) ─────────
+
+
+class TestRealSandboxIntegration:
+    """End-to-end smoke that exercises code_fitness ↔ sandbox_runner with NO
+    mocking of run_pytest_in_sandbox. Catches the cross-plan signature drift
+    that the earlier mock-based suite missed (verifier 21-VERIFICATION.md).
+
+    Skips when ``HERMES_AGENT_REPO`` / ``~/.hermes/hermes-agent`` is unreachable
+    so CI without that checkout stays green. The real ansi_strip.py + its
+    test file are used because sandbox_runner hardcodes the in-sandbox names
+    to ``tools/ansi_strip.py`` and ``test_ansi_strip.py``.
+    """
+
+    def test_score_candidate_real_sandbox_baseline(self, tmp_path):
+        """Baseline score against the unmodified hermes-agent ansi_strip.py.
+
+        Asserts:
+        - score_candidate calls run_pytest_in_sandbox with the correct 4-arg
+          contract (would raise TypeError on signature drift)
+        - The real pytest subprocess returns >= 1 passed test
+        - Returned CodeFitness has the expected shape
+        """
+        import os
+
+        hermes_repo = Path(
+            os.getenv("HERMES_AGENT_REPO") or Path.home() / ".hermes" / "hermes-agent"
+        )
+        target_path = hermes_repo / "tools" / "ansi_strip.py"
+        test_file_path = hermes_repo / "tests" / "tools" / "test_ansi_strip.py"
+        if not target_path.exists() or not test_file_path.exists():
+            pytest.skip(f"hermes-agent not reachable at {hermes_repo}")
+
+        from evolution.code.code_fitness import score_candidate
+
+        eval_dir = tmp_path / "eval"
+        eval_dir.mkdir()
+
+        # Run baseline: evolved == original.
+        result = score_candidate(
+            target_path=target_path,
+            evolved_path=target_path,
+            eval_dir=eval_dir,
+            baseline_size=target_path.stat().st_size,
+            train_test_ids=None,
+            test_file_path=test_file_path,
+        )
+
+        # Real sandbox MUST have run pytest and got at least 1 passed test;
+        # ansi_strip.py shipping with a green test suite is a project invariant.
+        assert result.pytest_total >= 1, "real pytest subprocess produced no tests"
+        assert result.pytest_passed == result.pytest_total, "baseline must be 100% green"
+        assert result.size_component == pytest.approx(1.0, abs=1e-9), "baseline size == baseline"
+        assert result.decision == "accept", f"baseline rejected: {result.reject_reason}"
+        assert result.composite > 0.7

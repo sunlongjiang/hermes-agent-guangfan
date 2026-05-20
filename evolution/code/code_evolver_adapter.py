@@ -105,6 +105,7 @@ def evaluate(program_path: str) -> dict:
         eval_dir=EVAL_DIR_BASE,
         baseline_size=BASELINE_SIZE,
         train_test_ids=TRAIN_TEST_IDS,
+        test_file_path=TEST_FILE_PATH,
     )
     return {{
         "combined_score": fitness.composite,

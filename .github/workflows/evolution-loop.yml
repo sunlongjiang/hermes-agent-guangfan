@@ -1,0 +1,145 @@
+# Phase 22 V2-LOOP-01 — Continuous Evolution Loop
+# Per CONTEXT.md D-01: GitHub Actions is the sole scheduler.
+# Per CONTEXT.md D-02: weekly cron + workflow_dispatch.
+# Per CONTEXT.md D-11: EVOLUTION_DEPLOY_MODE=production gates write-back at Python layer.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   - EVOLUTION_API_KEY        : LLM API key (DashScope sk-... or compatible)
+#   - EVOLUTION_API_BASE       : (optional) API base URL
+#   - HERMES_AGENT_REPO_URL    : git URL of the hermes-agent repo
+#   - GH_PAT_HERMES_PUSH       : Personal Access Token with `repo` scope on hermes-agent
+#                                (GITHUB_TOKEN cannot push cross-repo)
+
+name: evolution-loop
+
+on:
+  schedule:
+    # Every Monday 08:57 UTC (off-peak, :57 minute disperses runner load).
+    # CONTEXT.md §specifics — D-02.
+    - cron: "57 8 * * 1"
+  workflow_dispatch:
+    inputs:
+      cli:
+        description: "Which CLI to run (or 'all' for full loop)"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - skill
+          - tool_descriptions
+          - tool_params
+          - tool_reasoning
+          - prompt_sections
+          - code
+      dry_run:
+        description: "Pass --dry-run to each CLI (no real API calls; skips PR creation)"
+        required: false
+        default: false
+        type: boolean
+      no_pr:
+        description: "Run CLIs normally but skip PR creation (CI smoke)"
+        required: false
+        default: false
+        type: boolean
+      per_cli_timeout_seconds:
+        description: "Per-CLI subprocess timeout in seconds (default: 900 = 15 min)"
+        required: false
+        default: "900"
+        type: string
+
+permissions:
+  contents: read
+  # NOTE: PR creation is against hermes-agent (a DIFFERENT repo), handled
+  # by GH_PAT_HERMES_PUSH — the workflow's GITHUB_TOKEN does not need
+  # `pull-requests: write` here.
+
+jobs:
+  run-loop:
+    name: Run continuous evolution loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # CONTEXT.md §specifics — 2 hours total
+
+    env:
+      # Phase 22 D-11: forces Plan 01 read-only guard for any write-back path
+      EVOLUTION_DEPLOY_MODE: production
+      # LLM API config — flows into EvolutionConfig.load via env override (config.py:204-228)
+      EVOLUTION_API_KEY: ${{ secrets.EVOLUTION_API_KEY }}
+      EVOLUTION_API_BASE: ${{ secrets.EVOLUTION_API_BASE }}
+      # gh CLI auth (Plan 04 pr_creator + actions/checkout for cross-repo)
+      GH_TOKEN: ${{ secrets.GH_PAT_HERMES_PUSH }}
+
+    steps:
+      - name: Checkout evolution-self
+        uses: actions/checkout@v4
+
+      - name: Resolve hermes-agent repo slug
+        id: hermes-slug
+        run: |
+          # HERMES_AGENT_REPO_URL may be https://github.com/owner/repo(.git) or git@github.com:owner/repo.git
+          url='${{ secrets.HERMES_AGENT_REPO_URL }}'
+          slug=$(echo "$url" | sed -E 's#.*[:/]([^/:]+/[^/:]+?)(\.git)?$#\1#')
+          if [ -z "$slug" ] || [ "$slug" = "$url" ]; then
+            echo "::error::Could not parse owner/repo from HERMES_AGENT_REPO_URL"
+            exit 1
+          fi
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+          echo "Parsed hermes-agent slug: $slug"
+
+      - name: Checkout hermes-agent
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.hermes-slug.outputs.slug }}
+          token: ${{ secrets.GH_PAT_HERMES_PUSH }}
+          path: hermes-agent-checkout
+          fetch-depth: 0  # Plan 04 needs full history for git push to create new branch
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install evolution package
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Configure gh CLI git credentials
+        run: |
+          gh auth setup-git
+          gh auth status
+
+      - name: Compute loop runner argv
+        id: argv
+        run: |
+          CLI_FILTER=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.cli }}" != "all" ] && [ -n "${{ inputs.cli }}" ]; then
+            CLI_FILTER="--cli ${{ inputs.cli }}"
+          fi
+          DRY_RUN=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN="--dry-run"
+          fi
+          NO_PR=""
+          if [ "${{ inputs.no_pr }}" = "true" ]; then
+            NO_PR="--no-pr"
+          fi
+          TIMEOUT="${{ inputs.per_cli_timeout_seconds || '900' }}"
+          echo "extra_args=$CLI_FILTER $DRY_RUN $NO_PR --per-cli-timeout $TIMEOUT" >> "$GITHUB_OUTPUT"
+
+      - name: Run continuous evolution loop
+        env:
+          HERMES_AGENT_REPO: ${{ github.workspace }}/hermes-agent-checkout
+        run: |
+          echo "Loop invocation: python -m evolution.loop.run_loop ${{ steps.argv.outputs.extra_args }}"
+          python -m evolution.loop.run_loop ${{ steps.argv.outputs.extra_args }}
+
+      - name: Upload run_summary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evolution-loop-run-summary-${{ github.run_id }}
+          path: output/loop/
+          if-no-files-found: warn
+          retention-days: 90

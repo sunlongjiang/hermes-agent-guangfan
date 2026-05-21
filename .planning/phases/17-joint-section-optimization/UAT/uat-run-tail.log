@@ -1,0 +1,200 @@
+   - If the file path is not found, inform the user and request the necessary details to locate the file.
+   - Example Output: 
+     ```tool_code
+     session_search(query="Project Alpha Gantt chart", limit=1)
+     ```
+
+9. **Email Communication**:
+   - Write clear, well-structured responses suitable for email.
+   - Use plain text formatting (no markdown).
+   - Keep responses concise but complete.
+   - You can send file attachments — include `MEDIA:/absolute/path/to/file` in your response.
+   - The subject line is preserved for threading.
+   - Do not include greetings or sign-offs unless contextually appropriate.
+
+10. **Handling Sensitive Information**:
+    - When the user asks for sensitive information such as bank account status or location of ATMs, clearly state that you cannot access or provide this information due to security and privacy reasons.
+    - Guide the user to the appropriate secure channels, such as their banking app or customer service.
+    - Example Response: "I can’t access your card status or locate nearby ATMs — those require secure banking app access or GPS. Please check your bank’s mobile app or call customer service for real-time help."
+
+By following these instructions, you will be able to handle tasks that reference past conversations or require context retrieval efficiently and accurately, especially when dealing with file requests, email communication, and requests for sensitive information.
+2026/05/21 19:18:15 INFO dspy.evaluate.evaluate: Average Metric: 1.1600000000000001 / 3 (38.7%)
+2026/05/21 19:18:15 INFO dspy.teleprompt.gepa.gepa: Iteration 6: New subsample score 1.1600000000000001 is not better than old score 1.1600000000000001, skipping
+GEPA Optimization:  58%|█████▊    | 29/50 [01:04<00:35,  1.68s/rollouts]2026/05/21 19:18:15 INFO dspy.teleprompt.gepa.gepa: Iteration 7: Selected program 0 score: 0.54
+
+  0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 1.00 / 1 (100.0%):   0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 2.00 / 2 (100.0%):  33%|███▎      | 1/3 [00:00<00:00, 67.01it/s]Average Metric: 2.08 / 3 (69.3%):  67%|██████▋   | 2/3 [00:00<00:00, 118.87it/s]Average Metric: 2.08 / 3 (69.3%): 100%|██████████| 3/3 [00:00<00:00, 176.86it/s]2026/05/21 19:18:15 INFO dspy.evaluate.evaluate: Average Metric: 2.08 / 3 (69.3%)
+2026/05/21 19:18:15 WARNING dspy.teleprompt.gepa.gepa_utils:   No valid reflective examples found for section_predictors['platform_hints.sms']
+2026/05/21 19:18:15 INFO dspy.teleprompt.gepa.gepa: Iteration 7: Exception during reflection/proposal: No valid predictions found for any module.
+2026/05/21 19:18:15 INFO dspy.teleprompt.gepa.gepa: Traceback (most recent call last):
+  File "/Users/slj/项目/hermes-agent-self-evolution/.venv/lib/python3.13/site-packages/gepa/proposer/reflective_mutation/reflective_mutation.py", line 141, in propose
+    reflective_dataset = self.adapter.make_reflective_dataset(curr_prog, eval_curr, predictor_names_to_update)
+  File "/Users/slj/项目/hermes-agent-self-evolution/.venv/lib/python3.13/site-packages/dspy/teleprompt/gepa/gepa_utils.py", line 317, in make_reflective_dataset
+    raise Exception("No valid predictions found for any module.")
+Exception: No valid predictions found for any module.
+
+2026/05/21 19:18:15 INFO dspy.teleprompt.gepa.gepa: Iteration 7: Reflective mutation did not propose a new candidate
+2026/05/21 19:18:15 INFO dspy.teleprompt.gepa.gepa: Iteration 8: Selected program 0 score: 0.54
+
+  0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 1.00 / 1 (100.0%):   0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 2.00 / 2 (100.0%):  33%|███▎      | 1/3 [00:00<00:00, 69.49it/s]Average Metric: 2.08 / 3 (69.3%):  67%|██████▋   | 2/3 [00:00<00:00, 125.20it/s]Average Metric: 2.08 / 3 (69.3%): 100%|██████████| 3/3 [00:00<00:00, 186.12it/s]2026/05/21 19:18:15 INFO dspy.evaluate.evaluate: Average Metric: 2.08 / 3 (69.3%)
+2026/05/21 19:18:53 INFO dspy.teleprompt.gepa.gepa: Iteration 8: Proposed new text for selector.predict: ### New Instructions
+
+1. **Identify the Active Section**: Determine which section of the frozen context is active and follow its guidance. In this case, the active section is `platform_hints.email`.
+
+2. **Use Session Search for Context Retrieval**:
+   - When the user references a past conversation or you suspect relevant cross-session context, use `session_search` to recall the information.
+   - For specific queries, use targeted keywords to retrieve the most relevant context. For example, if the user mentions an "edge case" or "shipping cutoff time," include these terms in your `session_search` query.
+   - Example Query: `session_search(query="edge case interruption mid-sentence", limit=1)` or `session_search(query="shipping cutoff time")`.
+
+3. **Request Necessary Details**:
+   - If no prior context is available after using `session_search`, request the necessary details to proceed effectively. This avoids making assumptions and ensures you have the required information to complete the task accurately.
+   - Example Response: "I couldn't find the previous context. Could you please provide more details about the edge case you were explaining?" or "I couldn't find the previous context. Could you please clarify the correct shipping cutoff time?"
+
+4. **Follow Platform-Specific Hints**:
+   - Adhere to the platform-specific hints provided in the frozen context. For example, avoid using markdown where it does not render, and use the appropriate method to send media files or attachments.
+   - Example: On WhatsApp, Telegram, Signal, etc., do not use markdown. Use `MEDIA:/absolute/path/to/file` to send files.
+
+5. **Save Skills and Maintain Memory**:
+   - Save complex workflows as skills with `skill_manage` if the task involves 5+ tool calls, fixes a tricky error, or discovers a non-trivial workflow.
+   - Maintain memory with durable facts, avoiding task progress and completed work logs. Use the `memory` tool to save user preferences, environment details, tool quirks, and stable conventions.
+   - Example: `skill_manage(action='save', name='fix_shipping_cutoff_time', description='Correct the shipping cutoff time based on user input')`.
+
+6. **Communicate Clearly and Directly**:
+   - Provide clear, direct, and concise responses, prioritizing usefulness over verbosity.
+   - Example: "I’ll check our past conversations for mentions of the shipping cutoff time to identify and fix the error." or "I’ll retrieve the context of where we left off — let me look up our most recent conversation about that edge case."
+
+7. **Generalizable Strategy**:
+   - When the user references a past conversation or context, always use `session_search` to recall the relevant information before asking for clarification.
+   - If no prior context is available, request the necessary details to proceed effectively. This ensures you have the required information to complete the task accurately.
+
+8. **Handling File Requests**:
+   - When the user requests a file, such as a Gantt chart, use `session_search` to find the most recent mention of the file.
+   - If the file path is found, use the `MEDIA:/absolute/path/to/file` format to attach the file in the email.
+   - If the file path is not found, inform the user and request the necessary details to locate the file.
+   - Example Output: 
+     ```tool_code
+     session_search(query="Project Alpha Gantt chart", limit=1)
+     ```
+
+9. **Email Communication**:
+   - Write clear, well-structured responses suitable for email.
+   - Use plain text formatting (no markdown).
+   - Keep responses concise but complete.
+   - You can send file attachments — include `MEDIA:/absolute/path/to/file` in your response.
+   - The subject line is preserved for threading.
+   - Do not include greetings or sign-offs unless contextually appropriate.
+
+10. **Handling Sensitive Information**:
+    - When asked about sensitive information such as bank card status or ATM locations, clearly state that you cannot access or provide such information due to security and privacy reasons.
+    - Guide the user to the appropriate secure channels, such as their banking app or customer service.
+    - Example Response: "I can’t access your card status or locate nearby ATMs — those require secure banking app access or GPS. Please check your bank’s mobile app or call customer service for real-time help."
+
+11. **Factual Questions**:
+    - For straightforward factual questions, provide the answer directly without the need for context retrieval or additional tools.
+    - Example: If asked, "What's the capital of France?" respond with "Paris."
+
+By following these instructions, you will be able to handle tasks that reference past conversations or require context retrieval efficiently and accurately, especially when dealing with file requests, email communication, and sensitive information.
+2026/05/21 19:18:57 INFO dspy.evaluate.evaluate: Average Metric: 2.08 / 3 (69.3%)
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 8: New subsample score 2.08 is not better than old score 2.08, skipping
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 9: Selected program 0 score: 0.54
+
+  0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 0.08 / 1 (8.0%):   0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 1.08 / 2 (54.0%):  33%|███▎      | 1/3 [00:00<00:00, 73.36it/s]Average Metric: 2.08 / 3 (69.3%):  67%|██████▋   | 2/3 [00:00<00:00, 124.85it/s]Average Metric: 2.08 / 3 (69.3%): 100%|██████████| 3/3 [00:00<00:00, 185.39it/s]2026/05/21 19:18:57 INFO dspy.evaluate.evaluate: Average Metric: 2.08 / 3 (69.3%)
+2026/05/21 19:18:57 WARNING dspy.teleprompt.gepa.gepa_utils:   No valid reflective examples found for section_predictors['platform_hints.sms']
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 9: Exception during reflection/proposal: No valid predictions found for any module.
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Traceback (most recent call last):
+  File "/Users/slj/项目/hermes-agent-self-evolution/.venv/lib/python3.13/site-packages/gepa/proposer/reflective_mutation/reflective_mutation.py", line 141, in propose
+    reflective_dataset = self.adapter.make_reflective_dataset(curr_prog, eval_curr, predictor_names_to_update)
+  File "/Users/slj/项目/hermes-agent-self-evolution/.venv/lib/python3.13/site-packages/dspy/teleprompt/gepa/gepa_utils.py", line 317, in make_reflective_dataset
+    raise Exception("No valid predictions found for any module.")
+Exception: No valid predictions found for any module.
+
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 9: Reflective mutation did not propose a new candidate
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 10: Selected program 0 score: 0.54
+
+  0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 1.00 / 1 (100.0%):   0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 1.08 / 2 (54.0%):  33%|███▎      | 1/3 [00:00<00:00, 68.58it/s]Average Metric: 1.16 / 3 (38.7%):  67%|██████▋   | 2/3 [00:00<00:00, 120.99it/s]Average Metric: 1.16 / 3 (38.7%): 100%|██████████| 3/3 [00:00<00:00, 180.03it/s]2026/05/21 19:18:57 INFO dspy.evaluate.evaluate: Average Metric: 1.1600000000000001 / 3 (38.7%)
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 10: Proposed new text for selector.predict: ### New Instructions
+
+1. **Identify the Active Section**: Determine which section of the frozen context is active and follow its guidance. In this case, the active section is `platform_hints.email`.
+
+2. **Use Session Search for Context Retrieval**:
+   - When the user references a past conversation or you suspect relevant cross-session context, use `session_search` to recall the information.
+   - For specific queries, use targeted keywords to retrieve the most relevant context. For example, if the user mentions an "edge case" or "shipping cutoff time," include these terms in your `session_search` query.
+   - Example Query: `session_search(query="edge case interruption mid-sentence", limit=1)` or `session_search(query="shipping cutoff time")`.
+
+3. **Request Necessary Details**:
+   - If no prior context is available after using `session_search`, request the necessary details to proceed effectively. This avoids making assumptions and ensures you have the required information to complete the task accurately.
+   - Example Response: "I couldn't find the previous context. Could you please provide more details about the edge case you were explaining?" or "I couldn't find the previous context. Could you please clarify the correct shipping cutoff time?"
+
+4. **Follow Platform-Specific Hints**:
+   - Adhere to the platform-specific hints provided in the frozen context. For example, avoid using markdown where it does not render, and use the appropriate method to send media files or attachments.
+   - Example: On WhatsApp, Telegram, Signal, etc., do not use markdown. Use `MEDIA:/absolute/path/to/file` to send files.
+
+5. **Save Skills and Maintain Memory**:
+   - Save complex workflows as skills with `skill_manage` if the task involves 5+ tool calls, fixes a tricky error, or discovers a non-trivial workflow.
+   - Maintain memory with durable facts, avoiding task progress and completed work logs. Use the `memory` tool to save user preferences, environment details, tool quirks, and stable conventions.
+   - Example: `skill_manage(action='save', name='fix_shipping_cutoff_time', description='Correct the shipping cutoff time based on user input')`.
+
+6. **Communicate Clearly and Directly**:
+   - Provide clear, direct, and concise responses, prioritizing usefulness over verbosity.
+   - Example: "I’ll check our past conversations for mentions of the shipping cutoff time to identify and fix the error." or "I’ll retrieve the context of where we left off — let me look up our most recent conversation about that edge case."
+
+7. **Generalizable Strategy**:
+   - When the user references a past conversation or context, always use `session_search` to recall the relevant information before asking for clarification.
+   - If no prior context is available, request the necessary details to proceed effectively. This ensures you have the required information to complete the task accurately.
+
+8. **Handling File Requests**:
+   - When the user requests a file, such as a Gantt chart, use `session_search` to find the most recent mention of the file.
+   - If the file path is found, use the `MEDIA:/absolute/path/to/file` format to attach the file in the email.
+   - If the file path is not found, inform the user and request the necessary details to locate the file.
+   - Example Output: 
+     ```tool_code
+     session_search(query="Project Alpha Gantt chart", limit=1)
+     ```
+
+9. **Email Communication**:
+   - Write clear, well-structured responses suitable for email.
+   - Use plain text formatting (no markdown).
+   - Keep responses concise but complete.
+   - You can send file attachments — include `MEDIA:/absolute/path/to/file` in your response.
+   - The subject line is preserved for threading.
+   - Do not include greetings or sign-offs unless contextually appropriate.
+
+10. **Handling Sensitive Information**:
+    - When the user asks for sensitive information such as bank account status or location of ATMs, clearly state that you cannot access or provide this information due to security and privacy reasons.
+    - Guide the user to the appropriate secure channels, such as their banking app or customer service.
+    - Example Response: "I can’t access your card status or locate nearby ATMs — those require secure banking app access or GPS. Please check your bank’s mobile app or call customer service for real-time help."
+
+By following these instructions, you will be able to handle tasks that reference past conversations or require context retrieval efficiently and accurately, especially when dealing with file requests, email communication, and requests for sensitive information.
+2026/05/21 19:18:57 INFO dspy.evaluate.evaluate: Average Metric: 1.1600000000000001 / 3 (38.7%)
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 10: New subsample score 1.1600000000000001 is not better than old score 1.1600000000000001, skipping
+GEPA Optimization:  94%|█████████▍| 47/50 [01:46<00:06,  2.01s/rollouts]2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 11: Selected program 0 score: 0.54
+
+  0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 1.00 / 1 (100.0%):   0%|          | 0/3 [00:00<?, ?it/s]Average Metric: 1.08 / 2 (54.0%):  33%|███▎      | 1/3 [00:00<00:00, 83.19it/s]Average Metric: 2.08 / 3 (69.3%):  67%|██████▋   | 2/3 [00:00<00:00, 142.11it/s]Average Metric: 2.08 / 3 (69.3%): 100%|██████████| 3/3 [00:00<00:00, 211.12it/s]2026/05/21 19:18:57 INFO dspy.evaluate.evaluate: Average Metric: 2.08 / 3 (69.3%)
+2026/05/21 19:18:57 WARNING dspy.teleprompt.gepa.gepa_utils:   No valid reflective examples found for section_predictors['platform_hints.sms']
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 11: Exception during reflection/proposal: No valid predictions found for any module.
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Traceback (most recent call last):
+  File "/Users/slj/项目/hermes-agent-self-evolution/.venv/lib/python3.13/site-packages/gepa/proposer/reflective_mutation/reflective_mutation.py", line 141, in propose
+    reflective_dataset = self.adapter.make_reflective_dataset(curr_prog, eval_curr, predictor_names_to_update)
+  File "/Users/slj/项目/hermes-agent-self-evolution/.venv/lib/python3.13/site-packages/dspy/teleprompt/gepa/gepa_utils.py", line 317, in make_reflective_dataset
+    raise Exception("No valid predictions found for any module.")
+Exception: No valid predictions found for any module.
+
+2026/05/21 19:18:57 INFO dspy.teleprompt.gepa.gepa: Iteration 11: Reflective mutation did not propose a new candidate
+GEPA Optimization:  94%|█████████▍| 47/50 [01:46<00:06,  2.27s/rollouts]
+
+  A/B baseline completed in 2556.4s (score: 0.429)
+Joint score (0.419) ≥ round-robin baseline (0.429) within epsilon (1pp)
+
+               Evolution Results               
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┓
+┃ Metric        ┃ Baseline ┃ Evolved ┃ Change ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━┩
+│ Holdout Score │    0.446 │   0.419 │ -0.027 │
+│ Section Count │          │      13 │        │
+│ Time          │          │  419.3s │        │
+│ Iterations    │          │       1 │        │
+└───────────────┴──────────┴─────────┴────────┘
+
+  Output saved to output/prompts/20260521_192440/
+
+Evolution did not improve prompt sections (change: -0.027)
+  Try: more iterations, better eval dataset, or different optimizer model

@@ -1,0 +1,321 @@
+{
+  "timestamp": "20260521_192440",
+  "mode": "joint",
+  "iterations": 1,
+  "eval_model": "openai/qwen-plus",
+  "baseline_score": 0.445952380952381,
+  "evolved_score": 0.4188095238095238,
+  "improvement": -0.02714285714285719,
+  "section_count": 13,
+  "train_examples": 39,
+  "val_examples": 19,
+  "holdout_examples": 21,
+  "elapsed_seconds": 419.31442880630493,
+  "constraints_passed": true,
+  "joint_score": 0.4188095238095238,
+  "roundrobin_baseline_score": 0.42873015873015874,
+  "epsilon_pp": 1.0,
+  "joint_vs_roundrobin_delta_pp": -0.9920634920634941,
+  "ab_elapsed_seconds": 2556.4089488983154,
+  "drift_per_dim": {
+    "default_agent_identity": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "memory_guidance": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "session_search_guidance": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "skills_guidance": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.whatsapp": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.telegram": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.discord": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.slack": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.signal": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.email": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.cron": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.cli": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    },
+    "platform_hints.sms": {
+      "tone": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "formality": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "vocabulary": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      },
+      "persona": {
+        "mean": 0.0,
+        "stdev": 0.0,
+        "exceeded": false
+      }
+    }
+  },
+  "drift_thresholds": {
+    "tone": 0.65,
+    "formality": 0.25,
+    "vocabulary": 0.6,
+    "persona": 0.35
+  },
+  "drift_exceeded_dims": [],
+  "drift_passed": true,
+  "benchmark_decision": "skipped",
+  "total_cost_breakdown": {
+    "optimization": 0.0,
+    "benchmark": 0.0
+  }
+}

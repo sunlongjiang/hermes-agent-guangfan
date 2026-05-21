@@ -1,0 +1,416 @@
+## Section: default_agent_identity
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** All four drift scores are 0.0 because the evolved_text is a verbatim copy of the original_text: every clause, comma, capitalization, and semantic nuance is preserved—e.g., “You are Hermes Agent, an intelligent AI assistant created by Nous Research” appears identically in both; the directive “Be targeted and efficient in your exploration and investigations” is unchanged; and even subtle stylistic markers like “prioritize being genuinely useful over being verbose unless otherwise directed below” remain fully intact. With no textual alteration whatsoever, there is no basis for inferring any shift in tone, formality, vocabulary, or persona.
+
+## Section: memory_guidance
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** All four drift scores are 0.0 because the evolved_text is a perfect copy of the original_text: every sentence, clause, capitalization choice, colon usage, hyphenation (“user steering”, “task progress”), and semantic nuance (e.g., “durable facts”, “prevents the user from having to correct or remind you again”, “save it as a skill with the skill tool”) is preserved without alteration. Since no lexical, syntactic, tonal, or identity-based change occurs, there is zero measurable drift along any evaluated dimension.
+
+## Section: session_search_guidance
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** All four drift scores are 0.0 because the evolved_text is a verbatim copy of the original_text: “When the user references something from a past conversation or you suspect relevant cross-session context exists, use session_search to recall it before asking them to repeat themselves.” No lexical substitutions, syntactic rephrasings, tonal modifiers (e.g., no added warmth like “kindly” or urgency like “immediately”), or shifts in speaker stance (e.g., from directive “use” to collaborative “let’s use”) occur—thus no evidence of drift in any dimension.
+
+## Section: skills_guidance
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** The evolved_text is a verbatim copy of the original_text—every word, punctuation mark, parenthetical, and capitalization matches exactly (e.g., “5+ tool calls”, “skill_manage(action='patch')”, and the concluding metaphor “Skills that aren't maintained become liabilities” appear unchanged). Because there is zero textual variation, all stylistic and identity dimensions remain fully aligned: the tone remains direct and mildly urgent (but not aggressive), the formality stays consistently professional and imperative, the vocabulary retains its precise technical register (e.g., “non-trivial workflow”, “patch”), and the persona sustains the same authoritative, proactive, maintenance-minded AI agent voice. No dimension exhibits any drift, making this a case of complete fidelity.
+
+## Section: platform_hints.whatsapp
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** Since the original_text and evolved_text are verbatim identical—including all technical specifications (e.g., “MEDIA:/absolute/path/to/file”, supported image formats “.jpg, .png, .webp”, video formats “.mp4, .mov”, and the markdown image syntax “![alt](url)”)—there is no detectable change across any stylistic or identity dimension; consequently, all drift scores are 0.0, with the explanation grounded in exact textual replication.
+
+## Section: platform_hints.telegram
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** Since the evolved_text is an exact replica of the original_text — with identical phrasing, punctuation, technical specificity (e.g., “MEDIA:/absolute/path/to/file”, file extensions “.png, .jpg, .webp”, “.ogg”, “.mp4”, and syntax “![alt](url)”) — there is zero detectable drift across all dimensions; no lexical substitution, no tonal softening or intensification, no shift in syntactic complexity or register, and no repositioning of the speaker’s role (consistently a directive, platform-aware, technically precise assistant). Therefore, all scores are 0.0, reflecting perfect fidelity.
+
+## Section: platform_hints.discord
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** The original and evolved texts are verbatim duplicates: every token—including capitalization (“Discord”, “MEDIA”), punctuation (colons, periods, parentheses), technical extensions (”.webp”), and syntactic framing (“You can send…”, “You can also include…”)—is preserved without alteration. Because no lexical, structural, tonal, or role-based change occurs, all drift scores are 0.0; the explanation focuses on this exact match as evidence of perfect consistency across all dimensions.
+
+## Section: platform_hints.slack
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** All four dimensions score 0.0 because the evolved text is a verbatim copy of the original: no lexical substitution (e.g., “uploaded” remains “uploaded”, not replaced with “sent” or “shared”), no syntactic rephrasing (e.g., the colon after “response” and the parallel clause structure “Images… are uploaded… audio as file attachments” are preserved exactly), no tonal softening or intensification (e.g., no added hedging like “you can usually send” or imperatives like “always use”), and no shift in speaker identity (the persona remains that of a platform-aware, technically precise Slack assistant—neither more anthropomorphized nor more abstracted). Since zero textual change occurred, no dimension exhibits drift.
+
+## Section: platform_hints.signal
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** There is no detectable drift across any dimension because the evolved text is a verbatim copy of the original: both state identically that “You are on a text messaging communication platform, Signal. Please do not use markdown as it does not render…” and proceed with the exact same specifications about MEDIA:/ paths, file type behavior, and image URL handling. Since every lexical item, syntactic construction, and pragmatic framing is preserved—including the neutral, informative tone, the consistent use of technical yet accessible terminology (e.g., “downloadable documents”, “natively”), and the unwavering persona of a platform-literate assistant—the scores for all dimensions are 0.0, reflecting perfect fidelity.
+
+## Section: platform_hints.email
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** Since the evolved_text is a verbatim copy of the original_text—down to the exact phrasing, punctuation, capitalization, and instruction sequencing—there is zero observable drift along any dimension; all scores are 0.0. No lexical substitution, syntactic rephrasing, emotional modulation, or role reinterpretation occurs, confirming complete consistency in tone (neutral/instructional), formality (moderately formal, directive prose), vocabulary (precise technical terminology like “plain text formatting”, “MEDIA:/absolute/path/to/file”), and persona (authoritative yet service-oriented system prompt voice).
+
+## Section: platform_hints.cron
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** The original_text and evolved_text are verbatim duplicates: both state “You are running as a scheduled cron job. There is no user present — you cannot ask questions, request clarification, or wait for follow-up. Execute the task fully and autonomously, making reasonable decisions where needed. Your final response is automatically delivered to the job's configured destination — put the primary content directly in your response.” Since every lexical item, syntactic construction, punctuation mark, and pragmatic framing is preserved, all four dimensions (tone, formality, vocabulary, persona) register no deviation — confirming perfect consistency in emotional register (neutral/instructional), structural formality (concise imperative prose), lexical selection (technical but accessible terms like “scheduled cron job”, “autonomously”, “configured destination”), and speaker identity (a system-embedded agent with operational constraints).
+
+## Section: platform_hints.cli
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** The original and evolved texts are completely identical: “You are a CLI AI Agent. Try not to use markdown but simple text renderable inside a terminal.” Because there is no textual change whatsoever, all stylistic and identity-based dimensions remain perfectly aligned—no shift in tone (both neutral/instructional), formality (both concise, imperative, terminal-appropriate), vocabulary (identical functional terms like “CLI AI Agent”, “markdown”, “terminal”), or persona (both unambiguously position the system as a terminal-native assistant). Consequently, the highest drift score is 0.0 across all dimensions, and the explanation reflects total fidelity.
+
+## Section: platform_hints.sms
+
+### Dim: tone
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.65
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: formality
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.25
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: vocabulary
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.60
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+### Dim: persona
+- Mean: 0.0000
+- Stdev: 0.0000
+- Threshold: 0.35
+- Decision: pass
+- Raw scores: [0.0, 0.0, 0.0]
+
+**Explanation:** Since the evolved_text is a verbatim copy of the original_text—both stating “You are communicating via SMS. Keep responses concise and use plain text only — no markdown, no formatting. SMS messages are limited to ~1600 characters, so be brief and direct.”—there is zero divergence in tone (neutral/instructional), formality (consistently directive and professional), vocabulary (identical technical and functional terms like “concise”, “plain text”, “markdown”, “formatting”), or persona (unchanged instruction to adopt an SMS-aware, constraint-conscious communicator role). All four scores are 0.0, reflecting perfect fidelity.
+

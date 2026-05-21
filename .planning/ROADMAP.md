@@ -422,7 +422,7 @@ Plans:
   1. Scheduler runs optimization on configurable interval
   2. Results validated against regression gates before PR creation
   3. Human review required before merge (no auto-merge)
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 
 Plans:
 **Wave 1** *(parallel — 3 independent plans)*
@@ -431,7 +431,7 @@ Plans:
 - [x] 22-07-PLAN.md — docs/setup-hermes-agent-branch-protection.md (D-09 runbook): step-by-step gh api -X PUT branch protection JSON + CODEOWNERS template (evolution-bot intentionally excluded) + verification commands + end-to-end test procedure + rollback + FAQ
 
 **Wave 2** *(depends on 22-01 — both modify evolution/core/config.py)*
-- [ ] 22-02-PLAN.md — evolution.yaml `loop:` schema (D-06/D-08): EvolutionConfig.loop_cli_config field with per-CLI enabled/max_cost_usd + commented yaml documentation + 8 unit tests
+- [x] 22-02-PLAN.md — evolution.yaml `loop:` schema (D-06/D-08): EvolutionConfig.loop_cli_config field with per-CLI enabled/max_cost_usd + commented yaml documentation + 8 unit tests
 
 **Wave 3** *(depends on 22-02 — run_loop imports LOOP_CLI_NAMES from config)*
 - [ ] 22-03-PLAN.md — evolution/loop/run_loop.py (D-06/D-07/D-08/D-10): Click CLI orchestrator, 6-CLI canonical-order serial dispatch via subprocess, holdout gate classification via dir-name pattern + metrics.json field, FAILED non-blocking, run_summary.json (Phase 20 D-13 pattern), defense-in-depth secret redaction

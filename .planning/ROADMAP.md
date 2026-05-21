@@ -422,7 +422,7 @@ Plans:
   1. Scheduler runs optimization on configurable interval
   2. Results validated against regression gates before PR creation
   3. Human review required before merge (no auto-merge)
-**Plans:** 5/7 plans executed
+**Plans:** 6/7 plans executed
 
 Plans:
 **Wave 1** *(parallel — 3 independent plans)*
@@ -434,7 +434,7 @@ Plans:
 - [x] 22-02-PLAN.md — evolution.yaml `loop:` schema (D-06/D-08): EvolutionConfig.loop_cli_config field with per-CLI enabled/max_cost_usd + commented yaml documentation + 8 unit tests
 
 **Wave 3** *(depends on 22-02 — run_loop imports LOOP_CLI_NAMES from config)*
-- [ ] 22-03-PLAN.md — evolution/loop/run_loop.py (D-06/D-07/D-08/D-10): Click CLI orchestrator, 6-CLI canonical-order serial dispatch via subprocess, holdout gate classification via dir-name pattern + metrics.json field, FAILED non-blocking, run_summary.json (Phase 20 D-13 pattern), defense-in-depth secret redaction
+- [x] 22-03-PLAN.md — evolution/loop/run_loop.py (D-06/D-07/D-08/D-10): Click CLI orchestrator, 6-CLI canonical-order serial dispatch via subprocess, holdout gate classification via dir-name pattern + metrics.json field, FAILED non-blocking, run_summary.json (Phase 20 D-13 pattern), defense-in-depth secret redaction
 
 **Wave 4** *(parallel — both depend on 22-03 + 22-04)*
 - [ ] 22-05-PLAN.md — .github/workflows/evolution-loop.yml (D-01/D-02/D-11): cron `57 8 * * 1` + workflow_dispatch, ubuntu-latest Python 3.13, two-repo checkout (self + hermes-agent via PAT), EVOLUTION_DEPLOY_MODE=production env, run_loop invocation with flag passthrough, run_summary artifact upload (120-min timeout)

@@ -160,7 +160,10 @@ def test_baseline_module_off_evolved_on_constructed():
 
     init_calls = []
 
-    def capture_init(self, tool_descriptions, *, enable_reasoning=False):
+    def capture_init(self, tool_descriptions, *, enable_reasoning=False, **kwargs):
+        # FIX 2026-05-21: accept **kwargs so the test stays compatible with the
+        # evolve_tool_reasoning UAT fix that now forwards eval_model + lm_kwargs
+        # from EvolutionConfig to both ToolModule constructors.
         init_calls.append(enable_reasoning)
         self.tools = {}
         self._frozen_tool_desc = {}

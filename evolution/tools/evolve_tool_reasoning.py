@@ -310,15 +310,23 @@ def _evolve_impl(
 
     # ── 3. Build TWO ToolModules (Phase 15 specific) — D-06 / D-07 ─────────
     # D-06: think-off baseline (no reasoning); D-07: think-on evolved.
-    # eval_model + lm_kwargs are intentionally not forwarded here:
-    #   - lm_kwargs affects API auth, not model selection within ToolModule.
-    #   - ToolModule.__init__ defaults eval_model='openai/gpt-4.1-mini' + max_tokens=200.
-    #   - dspy.configure (step 6) sets the global LM for inference;
-    #     ToolModule.reasoner uses a separate per-Predict LM override (D-04).
-    # Omitting them keeps the constructor signature test-safe (test_baseline_module_off_evolved_on_constructed
-    # patches __init__ with a 2-kw signature that does not accept eval_model/lm_kwargs).
-    baseline_module = ToolModule(all_tools, enable_reasoning=False)
-    evolved_module = ToolModule(all_tools, enable_reasoning=True)
+    # FIX 2026-05-21 (Phase 15 UAT): forward config.eval_model + lm_kwargs so
+    # ToolModule.reasoner's internal reasoning_lm (constructed at line 187 of
+    # tool_module.py via dspy.LM(eval_model, max_tokens=200, **filtered_kwargs))
+    # uses the operator-configured model + api_base + api_key. Previously the
+    # constructor defaulted to 'openai/gpt-4.1-mini' with no auth kwargs, which
+    # collapsed onto whatever OPENAI_API_KEY env var happened to be set —
+    # tripping NotFoundError/AuthenticationError on every non-OpenAI endpoint
+    # (e.g. DashScope) during real-LM UAT.
+    _lm_kwargs = config.get_lm_kwargs()
+    baseline_module = ToolModule(
+        all_tools, enable_reasoning=False,
+        eval_model=config.eval_model, lm_kwargs=_lm_kwargs,
+    )
+    evolved_module = ToolModule(
+        all_tools, enable_reasoning=True,
+        eval_model=config.eval_model, lm_kwargs=_lm_kwargs,
+    )
     num_predictors = len(list(evolved_module.named_predictors()))
 
     # ── 4. Load dataset (before dry-run echo for ambiguous_subset_size) ────

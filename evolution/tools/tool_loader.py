@@ -538,6 +538,16 @@ def write_back_description(
         new_description: The evolved description text.
         param_name: If set, replace this param's description instead of top-level.
     """
+    # Phase 22 D-11: hermes-agent read-only gate. EvolutionConfig.load()
+    # is called by callers (CLIs); we re-read the same env var directly
+    # here to avoid a config-dependency chain into the loader module.
+    # CONCERNS §M6 closure.
+    import os as _os
+    if _os.getenv("EVOLUTION_DEPLOY_MODE") == "production":
+        raise PermissionError(
+            "hermes-agent is read-only in production deploy_mode — "
+            "use output/ only (Phase 22 D-11, CONCERNS §M6)"
+        )
     source = file_path.read_text()
 
     if param_name:

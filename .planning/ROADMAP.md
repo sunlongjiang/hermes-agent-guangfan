@@ -415,14 +415,30 @@ Plans:
 - [x] 21-08-PLAN.md — tests/code/test_ansi_strip_holdout.py: 9-10 edge case holdout tests (D-07: 超长/Unicode/嵌套/截断CSI/OSC/无效字节/CRLF)
 
 ### Phase 22: Continuous Evolution Loop
-**Goal**: Automated pipeline that periodically runs optimization, validates, and creates PRs
+**Goal**: Automated pipeline that periodically runs optimization, validates, and creates PRs (GH Actions cron + workflow_dispatch invoking serial 6-CLI loop, push-to-hermes-agent PRs via gh CLI, branch protection + CODEOWNERS as human-review gate)
 **Depends on**: Phase 21
 **Requirements**: V2-LOOP-01
 **Success Criteria** (what must be TRUE):
   1. Scheduler runs optimization on configurable interval
   2. Results validated against regression gates before PR creation
   3. Human review required before merge (no auto-merge)
-**Plans**: TBD
+**Plans:** 7 plans
+
+Plans:
+**Wave 1** *(parallel — 3 independent plans)*
+- [ ] 22-01-PLAN.md — deploy_mode gate (D-11): EvolutionConfig.deploy_mode field + 3-layer load chain + write_back_description/write_back_section PermissionError guards + 6 unit tests; closes CONCERNS §M6
+- [ ] 22-04-PLAN.md — evolution/loop/pr_creator.py (D-03/D-04/D-05/D-09): gh CLI subprocess wrapper, hermes-agent staging-dir copy + git push + gh pr create, branch=evolution/auto-loop/<ts>/<artifact-kind>, title+labels+NOTICE template, never-raises contract
+- [ ] 22-07-PLAN.md — docs/setup-hermes-agent-branch-protection.md (D-09 runbook): step-by-step gh api -X PUT branch protection JSON + CODEOWNERS template (evolution-bot intentionally excluded) + verification commands + end-to-end test procedure + rollback + FAQ
+
+**Wave 2** *(depends on 22-01 — both modify evolution/core/config.py)*
+- [ ] 22-02-PLAN.md — evolution.yaml `loop:` schema (D-06/D-08): EvolutionConfig.loop_cli_config field with per-CLI enabled/max_cost_usd + commented yaml documentation + 8 unit tests
+
+**Wave 3** *(depends on 22-02 — run_loop imports LOOP_CLI_NAMES from config)*
+- [ ] 22-03-PLAN.md — evolution/loop/run_loop.py (D-06/D-07/D-08/D-10): Click CLI orchestrator, 6-CLI canonical-order serial dispatch via subprocess, holdout gate classification via dir-name pattern + metrics.json field, FAILED non-blocking, run_summary.json (Phase 20 D-13 pattern), defense-in-depth secret redaction
+
+**Wave 4** *(parallel — both depend on 22-03 + 22-04)*
+- [ ] 22-05-PLAN.md — .github/workflows/evolution-loop.yml (D-01/D-02/D-11): cron `57 8 * * 1` + workflow_dispatch, ubuntu-latest Python 3.13, two-repo checkout (self + hermes-agent via PAT), EVOLUTION_DEPLOY_MODE=production env, run_loop invocation with flag passthrough, run_summary artifact upload (120-min timeout)
+- [ ] 22-06-PLAN.md — tests/loop/{test_run_loop.py + test_pr_creator.py}: 20+ unit tests, mocked subprocess + shutil.which, coverage of canonical-order dispatch, holdout-gate classification, D-07 non-blocking, run_summary shape, deploy_mode env passthrough, all create_pr error paths + success path + body assembly + secret redaction
 
 ## Progress
 

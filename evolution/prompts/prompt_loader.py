@@ -172,6 +172,17 @@ def write_back_section(
             in ~/.hermes/tmp/benchmark_<ts>/, then atomically swaps it
             into hermes-agent via os.replace.
     """
+    # Phase 22 D-11: hermes-agent read-only gate. Only fires when writing
+    # IN-PLACE to prompt_builder.py (dest is None). Phase 20 Virtual Prompt
+    # Overlay path (dest=~/.hermes/tmp/benchmark_<ts>/...) is allowed in
+    # production — Overlay never touches hermes-agent source.
+    # CONCERNS §M6 closure.
+    import os as _os
+    if dest is None and _os.getenv("EVOLUTION_DEPLOY_MODE") == "production":
+        raise PermissionError(
+            "hermes-agent is read-only in production deploy_mode — "
+            "use output/ only (Phase 22 D-11, CONCERNS §M6)"
+        )
     source = prompt_builder_path.read_text()
     lines = source.splitlines(keepends=True)
 

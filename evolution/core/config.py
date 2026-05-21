@@ -44,6 +44,12 @@ class EvolutionConfig:
     # Reflection model for GEPA (D-08/D-13) — falls back to optimizer_model when None
     reflection_model: Optional[str] = None
 
+    # Phase 22 D-11: deploy mode gate. None|'dev' → write-back allowed
+    # (Phase 1-21 behavior). 'production' → write_back_description and
+    # write_back_section raise PermissionError to keep hermes-agent
+    # read-only when GH Actions loop runs. CONCERNS §M6 closure.
+    deploy_mode: Optional[str] = None
+
     # API endpoint configuration
     api_base: Optional[str] = None  # Custom OpenAI-compatible API base URL
     api_key: Optional[str] = None  # Custom API key
@@ -199,6 +205,9 @@ class EvolutionConfig:
                         f"{data['benchmark_heartbeat_seconds']!r} is not an int; "
                         f"falling back to default {config.benchmark_heartbeat_seconds}.\n"
                     )
+            # Phase 22 D-11
+            if data.get("deploy_mode") is not None:
+                config.deploy_mode = _expand_env(str(data["deploy_mode"]))
 
         # ── Environment variable overrides ─────────────────────────────────
         env_base = os.getenv("EVOLUTION_API_BASE")
@@ -271,6 +280,10 @@ class EvolutionConfig:
                     f"int; keeping previous value "
                     f"{config.benchmark_heartbeat_seconds}.\n"
                 )
+        # Phase 22 D-11
+        env_deploy_mode = os.getenv("EVOLUTION_DEPLOY_MODE")
+        if env_deploy_mode:
+            config.deploy_mode = env_deploy_mode
 
         # ── CLI overrides (highest priority) ───────────────────────────────
         if overrides.get("api_base"):
@@ -356,6 +369,9 @@ class EvolutionConfig:
                     f"{overrides['benchmark_heartbeat_seconds']!r} is not an int; "
                     f"keeping previous value {config.benchmark_heartbeat_seconds}.\n"
                 )
+        # Phase 22 D-11
+        if overrides.get("deploy_mode") is not None:
+            config.deploy_mode = overrides["deploy_mode"]
 
         return config
 

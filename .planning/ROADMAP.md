@@ -422,7 +422,7 @@ Plans:
   1. Scheduler runs optimization on configurable interval
   2. Results validated against regression gates before PR creation
   3. Human review required before merge (no auto-merge)
-**Plans:** 6/7 plans executed
+**Plans:** 8/7 plans complete
 
 Plans:
 **Wave 1** *(parallel — 3 independent plans)*
@@ -437,8 +437,8 @@ Plans:
 - [x] 22-03-PLAN.md — evolution/loop/run_loop.py (D-06/D-07/D-08/D-10): Click CLI orchestrator, 6-CLI canonical-order serial dispatch via subprocess, holdout gate classification via dir-name pattern + metrics.json field, FAILED non-blocking, run_summary.json (Phase 20 D-13 pattern), defense-in-depth secret redaction
 
 **Wave 4** *(parallel — both depend on 22-03 + 22-04)*
-- [ ] 22-05-PLAN.md — .github/workflows/evolution-loop.yml (D-01/D-02/D-11): cron `57 8 * * 1` + workflow_dispatch, ubuntu-latest Python 3.13, two-repo checkout (self + hermes-agent via PAT), EVOLUTION_DEPLOY_MODE=production env, run_loop invocation with flag passthrough, run_summary artifact upload (120-min timeout)
-- [ ] 22-06-PLAN.md — tests/loop/{test_run_loop.py + test_pr_creator.py}: 20+ unit tests, mocked subprocess + shutil.which, coverage of canonical-order dispatch, holdout-gate classification, D-07 non-blocking, run_summary shape, deploy_mode env passthrough, all create_pr error paths + success path + body assembly + secret redaction
+- [x] 22-05-PLAN.md — .github/workflows/evolution-loop.yml (D-01/D-02/D-11): cron `57 8 * * 1` + workflow_dispatch, ubuntu-latest Python 3.13, two-repo checkout (self + hermes-agent via PAT), EVOLUTION_DEPLOY_MODE=production env, run_loop invocation with flag passthrough, run_summary artifact upload (120-min timeout)
+- [x] 22-06-PLAN.md — tests/loop/{test_run_loop.py + test_pr_creator.py}: 20+ unit tests, mocked subprocess + shutil.which, coverage of canonical-order dispatch, holdout-gate classification, D-07 non-blocking, run_summary shape, deploy_mode env passthrough, all create_pr error paths + success path + body assembly + secret redaction
 
 ## Progress
 

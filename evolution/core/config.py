@@ -14,6 +14,22 @@ from typing import Optional
 _LITERAL_KEY_RE = re.compile(r"^(sk-|sk_|ghp_|gho_|xox[baprs]-|AKIA[0-9A-Z]{16})")
 
 
+# Phase 22 D-06 / D-08: canonical loop CLI registry. Plan 03 run_loop.py
+# dispatches subprocess.run('python', '-m', 'evolution.<pkg>.<module>', ...)
+# keyed on these names. Order is significant — D-07 mandates serial execution
+# in this order: skill → tool_descriptions → tool_params → tool_reasoning
+# → prompt_sections → code.
+LOOP_CLI_NAMES = (
+    "skill",
+    "tool_descriptions",
+    "tool_params",
+    "tool_reasoning",
+    "prompt_sections",
+    "code",
+)
+LOOP_DEFAULT_MAX_COST_USD = 5.0
+
+
 def _expand_env(value):
     """Expand ${VAR} / $VAR references in a string loaded from YAML.
 
@@ -49,6 +65,17 @@ class EvolutionConfig:
     # write_back_section raise PermissionError to keep hermes-agent
     # read-only when GH Actions loop runs. CONCERNS §M6 closure.
     deploy_mode: Optional[str] = None
+
+    # Phase 22 D-06 / D-08: per-CLI loop config. Keyed by canonical CLI name
+    # (see LOOP_CLI_NAMES). Default: every CLI enabled with 5.0 USD cap.
+    # Plan 03 run_loop.py reads this dict to decide which CLIs to invoke
+    # and what --max-cost to pass to each subprocess.
+    loop_cli_config: dict = field(
+        default_factory=lambda: {
+            name: {"enabled": True, "max_cost_usd": LOOP_DEFAULT_MAX_COST_USD}
+            for name in LOOP_CLI_NAMES
+        }
+    )
 
     # API endpoint configuration
     api_base: Optional[str] = None  # Custom OpenAI-compatible API base URL
@@ -208,6 +235,53 @@ class EvolutionConfig:
             # Phase 22 D-11
             if data.get("deploy_mode") is not None:
                 config.deploy_mode = _expand_env(str(data["deploy_mode"]))
+            # Phase 22 D-06 / D-08: parse loop section.
+            loop_data = data.get("loop", {})
+            if loop_data:
+                cli_data = loop_data.get("cli", {})
+                if not isinstance(cli_data, dict):
+                    sys.stderr.write(
+                        f"⚠️  evolution.yaml loop.cli must be a mapping, got "
+                        f"{type(cli_data).__name__}; ignoring loop config.\n"
+                    )
+                else:
+                    for cli_name, cli_cfg in cli_data.items():
+                        if cli_name not in LOOP_CLI_NAMES:
+                            sys.stderr.write(
+                                f"⚠️  evolution.yaml loop.cli.{cli_name} is not a "
+                                f"recognized CLI (known: {LOOP_CLI_NAMES}); keeping "
+                                f"entry but Plan 03 run_loop will skip it.\n"
+                            )
+                        if not isinstance(cli_cfg, dict):
+                            sys.stderr.write(
+                                f"⚠️  evolution.yaml loop.cli.{cli_name} must be a "
+                                f"mapping, got {type(cli_cfg).__name__}; skipping.\n"
+                            )
+                            continue
+                        entry = config.loop_cli_config.setdefault(
+                            cli_name,
+                            {"enabled": True, "max_cost_usd": LOOP_DEFAULT_MAX_COST_USD},
+                        )
+                        if "enabled" in cli_cfg:
+                            val = cli_cfg["enabled"]
+                            if isinstance(val, bool):
+                                entry["enabled"] = val
+                            else:
+                                sys.stderr.write(
+                                    f"⚠️  evolution.yaml loop.cli.{cli_name}.enabled="
+                                    f"{val!r} is not a bool; keeping default "
+                                    f"{entry['enabled']}.\n"
+                                )
+                        if "max_cost_usd" in cli_cfg:
+                            try:
+                                entry["max_cost_usd"] = float(cli_cfg["max_cost_usd"])
+                            except (TypeError, ValueError):
+                                sys.stderr.write(
+                                    f"⚠️  evolution.yaml loop.cli.{cli_name}."
+                                    f"max_cost_usd={cli_cfg['max_cost_usd']!r} is not "
+                                    f"a number; keeping default "
+                                    f"{entry['max_cost_usd']}.\n"
+                                )
 
         # ── Environment variable overrides ─────────────────────────────────
         env_base = os.getenv("EVOLUTION_API_BASE")

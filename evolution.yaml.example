@@ -1,0 +1,35 @@
+# Template for evolution.yaml — copy to evolution.yaml and fill in your secrets.
+# The real file is gitignored; this example is committed so future contributors
+# can see the full schema.
+
+models:
+  optimizer: "openai/gpt-4.1"
+  eval: "openai/gpt-4.1-mini"
+  judge: "openai/gpt-4.1"
+api_base: "https://api.openai.com/v1"
+api_key: "${OPENAI_API_KEY}"
+
+# Phase 22 D-06 / D-08: continuous evolution loop config.
+# Uncomment and tune. Default (when loop: is absent) is all 6 CLIs
+# enabled with max_cost_usd: 5.0 each.
+#
+# loop:
+#   cli:
+#     skill:
+#       enabled: true
+#       max_cost_usd: 5.0
+#     tool_descriptions:
+#       enabled: true
+#       max_cost_usd: 5.0
+#     tool_params:
+#       enabled: true
+#       max_cost_usd: 5.0
+#     tool_reasoning:
+#       enabled: true
+#       max_cost_usd: 5.0
+#     prompt_sections:
+#       enabled: true
+#       max_cost_usd: 10.0
+#     code:
+#       enabled: true
+#       max_cost_usd: 10.0

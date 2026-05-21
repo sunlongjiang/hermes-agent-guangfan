@@ -1,0 +1,18 @@
+Phase 20: TBLite anchor calibration
+
+⚠️  evolution.yaml contains a literal API key. Replace with an env-var reference like api_key: "${DASHSCOPE_KEY}" to avoid plaintext-on-disk leaks. See README.md § Secrets.
+1. Pre-flight checks
+--allow-dirty-tree: skipping git-dirty check; anchor commit_id will reflect HEAD
+only.
+  hermes-agent commit: ff6a86cb529a
+
+2. Loading stratified subset
+  30 tasks across {'easy': 12, 'medium': 8, 'hard': 7, 'extreme': 3}
+  Wave-1 placeholder task names detected — these are not real TBLite tasks. The 
+calibration run below will likely fail at the subprocess level. Run this CLI 
+again after Plan 05 generates real task names.
+
+3. Pre-flight Watermark
+  estimated_cost = $0.40/task × 30 tasks × 3 runs = $36.00
+  watermark = $108.00; available_budget = $50.00
+Error: Insufficient benchmark budget: watermark $108.00 exceeds --benchmark-max-cost $50.00. Either raise the cap or reduce --runs.

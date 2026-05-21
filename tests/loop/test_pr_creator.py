@@ -619,3 +619,86 @@ def test_no_http_lib_imports():
                     assert bad.lower() not in name.lower(), (
                         f"Forbidden import '{name}' found (D-04)"
                     )
+
+
+# ── Plan 06 supplementary tests (gh-slug failure + secret redaction) ────────
+
+
+def test_create_pr_returns_error_when_repo_slug_undeterminable(monkeypatch, tmp_hermes_repo):
+    """If both `gh repo view` and `git config --get remote.origin.url` fail,
+    create_pr cannot derive owner/repo and must return error (not raise)."""
+    import subprocess as _sp
+
+    monkeypatch.setattr(
+        "evolution.loop.pr_creator.shutil.which",
+        lambda _name: "/usr/bin/gh",
+    )
+
+    def fake_run(argv, **kwargs):
+        p = MagicMock(spec=_sp.CompletedProcess)
+        if argv[:2] == ["git", "status"]:
+            p.returncode = 0
+            p.stdout = ""
+            p.stderr = ""
+        elif argv[:2] == ["gh", "repo"]:
+            p.returncode = 1
+            p.stdout = ""
+            p.stderr = "not authenticated"
+        elif argv[:3] == ["git", "config", "--get"]:
+            p.returncode = 1
+            p.stdout = ""
+            p.stderr = "no remote"
+        else:
+            p.returncode = 0
+            p.stdout = ""
+            p.stderr = ""
+        return p
+
+    monkeypatch.setattr("evolution.loop.pr_creator.subprocess.run", fake_run)
+
+    result = create_pr(
+        cli_name="skill", output_dir=tmp_hermes_repo,
+        loop_ts="20260601_030000", hermes_repo=tmp_hermes_repo,
+    )
+    assert result["status"] == "error"
+    assert "owner/repo" in (result["reason"] or "")
+
+
+def test_secret_redaction_applied_to_stderr_tails(monkeypatch, tmp_hermes_repo):
+    """Defense-in-depth: if subprocess stderr contains a secret pattern, the
+    redaction layer replaces the offending tail with [REDACTED] before it
+    lands in the result dict (where it would otherwise forward to
+    run_summary.json via run_loop)."""
+    import subprocess as _sp
+
+    monkeypatch.setattr(
+        "evolution.loop.pr_creator.shutil.which",
+        lambda _name: "/usr/bin/gh",
+    )
+    # Force _contains_secret to flag anything containing "sk-"
+    monkeypatch.setattr(
+        "evolution.loop.pr_creator._contains_secret",
+        lambda t: bool(t and "sk-" in t),
+    )
+
+    def fake_run(argv, **kwargs):
+        p = MagicMock(spec=_sp.CompletedProcess)
+        if argv[:2] == ["git", "status"]:
+            p.returncode = 1
+            p.stdout = ""
+            p.stderr = "error: sk-abc123secret leaked here"
+        else:
+            p.returncode = 0
+            p.stdout = ""
+            p.stderr = ""
+        return p
+
+    monkeypatch.setattr("evolution.loop.pr_creator.subprocess.run", fake_run)
+
+    result = create_pr(
+        cli_name="skill", output_dir=tmp_hermes_repo,
+        loop_ts="20260601_030000", hermes_repo=tmp_hermes_repo,
+    )
+    assert result["status"] == "error"
+    assert "[REDACTED]" in (result["reason"] or "")
+    assert "sk-abc123secret" not in (result["reason"] or "")

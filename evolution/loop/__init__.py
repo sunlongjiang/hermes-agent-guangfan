@@ -18,10 +18,12 @@ __all__ = ["run_loop", "pr_creator"]
 
 
 def __getattr__(name):
-    if name == "run_loop":
-        from evolution.loop import run_loop as _mod
-        return _mod
-    if name == "pr_creator":
-        from evolution.loop import pr_creator as _mod
-        return _mod
+    # Use importlib (not `from evolution.loop import ...`) to avoid recursive
+    # __getattr__ dispatch: `from X import Y` re-enters __getattr__ if Y isn't
+    # yet on the module, which would loop here forever.
+    if name in __all__:
+        import importlib
+        mod = importlib.import_module(f"evolution.loop.{name}")
+        globals()[name] = mod  # cache on the package for subsequent accesses
+        return mod
     raise AttributeError(f"module 'evolution.loop' has no attribute {name!r}")

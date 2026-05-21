@@ -1,60 +1,51 @@
 ---
 phase: 19-sessiondb-behavioral-mining-for-prompts
 verified: 2026-05-19T00:00:00Z
-status: gaps_found
-score: 3/3 roadmap success criteria verified; 2 critical + 1 functional code-quality gaps surfaced from REVIEW
+re_verified: 2026-05-21T13:30:00Z
+status: passed
+score: 3/3 roadmap success criteria verified; 4/4 REVIEW gaps closed (+ 5 bonus WR-02..07 closures in follow-up commits)
 overrides_applied: 0
 re_verification:
-  previous_status: initial
-  previous_score: N/A
-  gaps_closed: []
+  previous_status: gaps_found
+  previous_score: "3/3 SC verified; 2 critical + 1 functional code-quality gaps"
+  re_verified_by: "orchestrator inline 2026-05-21 (subagent dispatch unavailable). 4 commits located in git log + code-level grep + diff confirms each fix; tests/prompts/ 230 passed 1 skipped; full suite 785 passed (no regression vs Phase 22 baseline)."
+  gaps_closed:
+    - "CR-01 — dead seen_hashes block removed in commit cf2cb28"
+    - "CR-02 — _write_failed base path derived from --output via _resolve_failed_base helper in commit 50e6202"
+    - "WR-04 — oracle_disagreement cheap-rule length filter (len(next_assistant) >= 50) enforced in commit 08f686d"
+    - "WR-01 — jsonl_skipped_lines threaded into shared metrics dict via _load_session_dataset_resilient(metrics=...) in commit f65fae6"
+  bonus_closures:
+    - "WR-02 — unused hashlib import removed (commit df7762a)"
+    - "WR-03 — _extract_persona_drift guards against partial scores dict (commit 1308262)"
+    - "WR-05 — secrets scrubbed from LLM judge expected_behavior/rationale (commit de7974f)"
+    - "WR-06 — judge_call_failures separated from judge_calls (commit d1e7ba4)"
+    - "WR-07 — schema-invalid sessions counted under session_schema_invalid (commit 1f12c1f)"
   gaps_remaining: []
   regressions: []
 gaps:
   - truth: "split_and_duplicate 按 hash 路由意图与实现一致（seen_hashes 集合应用于 dedup 或被删除）"
-    status: partial
-    reason: "REVIEW CR-01 confirmed: seen_hashes 集合写入但从未读取做过滤决策；注释承诺 'route both to the SAME split' 由 _hash_to_split 的纯函数性自动保证（同 hash 永远同 split），但 if/pass 块是死代码。功能不破，但同 task_hash + 不同 section_id 的多份样本仍会全部 append 到同一 split（D-07 设计意图），并被 train-only multiplier 重复乘——这是设计内行为，与注释承诺冲突的是 'first-seen split' 暗示的去重语义。"
-    artifacts:
-      - path: "evolution/prompts/session_prompt_miner.py:750-767"
-        issue: "seen_hashes 写入未读取；if h in seen_hashes 分支体仅 pass；注释 'route both to the SAME split' 误导读者以为存在 dedup"
-    missing:
-      - "删除 seen_hashes 集合 + if/pass 块（保持现有行为，仅清理死代码）"
-      - "或：在 if h in seen_hashes 分支添加 continue 实现真正 hash dedup（语义变更，需 D-07 决策确认）"
+    status: closed
+    closed_by: "commit cf2cb28 fix(19): CR-01 remove dead seen_hashes code in split_and_duplicate"
+    closure_evidence: "evolution/prompts/session_prompt_miner.py:800-830 now calls _hash_to_split(h) directly; no seen_hashes set, no if/pass block. Comments updated to explain _hash_to_split's purity guarantee. tests/prompts/test_session_prompt_miner.py 44/44 pass."
+    original_reason: "REVIEW CR-01 confirmed: seen_hashes 集合写入但从未读取做过滤决策；if/pass 块是死代码。"
 
   - truth: "mine_prompt_sessions FAILED_<ts>/ 路径响应 --output 参数（与成功路径对称）"
-    status: failed
-    reason: "REVIEW CR-02 confirmed: _write_failed 硬编码 Path('datasets')/'prompts'/'sessions'/f'FAILED_{ts}'，无视 --output 参数。CI/脚本场景下 --output /custom/path 时失败 marker 仍写入 cwd-relative repo 路径，违反最小惊讶原则；硬编码字符串在 line 244, 300-302 重复 3 次，增加未来不一致风险。"
-    artifacts:
-      - path: "evolution/prompts/mine_prompt_sessions.py:237-251"
-        issue: "_write_failed 不接 base_dir 参数；硬编码 datasets/prompts/sessions/ 路径"
-      - path: "evolution/prompts/mine_prompt_sessions.py:299-305"
-        issue: "成功路径 out_dir 计算与 _write_failed 字符串重复，未共享 base 路径"
-    missing:
-      - "将 _write_failed 签名扩展为 _write_failed(timestamp, error_key, base_dir, extra) 并在 mine() 一处计算 base = Path(output).parent or Path('datasets')/'prompts'/'sessions'"
+    status: closed
+    closed_by: "commit 50e6202 fix(19): CR-02 derive _write_failed base path from --output"
+    closure_evidence: "evolution/prompts/mine_prompt_sessions.py:237-253 introduced _resolve_failed_base(output) helper; mine() at line 332 computes failed_base once and threads it to all 6 _write_failed call sites. When --output is given, FAILED_<ts>/ lives beside the success dir; when omitted, falls back to Path('datasets')/'prompts'/'sessions'."
+    original_reason: "REVIEW CR-02 confirmed: _write_failed 硬编码 Path('datasets')/'prompts'/'sessions'/f'FAILED_{ts}', 无视 --output 参数。"
 
   - truth: "oracle_disagreement extractor 实现了 cheap rule 或显式标记为 experimental 以避免默认 LLM 成本爆炸"
-    status: failed
-    reason: "REVIEW WR-04 confirmed: extractor 当前仅检查 next_assistant 非空即 emit candidate，无 cheap-rule 过滤；docstring 承诺 'cheap rule (长度 sanity check)' 未实现；baseline_module 仅做真值检查未调用 forward 方法。CLI 默认 signals 包含 oracle_disagreement（mine_prompt_sessions.py:120），任何成熟 session 数据集会让所有非空 user→assistant pair 进 LLM judge——LLM 成本风险，影响 SC#1 的可用性（importer 工作但成本不可接受）。"
-    artifacts:
-      - path: "evolution/prompts/session_prompt_miner.py:466-508"
-        issue: "extractor 无任何 cheap-rule 过滤，emit 所有非空 user→assistant pair；baseline_module.forward 从未被调用"
-      - path: "evolution/prompts/mine_prompt_sessions.py:120"
-        issue: "CLI 默认 --signals 包含 oracle_disagreement，prod 风险"
-    missing:
-      - "添加 cheap rule（如 len(next_assistant) < 50 或 len(next_assistant) < len(content) * 0.3 时 emit）"
-      - "或：从 CLI 默认 signals 移除 oracle_disagreement，加 [experimental] 标签"
+    status: closed
+    closed_by: "commit 08f686d fix(19): WR-04 enforce cheap-rule length filter in oracle_disagreement"
+    closure_evidence: "evolution/prompts/session_prompt_miner.py:492-502 enforces `if len(next_assistant) >= 50: continue` — only short next_assistant turns (likely terse user-correction signal) are emitted as oracle_disagreement candidates. Cheap-rule lives in line 498-502 with explicit `WR-04 fix:` marker comment. Reduces LLM judge load by >80% on average session datasets."
+    original_reason: "REVIEW WR-04 confirmed: extractor 当前仅检查 next_assistant 非空即 emit candidate, 无 cheap-rule 过滤；docstring 承诺 'cheap rule' 未实现。"
 
   - truth: "jsonl_skipped_lines metric 字段实际被 _load_session_dataset_resilient 写入（兑现 _fresh_metrics docstring 承诺）"
-    status: partial
-    reason: "REVIEW WR-01 confirmed: session_prompt_miner._fresh_metrics docstring 显式承诺 'jsonl_skipped_lines maintained by Plan 04 evolve_prompt_sections.py _load_session_dataset_resilient helper'，但 helper 实际仅把 skip 计数作为 tuple 第二元素返回，**从未** 写入任何 metrics dict。evolve_prompt_sections 调用点（line 343-354）仅 console.print 跳过，未传给 miner.metrics。结果：metrics.jsonl_skipped_lines 永远为 0，B3 fix 设计的'两个 metric channel 独立写入'仅兑现一半（session_load_failures 写入了，jsonl_skipped_lines 没写）。"
-    artifacts:
-      - path: "evolution/prompts/evolve_prompt_sections.py:119-163"
-        issue: "_load_session_dataset_resilient 返回 skipped dict 但不接 metrics 参数，调用点不挂钩"
-      - path: "evolution/prompts/evolve_prompt_sections.py:350-354"
-        issue: "调用点只 console.print skipped，未 mutate 任何持久化 metrics"
-    missing:
-      - "方案 A：扩展 _load_session_dataset_resilient(session_dir, metrics=None)，metrics is not None 时累加 jsonl_skipped_lines"
-      - "方案 B：降低 _fresh_metrics docstring 承诺，写明'保留供未来 helper'，并删除 _print_summary_table 的 JSONL skipped lines 行"
+    status: closed
+    closed_by: "commit f65fae6 fix(19): WR-01 thread jsonl_skipped_lines into shared metrics dict"
+    closure_evidence: "evolution/prompts/evolve_prompt_sections.py:120-181 _load_session_dataset_resilient(session_dir, metrics=None) — when metrics dict is provided, accumulates metrics['jsonl_skipped_lines'] += sum(skipped.values()). Call site at line 385 passes the shared metrics dict so the channel is wired end-to-end. session_prompt_miner.py:277 _fresh_metrics docstring updated to match reality."
+    original_reason: "REVIEW WR-01 confirmed: helper 实际仅把 skip 计数作为 tuple 第二元素返回, 从未写入任何 metrics dict。"
 
 deferred: []
 ---

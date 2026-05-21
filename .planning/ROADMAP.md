@@ -422,13 +422,13 @@ Plans:
   1. Scheduler runs optimization on configurable interval
   2. Results validated against regression gates before PR creation
   3. Human review required before merge (no auto-merge)
-**Plans:** 7 plans
+**Plans:** 4/7 plans executed
 
 Plans:
 **Wave 1** *(parallel — 3 independent plans)*
-- [ ] 22-01-PLAN.md — deploy_mode gate (D-11): EvolutionConfig.deploy_mode field + 3-layer load chain + write_back_description/write_back_section PermissionError guards + 6 unit tests; closes CONCERNS §M6
-- [ ] 22-04-PLAN.md — evolution/loop/pr_creator.py (D-03/D-04/D-05/D-09): gh CLI subprocess wrapper, hermes-agent staging-dir copy + git push + gh pr create, branch=evolution/auto-loop/<ts>/<artifact-kind>, title+labels+NOTICE template, never-raises contract
-- [ ] 22-07-PLAN.md — docs/setup-hermes-agent-branch-protection.md (D-09 runbook): step-by-step gh api -X PUT branch protection JSON + CODEOWNERS template (evolution-bot intentionally excluded) + verification commands + end-to-end test procedure + rollback + FAQ
+- [x] 22-01-PLAN.md — deploy_mode gate (D-11): EvolutionConfig.deploy_mode field + 3-layer load chain + write_back_description/write_back_section PermissionError guards + 6 unit tests; closes CONCERNS §M6
+- [x] 22-04-PLAN.md — evolution/loop/pr_creator.py (D-03/D-04/D-05/D-09): gh CLI subprocess wrapper, hermes-agent staging-dir copy + git push + gh pr create, branch=evolution/auto-loop/<ts>/<artifact-kind>, title+labels+NOTICE template, never-raises contract
+- [x] 22-07-PLAN.md — docs/setup-hermes-agent-branch-protection.md (D-09 runbook): step-by-step gh api -X PUT branch protection JSON + CODEOWNERS template (evolution-bot intentionally excluded) + verification commands + end-to-end test procedure + rollback + FAQ
 
 **Wave 2** *(depends on 22-01 — both modify evolution/core/config.py)*
 - [ ] 22-02-PLAN.md — evolution.yaml `loop:` schema (D-06/D-08): EvolutionConfig.loop_cli_config field with per-CLI enabled/max_cost_usd + commented yaml documentation + 8 unit tests

@@ -1,0 +1,30 @@
+{
+  "holdout_ids": [
+    "test_charset_selection",
+    "test_cursor_shape",
+    "test_bracketed_paste",
+    "test_dcs",
+    "test_truecolor_colon_separated",
+    "test_truecolor_semicolon",
+    "test_reverse_index",
+    "test_st_terminator",
+    "test_bel_terminator",
+    "test_square_brackets_in_code"
+  ],
+  "holdout_fitness": {
+    "code_pytest_passed": 30,
+    "code_pytest_total": 30,
+    "code_size_baseline_bytes": 1784,
+    "code_size_evolved_bytes": 1824,
+    "code_size_ratio": 1.022,
+    "code_ruff_violations": 0,
+    "code_pytest_score": 1.0,
+    "code_size_component": 0.9775784753363228,
+    "code_ruff_score": 1.0,
+    "code_composite_fitness": 0.9977578475336323,
+    "code_decision": "accept",
+    "code_reject_reason": "",
+    "code_pytest_failures": [],
+    "code_ruff_findings": []
+  }
+}

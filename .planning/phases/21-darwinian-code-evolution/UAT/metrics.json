@@ -1,0 +1,53 @@
+{
+  "phase": "21",
+  "plan": "07",
+  "timestamp": "20260521_152431",
+  "component": "/Users/slj/.hermes/hermes-agent/tools/ansi_strip.py",
+  "iterations": 1,
+  "optimizer_used": "openevolve",
+  "baseline": {
+    "code_pytest_passed": 30,
+    "code_pytest_total": 30,
+    "code_size_baseline_bytes": 1784,
+    "code_size_evolved_bytes": 1784,
+    "code_size_ratio": 1.0,
+    "code_ruff_violations": 0,
+    "code_pytest_score": 1.0,
+    "code_size_component": 1.0,
+    "code_ruff_score": 1.0,
+    "code_composite_fitness": 1.0,
+    "code_decision": "accept",
+    "code_reject_reason": "",
+    "code_pytest_failures": [],
+    "code_ruff_findings": []
+  },
+  "holdout": {
+    "code_pytest_passed": 30,
+    "code_pytest_total": 30,
+    "code_size_baseline_bytes": 1784,
+    "code_size_evolved_bytes": 1824,
+    "code_size_ratio": 1.022,
+    "code_ruff_violations": 0,
+    "code_pytest_score": 1.0,
+    "code_size_component": 0.9775784753363228,
+    "code_ruff_score": 1.0,
+    "code_composite_fitness": 0.9977578475336323,
+    "code_decision": "accept",
+    "code_reject_reason": "",
+    "code_pytest_failures": [],
+    "code_ruff_findings": []
+  },
+  "holdout_gate_passed": true,
+  "reject_reason": "",
+  "adapter_metrics": {
+    "combined_score": 0.9977578475336323,
+    "pytest_passed": 30,
+    "pytest_total": 30,
+    "size_component": 0.9775784753363228,
+    "ruff_score": 1.0,
+    "pytest_failures": [],
+    "ruff_violations": [],
+    "decision": "accept",
+    "reject_reason": ""
+  }
+}

@@ -1,0 +1,638 @@
+{
+  "ambiguous_gate_skipped": false,
+  "ambiguous_subset_size": 75,
+  "ambiguous_think_off": 0.5466666666666666,
+  "ambiguous_think_on": 0.5466666666666666,
+  "cost_usd_cap": 2.0,
+  "cost_usd_spent": 0.0,
+  "elapsed_seconds": 2099.642,
+  "eval_model": "openai/qwen-plus",
+  "holdout_examples": 81,
+  "iterations": 1,
+  "latency_stats": {
+    "mean": 0.04004408470297485,
+    "p50": 0.039810325019061565,
+    "p95": 0.0465423041023314
+  },
+  "optimizer_used": "gepa",
+  "param_predictors_discovered": 114,
+  "per_tool_baseline_rates": {
+    "browser_back": 1.0,
+    "browser_click": 0.0,
+    "browser_close": 1.0,
+    "browser_console": 0.6666666666666666,
+    "browser_get_images": 1.0,
+    "browser_navigate": 1.0,
+    "browser_scroll": 0.6666666666666666,
+    "browser_snapshot": 1.0,
+    "browser_type": 0.0,
+    "browser_vision": 1.0,
+    "clarify": 1.0,
+    "cronjob": 1.0,
+    "delegate_task": 0.0,
+    "ha_call_service": 0.0,
+    "ha_get_state": 0.0,
+    "ha_list_entities": 1.0,
+    "ha_list_services": 1.0,
+    "image_generate": 1.0,
+    "memory": 1.0,
+    "mixture_of_agents": 0.3333333333333333,
+    "patch": 1.0,
+    "process": 1.0,
+    "read_file": 0.75,
+    "rl_check_status": 1.0,
+    "rl_edit_config": 0.5,
+    "rl_get_current_config": 1.0,
+    "rl_get_results": 0.3333333333333333,
+    "rl_list_environments": 1.0,
+    "rl_select_environment": 0.0,
+    "rl_stop_training": 1.0,
+    "rl_test_inference": 1.0,
+    "search_files": 1.0,
+    "send_message": 1.0,
+    "skill_manage": 1.0,
+    "skill_view": 1.0,
+    "skills_list": 0.75,
+    "terminal": 1.0,
+    "todo": 1.0,
+    "web_extract": 1.0,
+    "web_search": 1.0,
+    "write_file": 1.0
+  },
+  "per_tool_evolved_rates": {
+    "browser_back": 1.0,
+    "browser_click": 0.0,
+    "browser_close": 1.0,
+    "browser_console": 0.6666666666666666,
+    "browser_get_images": 1.0,
+    "browser_navigate": 1.0,
+    "browser_scroll": 0.6666666666666666,
+    "browser_snapshot": 1.0,
+    "browser_type": 0.0,
+    "browser_vision": 1.0,
+    "clarify": 1.0,
+    "cronjob": 1.0,
+    "delegate_task": 0.0,
+    "ha_call_service": 0.0,
+    "ha_get_state": 0.0,
+    "ha_list_entities": 1.0,
+    "ha_list_services": 1.0,
+    "image_generate": 1.0,
+    "memory": 1.0,
+    "mixture_of_agents": 0.3333333333333333,
+    "patch": 1.0,
+    "process": 1.0,
+    "read_file": 0.75,
+    "rl_check_status": 1.0,
+    "rl_edit_config": 0.5,
+    "rl_get_current_config": 1.0,
+    "rl_get_results": 0.3333333333333333,
+    "rl_list_environments": 1.0,
+    "rl_select_environment": 0.0,
+    "rl_stop_training": 1.0,
+    "rl_test_inference": 1.0,
+    "search_files": 1.0,
+    "send_message": 1.0,
+    "skill_manage": 1.0,
+    "skill_view": 1.0,
+    "skills_list": 0.75,
+    "terminal": 1.0,
+    "todo": 1.0,
+    "web_extract": 1.0,
+    "web_search": 1.0,
+    "write_file": 1.0
+  },
+  "raw_predictions": [
+    {
+      "correct_tool": "browser_close",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "browser_close"
+    },
+    {
+      "correct_tool": "search_files",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "search_files"
+    },
+    {
+      "correct_tool": "skill_view",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "skill_view"
+    },
+    {
+      "correct_tool": "rl_list_environments",
+      "difficulty": "medium",
+      "num_available_tools": 6,
+      "selected_tool": "rl_list_environments"
+    },
+    {
+      "correct_tool": "browser_back",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "browser_back"
+    },
+    {
+      "correct_tool": "browser_console",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "browser_console"
+    },
+    {
+      "correct_tool": "ha_list_services",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "ha_list_services"
+    },
+    {
+      "correct_tool": "rl_list_environments",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "rl_list_environments"
+    },
+    {
+      "correct_tool": "skill_manage",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "skill_manage"
+    },
+    {
+      "correct_tool": "rl_test_inference",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "rl_test_inference"
+    },
+    {
+      "correct_tool": "terminal",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "terminal"
+    },
+    {
+      "correct_tool": "read_file",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "read_file"
+    },
+    {
+      "correct_tool": "ha_list_entities",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "ha_list_entities"
+    },
+    {
+      "correct_tool": "todo",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "todo"
+    },
+    {
+      "correct_tool": "delegate_task",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "read_file"
+    },
+    {
+      "correct_tool": "skills_list",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "skills_list"
+    },
+    {
+      "correct_tool": "search_files",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "search_files"
+    },
+    {
+      "correct_tool": "skills_list",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "skills_list"
+    },
+    {
+      "correct_tool": "browser_navigate",
+      "difficulty": "hard",
+      "num_available_tools": 2,
+      "selected_tool": "browser_navigate"
+    },
+    {
+      "correct_tool": "todo",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "todo"
+    },
+    {
+      "correct_tool": "ha_call_service",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "ha_list_entities"
+    },
+    {
+      "correct_tool": "read_file",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "read_file"
+    },
+    {
+      "correct_tool": "browser_scroll",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "browser_scroll"
+    },
+    {
+      "correct_tool": "browser_close",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "browser_close"
+    },
+    {
+      "correct_tool": "browser_click",
+      "difficulty": "easy",
+      "num_available_tools": 6,
+      "selected_tool": "browser_snapshot"
+    },
+    {
+      "correct_tool": "rl_test_inference",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "rl_test_inference"
+    },
+    {
+      "correct_tool": "mixture_of_agents",
+      "difficulty": "hard",
+      "num_available_tools": 6,
+      "selected_tool": "mixture_of_agents"
+    },
+    {
+      "correct_tool": "ha_get_state",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "ha_list_entities"
+    },
+    {
+      "correct_tool": "web_extract",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "web_extract"
+    },
+    {
+      "correct_tool": "browser_type",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "browser_snapshot"
+    },
+    {
+      "correct_tool": "rl_list_environments",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "rl_list_environments"
+    },
+    {
+      "correct_tool": "cronjob",
+      "difficulty": "easy",
+      "num_available_tools": 5,
+      "selected_tool": "cronjob"
+    },
+    {
+      "correct_tool": "send_message",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "send_message"
+    },
+    {
+      "correct_tool": "rl_get_results",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "rl_list_runs"
+    },
+    {
+      "correct_tool": "browser_vision",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "browser_vision"
+    },
+    {
+      "correct_tool": "rl_select_environment",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "rl_list_environments"
+    },
+    {
+      "correct_tool": "browser_snapshot",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "browser_snapshot"
+    },
+    {
+      "correct_tool": "mixture_of_agents",
+      "difficulty": "easy",
+      "num_available_tools": 5,
+      "selected_tool": "None"
+    },
+    {
+      "correct_tool": "patch",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "patch"
+    },
+    {
+      "correct_tool": "rl_check_status",
+      "difficulty": "hard",
+      "num_available_tools": 4,
+      "selected_tool": "rl_check_status"
+    },
+    {
+      "correct_tool": "process",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "process"
+    },
+    {
+      "correct_tool": "skills_list",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "skills_list"
+    },
+    {
+      "correct_tool": "clarify",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "clarify"
+    },
+    {
+      "correct_tool": "browser_get_images",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "browser_get_images"
+    },
+    {
+      "correct_tool": "browser_navigate",
+      "difficulty": "hard",
+      "num_available_tools": 2,
+      "selected_tool": "browser_navigate"
+    },
+    {
+      "correct_tool": "web_extract",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "web_extract"
+    },
+    {
+      "correct_tool": "browser_console",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "browser_console"
+    },
+    {
+      "correct_tool": "browser_navigate",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "browser_navigate"
+    },
+    {
+      "correct_tool": "rl_stop_training",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "rl_stop_training"
+    },
+    {
+      "correct_tool": "rl_get_results",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "rl_get_results"
+    },
+    {
+      "correct_tool": "memory",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "memory"
+    },
+    {
+      "correct_tool": "delegate_task",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "search_files"
+    },
+    {
+      "correct_tool": "delegate_task",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "web_search"
+    },
+    {
+      "correct_tool": "rl_edit_config",
+      "difficulty": "easy",
+      "num_available_tools": 5,
+      "selected_tool": "rl_edit_config"
+    },
+    {
+      "correct_tool": "ha_list_services",
+      "difficulty": "easy",
+      "num_available_tools": 5,
+      "selected_tool": "ha_list_services"
+    },
+    {
+      "correct_tool": "rl_get_current_config",
+      "difficulty": "easy",
+      "num_available_tools": 5,
+      "selected_tool": "rl_get_current_config"
+    },
+    {
+      "correct_tool": "browser_navigate",
+      "difficulty": "hard",
+      "num_available_tools": 2,
+      "selected_tool": "browser_navigate"
+    },
+    {
+      "correct_tool": "skills_list",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "write_file"
+    },
+    {
+      "correct_tool": "browser_scroll",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "browser_scroll"
+    },
+    {
+      "correct_tool": "ha_list_entities",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "ha_list_entities"
+    },
+    {
+      "correct_tool": "write_file",
+      "difficulty": "hard",
+      "num_available_tools": 2,
+      "selected_tool": "write_file"
+    },
+    {
+      "correct_tool": "browser_get_images",
+      "difficulty": "easy",
+      "num_available_tools": 3,
+      "selected_tool": "browser_get_images"
+    },
+    {
+      "correct_tool": "browser_type",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "clarify"
+    },
+    {
+      "correct_tool": "browser_type",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "browser_navigate"
+    },
+    {
+      "correct_tool": "patch",
+      "difficulty": "hard",
+      "num_available_tools": 2,
+      "selected_tool": "patch"
+    },
+    {
+      "correct_tool": "web_search",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "web_search"
+    },
+    {
+      "correct_tool": "browser_scroll",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "browser_console"
+    },
+    {
+      "correct_tool": "rl_select_environment",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "rl_list_environments"
+    },
+    {
+      "correct_tool": "cronjob",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "cronjob"
+    },
+    {
+      "correct_tool": "browser_navigate",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "browser_navigate"
+    },
+    {
+      "correct_tool": "browser_console",
+      "difficulty": "medium",
+      "num_available_tools": 5,
+      "selected_tool": "browser_navigate"
+    },
+    {
+      "correct_tool": "memory",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "memory"
+    },
+    {
+      "correct_tool": "web_extract",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "web_extract"
+    },
+    {
+      "correct_tool": "patch",
+      "difficulty": "medium",
+      "num_available_tools": 4,
+      "selected_tool": "patch"
+    },
+    {
+      "correct_tool": "mixture_of_agents",
+      "difficulty": "easy",
+      "num_available_tools": 5,
+      "selected_tool": "web_search"
+    },
+    {
+      "correct_tool": "rl_edit_config",
+      "difficulty": "easy",
+      "num_available_tools": 5,
+      "selected_tool": "rl_list_environments"
+    },
+    {
+      "correct_tool": "rl_get_results",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "rl_list_runs"
+    },
+    {
+      "correct_tool": "read_file",
+      "difficulty": "hard",
+      "num_available_tools": 2,
+      "selected_tool": "read_file"
+    },
+    {
+      "correct_tool": "read_file",
+      "difficulty": "hard",
+      "num_available_tools": 5,
+      "selected_tool": "terminal"
+    },
+    {
+      "correct_tool": "ha_get_state",
+      "difficulty": "easy",
+      "num_available_tools": 4,
+      "selected_tool": "ha_list_entities"
+    },
+    {
+      "correct_tool": "image_generate",
+      "difficulty": "hard",
+      "num_available_tools": 4,
+      "selected_tool": "image_generate"
+    }
+  ],
+  "reasoning_token_stats": {
+    "mean": 183.85185185185185,
+    "p50": 183.0,
+    "p95": 232.0
+  },
+  "reflection_model": "openai/qwen-max",
+  "started_at": "2026-05-21T08:57:17.672759+00:00",
+  "status": "THINK_AB_FAILED",
+  "think_ab_gate": {
+    "ambiguous_delta": 0.0,
+    "ambiguous_gate_skipped": false,
+    "ambiguous_sample_size": 75,
+    "evolved_scores": {
+      "ambiguous_think_off_score": 0.5466666666666666,
+      "ambiguous_think_on_score": 0.5466666666666666,
+      "think_off_holdout_score": 0.5493827160493827,
+      "think_on_holdout_score": 0.5493827160493827
+    },
+    "full_regression_delta": 0.0,
+    "gates": {
+      "ambiguous_gate_passed": false,
+      "full_regression_gate_passed": true,
+      "latency_gate_passed": true
+    },
+    "latency_p95_seconds": 0.0465423041023314,
+    "message": "think_ab_gate FAIL | full_regression=OK (delta=+0.0000, tolerance=2.0pp) | ambiguous=FAIL (delta=+0.0000, required>=3.0pp, n=75) | latency=OK (p95=0.05s, budget=5.0s)",
+    "passed": false,
+    "tolerances": {
+      "ambiguous_improvement_pp": 3.0,
+      "full_regression_tolerance_pp": 2.0,
+      "latency_p95_budget_sec": 5.0
+    }
+  },
+  "think_off_score": 0.5493827160493827,
+  "think_on_score": 0.5493827160493827,
+  "timestamp": "20260521_173217",
+  "tool_count": 47,
+  "train_examples": 162,
+  "v1_baseline_holdout": 0.0,
+  "v1_baseline_source": "missing",
+  "v1_gate_delta_think_off": 0.549382716,
+  "v1_gate_delta_think_on": 0.549382716,
+  "v1_gate_passed": true,
+  "v1_score": 0.0,
+  "val_examples": 81
+}

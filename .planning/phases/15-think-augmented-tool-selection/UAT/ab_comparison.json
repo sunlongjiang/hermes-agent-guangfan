@@ -1,0 +1,1567 @@
+[
+  {
+    "task_id": 0,
+    "task_description": "I'm done looking up weather forecasts on the web — please close the browser to save resources.",
+    "correct_tool": "browser_close",
+    "selected_off": "browser_close",
+    "selected_on": "browser_close",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_back",
+      "browser_navigate",
+      "browser_snapshot"
+    ],
+    "reasoning_text_on": "The task is to close the browser to save resources after finishing weather lookups. Among the available tools, only `browser_close` directly fulfills this intent — it explicitly terminates the browser session and releases cloud resources. Other browser tools like `browser_back`, `browser_navigate`, or `browser_snapshot` are for interaction or inspection, not termination. No other tool has side-effects related to session cleanup or resource release. The presence of `browser_close` makes it uniquely suited: it requires no parameters, has no preconditions beyond an active browser session (which is implied by prior use), and performs exactly the requested action.",
+    "reasoning_tokens_on": 166,
+    "latency_seconds_off": 0.0279,
+    "latency_seconds_on": 0.0377
+  },
+  {
+    "task_id": 1,
+    "task_description": "Find all Python files containing the phrase 'deprecated' anywhere in their content, ignoring case, and return only the file paths.",
+    "correct_tool": "search_files",
+    "selected_off": "search_files",
+    "selected_on": "search_files",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "read_file",
+      "terminal",
+      "browser_navigate"
+    ],
+    "reasoning_text_on": "The task requires searching file contents for a case-insensitive string ('deprecated') within Python files and returning only the matching file paths. The `search_files` tool is purpose-built for this: it supports regex-based content search (`target='content'`), case-insensitive matching (via regex flags like `(?i)`), filtering by file type (`file_glob='*.py'`), and can output just file paths (`output_mode='files_only'`). Other tools like `read_file`, `terminal`, or `browser_*` are either too low-level, unrelated to filesystem search, or overkill — they lack built-in file traversal, pattern matching, and filtering semantics that `search_files` provides natively and efficiently.",
+    "reasoning_tokens_on": 171,
+    "latency_seconds_off": 0.0297,
+    "latency_seconds_on": 0.0438
+  },
+  {
+    "task_id": 2,
+    "task_description": "I want to learn what the 'weather_alerts' skill does. Please show me its main documentation.",
+    "correct_tool": "skill_view",
+    "selected_off": "skill_view",
+    "selected_on": "skill_view",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "skills_list",
+      "read_file",
+      "skill_manage"
+    ],
+    "reasoning_text_on": "The task is to retrieve documentation for the 'weather_alerts' skill. Since skills are stored as files in the system, the most direct way is to load its documentation using `skill_view`, which is specifically designed to retrieve a skill’s full content (including its description, usage, and implementation details). Other tools like `web_search` or `browser_navigate` would be unnecessary overhead — this is not a web resource but a local skill. `read_file` could work if we knew the exact path, but `skill_view` handles skill discovery and loading robustly, including validation and linked file access.",
+    "reasoning_tokens_on": 151,
+    "latency_seconds_off": 0.0284,
+    "latency_seconds_on": 0.0372
+  },
+  {
+    "task_id": 3,
+    "task_description": "Before training, I want to audit what environments are installed—especially checking for common benchmarks like MountainCar, Acrobot, and LunarLander. Show me the full list with names and descriptions.",
+    "correct_tool": "rl_list_environments",
+    "selected_off": "rl_list_environments",
+    "selected_on": "rl_list_environments",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_get_current_config",
+      "rl_list_runs",
+      "terminal",
+      "ha_list_entities",
+      "browser_navigate"
+    ],
+    "reasoning_text_on": "The task is to audit installed RL environments—specifically listing names and descriptions, with emphasis on common benchmarks like MountainCar, Acrobot, and LunarLander. The `rl_list_environments` tool directly fulfills this: it returns environment names, paths, and descriptions in one call, with no external dependencies or navigation needed. Other tools like `browser_navigate` or `web_search` would require scraping documentation or external sites, which is indirect and less reliable. Tools like `search_files` or `terminal` could theoretically locate environment definitions but lack semantic understanding of RL environments and would require manual interpretation of code or config files. `rl_list_environments` is purpose-built, self-contained, and authoritative for this exact use case.",
+    "reasoning_tokens_on": 199,
+    "latency_seconds_off": 0.0324,
+    "latency_seconds_on": 0.041
+  },
+  {
+    "task_id": 4,
+    "task_description": "I used browser_navigate to open a breaking news article on GlobalNews.com, but after reading the headline and byline, I want to return to the homepage feed to scan other headlines — navigate back to the prior page.",
+    "correct_tool": "browser_back",
+    "selected_off": "browser_back",
+    "selected_on": "browser_back",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_close",
+      "browser_vision",
+      "web_search"
+    ],
+    "reasoning_text_on": "The task is to return to the prior page (homepage feed) after reading a news article. The browser tools include `browser_back`, which explicitly navigates back in browser history — matching the user’s intent precisely. Other navigation tools like `browser_navigate` require a known URL (not provided), and `browser_click` or `browser_snapshot` would be indirect, requiring locating and interacting with a “Back” link or logo — unnecessary when native history navigation is available and supported. `browser_back` is purpose-built for this exact scenario and requires no additional parameters or page state inspection.",
+    "reasoning_tokens_on": 154,
+    "latency_seconds_off": 0.0296,
+    "latency_seconds_on": 0.0354
+  },
+  {
+    "task_id": 5,
+    "task_description": "I navigated to https://example-shop.com/checkout but the 'Place Order' button stays disabled even after filling all fields. Check the browser console for JavaScript errors or warnings that might explain why the form validation isn't triggering.",
+    "correct_tool": "browser_console",
+    "selected_off": "browser_console",
+    "selected_on": "browser_console",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_snapshot",
+      "browser_vision",
+      "web_extract",
+      "browser_get_images"
+    ],
+    "reasoning_text_on": "The task requires checking the browser console for JavaScript errors or warnings that might prevent the 'Place Order' button from enabling. The `browser_console` tool is uniquely designed for this purpose—it retrieves console logs, JS errors, and warnings directly from the current page context. Other browser tools like `browser_snapshot` or `browser_vision` provide structural or visual information but not runtime console output. While `browser_navigate` is required first to load the page, it’s already implied the user has navigated (they’re *on* `/checkout`). So the immediate next step is `browser_console`—it’s the only tool that surfaces the exact diagnostic info requested: JS errors/warnings affecting form validation.",
+    "reasoning_tokens_on": 182,
+    "latency_seconds_off": 0.0373,
+    "latency_seconds_on": 0.0422
+  },
+  {
+    "task_id": 6,
+    "task_description": "I've found a Z-Wave light switch in my Home Assistant setup using ha_list_entities, but I'm not sure what commands I can send to it. What services are available for controlling lights, and what parameters do they accept?",
+    "correct_tool": "ha_list_services",
+    "selected_off": "ha_list_services",
+    "selected_on": "ha_list_services",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_list_entities",
+      "ha_get_state",
+      "ha_call_service",
+      "search_files"
+    ],
+    "reasoning_text_on": "The task is to discover what services and parameters are available for controlling lights in Home Assistant. The key distinction among relevant tools is intent and scope: `ha_list_entities` only lists entities (already done), `ha_get_state` retrieves current state/attributes of a specific entity but not actionable services, while `ha_list_services` is explicitly designed to enumerate available services per domain—including their names, descriptions, and accepted parameters. Since the user wants to know “what commands I can send” and “what parameters they accept”, `ha_list_services` with `domain='light'` directly answers that without side effects or unnecessary data retrieval.",
+    "reasoning_tokens_on": 171,
+    "latency_seconds_off": 0.0302,
+    "latency_seconds_on": 0.0377
+  },
+  {
+    "task_id": 7,
+    "task_description": "What RL environments are available in the system?",
+    "correct_tool": "rl_list_environments",
+    "selected_off": "rl_list_environments",
+    "selected_on": "rl_list_environments",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_select_environment",
+      "rl_get_current_config",
+      "search_files"
+    ],
+    "reasoning_text_on": "The task asks for a list of available RL environments in the system. Among the available tools, `rl_list_environments` is explicitly designed for this purpose — it returns environment names, paths, and descriptions with no parameters required. Other RL-related tools like `rl_select_environment`, `rl_get_current_config`, or `rl_list_runs` assume an environment is already selected or a training run exists, making them inappropriate for initial discovery. No web, file, or browser tool is needed since this is a local system query with a dedicated, purpose-built tool.",
+    "reasoning_tokens_on": 142,
+    "latency_seconds_off": 0.0318,
+    "latency_seconds_on": 0.0398
+  },
+  {
+    "task_id": 8,
+    "task_description": "I've been setting up a local development environment using Docker Compose for a Python FastAPI app. On my Intel MacBook, running 'docker-compose up -d' followed by 'curl http://localhost:8000/health' succeeds. But on my M1 Mac, the same commands fail with 'connection refused' — only after I add '--platform linux/amd64' to the docker-compose command and wait 30 seconds for the service to fully initialize. I've repeated this fix 5 times across different M1 machines, and each time I forget the platform flag and the delay. I want Hermes to remember this entire procedure as a reusable, cross-platform skill — including how to detect the architecture, when to apply the flag, the timeout rationale, and how to verify health *after* waiting — so I never have to re-debug it.",
+    "correct_tool": "skill_manage",
+    "selected_off": "skill_manage",
+    "selected_on": "skill_manage",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "terminal",
+      "write_file",
+      "memory",
+      "patch"
+    ],
+    "reasoning_text_on": "The task is to encode a specific Docker Compose debugging workflow—detecting M1 vs Intel architecture, conditionally applying `--platform linux/amd64`, waiting ~30s for service readiness, then verifying `/health`—as a reusable, cross-platform skill. None of the available tools directly *create* or *store* procedural knowledge except `skill_manage` (for creating skills) and `memory` (for saving facts). While `memory` could store fragments, the request explicitly asks for a *reusable, cross-platform skill*, including detection logic, conditional flags, timeout rationale, and verification steps—i.e., structured, executable know-how. `skill_manage` is purpose-built for this: it accepts full markdown+YAML skill definitions with triggers, steps, pitfalls, and verification. Other tools like `terminal`, `browser_navigate`, or `cronjob` are execution mechanisms—not knowledge codification tools. So the distinction is intent:",
+    "reasoning_tokens_on": 232,
+    "latency_seconds_off": 0.0373,
+    "latency_seconds_on": 0.0346
+  },
+  {
+    "task_id": 9,
+    "task_description": "Before running a long RL training job, I need to make sure my custom environment loads correctly and the model can generate valid actions.",
+    "correct_tool": "rl_test_inference",
+    "selected_off": "rl_test_inference",
+    "selected_on": "rl_test_inference",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_check_status",
+      "process",
+      "rl_list_runs"
+    ],
+    "reasoning_text_on": "The task is to verify that a custom RL environment loads correctly and that the model can generate valid actions—essentially a *pre-training sanity check*. This is distinct from launching training (rl_start_training), listing environments (rl_list_environments), or editing config (rl_edit_config). The most direct tool is `rl_test_inference`, which explicitly runs lightweight inference + scoring to test environment loading, prompt construction, action parsing, and verifier logic—exactly the validation needed. While `rl_select_environment` is a prerequisite step, it alone doesn’t *test* functionality; `rl_test_inference` does the full end-to-end validation in seconds. No browser, file, or system tools are relevant here—the RL-specific toolset is purpose-built for this.",
+    "reasoning_tokens_on": 194,
+    "latency_seconds_off": 0.033,
+    "latency_seconds_on": 0.0382
+  },
+  {
+    "task_id": 10,
+    "task_description": "Create a Python virtual environment named 'venv' in the current directory, activate it, install the 'requests' package using pip, and then verify the package is installed by printing its version with 'python -c \"import requests; print(requests.__version__)\"'.",
+    "correct_tool": "terminal",
+    "selected_off": "terminal",
+    "selected_on": "terminal",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "write_file",
+      "read_file",
+      "patch",
+      "process"
+    ],
+    "reasoning_text_on": "The task involves creating and managing a Python virtual environment, installing a package, and verifying its installation — all shell-based operations requiring filesystem and process execution. The `terminal` tool is uniquely suited for this: it executes arbitrary shell commands with persistent working directory, supports pip, python, and venv commands directly, and handles sequential steps (create → activate → install → verify) in a single or chained calls. No other tool provides shell access: browser tools are for web interaction, file tools read/write but don’t execute, and cron/RL/delegate tools are for scheduling or specialized domains. While `execute_code` isn’t listed, `terminal` is the canonical and only available tool for this kind of imperative system task.",
+    "reasoning_tokens_on": 194,
+    "latency_seconds_off": 0.0502,
+    "latency_seconds_on": 0.037
+  },
+  {
+    "task_id": 11,
+    "task_description": "I want to quickly see the first 10 lines of my project's README.md file, with line numbers.",
+    "correct_tool": "read_file",
+    "selected_off": "read_file",
+    "selected_on": "read_file",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_navigate",
+      "terminal",
+      "search_files"
+    ],
+    "reasoning_text_on": "The task is to read the first 10 lines of `README.md` with line numbers. The `read_file` tool is purpose-built for this: it reads text files with optional line numbering, pagination (`offset`, `limit`), and handles common file paths directly. Other tools like `terminal` (e.g., `head -n 10 README.md`) or `search_files` are less appropriate — `terminal` is discouraged for simple file reads per guidance, and `search_files` is for searching content or names, not reading. No browser or web tools apply since the file is local. `read_file` supports exactly the requested behavior out-of-the-box.",
+    "reasoning_tokens_on": 148,
+    "latency_seconds_off": 0.0367,
+    "latency_seconds_on": 0.0366
+  },
+  {
+    "task_id": 12,
+    "task_description": "List all devices and sensors located in the kitchen.",
+    "correct_tool": "ha_list_entities",
+    "selected_off": "ha_list_entities",
+    "selected_on": "ha_list_entities",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_get_state",
+      "search_files",
+      "terminal"
+    ],
+    "reasoning_text_on": "The task is to list all devices and sensors located in the kitchen — a domain-specific query about Home Assistant entities filtered by area. Among available tools, `ha_list_entities` directly supports filtering by `area` (e.g., 'kitchen') and can optionally restrict to domains like `sensor` or `binary_sensor`, making it purpose-built for this. Other tools like `web_search` or browser-based tools assume external web sources, which is unnecessary and less reliable than querying the local Home Assistant instance. `ha_get_state` or `ha_list_services` are too narrow (they require known entity IDs or focus on actions, not discovery). Thus, `ha_list_entities` stands out due to its explicit `area` parameter and entity-domain flexibility.",
+    "reasoning_tokens_on": 184,
+    "latency_seconds_off": 0.0346,
+    "latency_seconds_on": 0.0397
+  },
+  {
+    "task_id": 13,
+    "task_description": "What tasks am I currently tracking? Just show me the full list.",
+    "correct_tool": "todo",
+    "selected_off": "todo",
+    "selected_on": "todo",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "skill_manage",
+      "skills_list",
+      "clarify"
+    ],
+    "reasoning_text_on": "The task asks for the current list of tracked tasks. The `todo` tool is explicitly designed for managing and retrieving the session’s task list — calling it with no parameters returns the full current list. Other tools like `session_search`, `memory`, or `cronjob` deal with historical, persistent, or scheduled tasks, not the active in-session todo list. Browser or file tools are irrelevant here since no external page or file is involved. The `todo` tool is uniquely scoped to this exact purpose.",
+    "reasoning_tokens_on": 124,
+    "latency_seconds_off": 0.038,
+    "latency_seconds_on": 0.0351
+  },
+  {
+    "task_id": 14,
+    "task_description": "Review two Python files — 'data_loader.py' and 'validator.py' — for security anti-patterns and maintainability issues. Return concise, actionable feedback for each, citing specific lines and suggesting fixes.",
+    "correct_tool": "delegate_task",
+    "selected_off": "read_file",
+    "selected_on": "read_file",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "read_file",
+      "search_files",
+      "terminal"
+    ],
+    "reasoning_text_on": "The task requires reviewing two local Python files ('data_loader.py' and 'validator.py') for security anti-patterns and maintainability issues, with line-specific feedback and fix suggestions. None of the browser tools apply — those are for web interaction. The relevant tools are file-reading and code-analysis utilities: `read_file` can retrieve each file with line numbers, enabling precise line citation; `search_files` could help find patterns across files but isn’t needed for targeted review of known files; `delegate_task` could offload analysis to subagents (e.g., one per file), but the task is bounded and doesn’t require parallelism or heavy reasoning beyond static code inspection. Since the files are named and local, `read_file` is sufficient and most direct — it supports pagination and line-numbered output, which is essential for citing specific lines. No tool performs automated security scanning out-of-the-box, so manual or LLM-based review after reading is implied —",
+    "reasoning_tokens_on": 247,
+    "latency_seconds_off": 0.0456,
+    "latency_seconds_on": 0.049
+  },
+  {
+    "task_id": 15,
+    "task_description": "Can you show me a list of all the skills I can use, along with what each one does?",
+    "correct_tool": "skills_list",
+    "selected_off": "skills_list",
+    "selected_on": "skills_list",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "web_search",
+      "skill_view",
+      "browser_navigate"
+    ],
+    "reasoning_text_on": "The task asks for a list of all available skills and their descriptions. The most direct tool for this is `skills_list`, which is explicitly designed to enumerate skills with their names and descriptions. Other tools like `skill_view` require a specific skill name and return full content, not a summary list. `skill_manage` is for editing skills, not listing them. No browser or file-reading tools are needed since the skill metadata is managed internally and accessible via the dedicated listing tool.",
+    "reasoning_tokens_on": 125,
+    "latency_seconds_off": 0.0334,
+    "latency_seconds_on": 0.0361
+  },
+  {
+    "task_id": 16,
+    "task_description": "Find all Python files in the current project directory.",
+    "correct_tool": "search_files",
+    "selected_off": "search_files",
+    "selected_on": "search_files",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "terminal",
+      "read_file",
+      "browser_navigate"
+    ],
+    "reasoning_text_on": "The task is to find all Python files in the current project directory. This is a filesystem navigation and pattern-matching task — not web-related, not code editing, not memory or messaging. The `search_files` tool is purpose-built for this: with `target='files'` and `pattern='*.py'`, it efficiently locates files by name using glob semantics, and defaults to searching the current working directory. Other tools like `terminal` could run `find` or `ls`, but `search_files` is safer, faster, more portable, and avoids shell parsing pitfalls. No browser, file I/O, or process tools are relevant here — the intent is pure discovery of file paths matching a pattern.",
+    "reasoning_tokens_on": 166,
+    "latency_seconds_off": 0.0609,
+    "latency_seconds_on": 0.0386
+  },
+  {
+    "task_id": 17,
+    "task_description": "I'm trying to automate home theater setup—specifically, I want to dim lights, lower blinds, and start playback on my media player in sequence—but I'm not sure which built-in skills support home automation integrations like Home Assistant or physical device control. Before I attempt to call anything, I need a complete, up-to-date list of all available skills with their one-sentence descriptions to identify candidates like 'ha_control_scene' or 'media_playback_trigger'.",
+    "correct_tool": "skills_list",
+    "selected_off": "skills_list",
+    "selected_on": "skills_list",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_list_services",
+      "skill_manage",
+      "search_files",
+      "session_search"
+    ],
+    "reasoning_text_on": "The task asks for a complete, up-to-date list of all available skills with one-sentence descriptions—specifically to identify home automation–related skills like `ha_control_scene` or `media_playback_trigger`. Among the tools, `skills_list` is explicitly designed to list skills by name and description; it supports optional category filtering but works without it to return *all* skills. Other tools like `skill_view` load full skill content (not summaries), `ha_list_services` or `ha_list_entities` are domain-specific Home Assistant helpers (not skill enumerators), and `web_search` or `browser_navigate` would be indirect, unreliable, and unnecessary since the skills are locally managed and introspectable via first-party tooling. Only `skills_list` provides the precise, lightweight, authoritative enumeration requested.",
+    "reasoning_tokens_on": 206,
+    "latency_seconds_off": 0.0321,
+    "latency_seconds_on": 0.0472
+  },
+  {
+    "task_id": 18,
+    "task_description": "Submit the contact form on the company's official website.",
+    "correct_tool": "browser_navigate",
+    "selected_off": "browser_navigate",
+    "selected_on": "browser_navigate",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": false,
+    "confuser_tools": [
+      "web_search"
+    ],
+    "reasoning_text_on": "The task requires interacting with a web form, which necessitates navigating to the website first, then identifying and filling form fields, and finally submitting. `browser_navigate` is mandatory to load the page and initialize the session. After navigation, `browser_snapshot` provides element references needed for subsequent actions like `browser_type` (to fill fields) and `browser_click` or `browser_press` (to submit). While `browser_vision` could help if the form is visually complex or obscured, the task doesn’t indicate CAPTCHA or layout ambiguity—so text-based interaction suffices. `web_search` or `web_extract` are insufficient because they don’t support interaction. Thus, the core sequence starts with `browser_navigate`, followed by snapshot-driven interaction tools.",
+    "reasoning_tokens_on": 196,
+    "latency_seconds_off": 0.0288,
+    "latency_seconds_on": 0.0417
+  },
+  {
+    "task_id": 19,
+    "task_description": "I've just finished step 3 of my data analysis workflow (cleaning the dataset), but step 2 (loading raw CSV) failed due to encoding issues. Cancel step 2, replace it with 'load CSV with utf-8-sig encoding', and keep all other steps unchanged — including keeping step 3 marked 'completed'.",
+    "correct_tool": "todo",
+    "selected_off": "todo",
+    "selected_on": "todo",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "patch",
+      "read_file",
+      "session_search"
+    ],
+    "reasoning_text_on": "The task involves modifying a data analysis workflow by canceling step 2 and replacing it with a corrected version (\"load CSV with utf-8-sig encoding\"), while preserving step 3’s 'completed' status. This is a targeted edit to a structured list (likely a todo list or script), not a file rewrite or broad search. The `todo` tool is purpose-built for managing ordered, stateful task lists with statuses (pending/completed/cancelled), supports updating by ID, and allows merging changes without overwriting other steps. Other tools like `write_file` or `patch` would require knowing the exact file path and format, introducing unnecessary risk of overwriting or misalignment. Since the task is about *workflow step state management*, not general file editing or content extraction, `todo` is uniquely suited.",
+    "reasoning_tokens_on": 201,
+    "latency_seconds_off": 0.0317,
+    "latency_seconds_on": 0.0414
+  },
+  {
+    "task_id": 20,
+    "task_description": "Start the 'morning_routine' automation, which opens blinds, starts coffee maker, and plays weather播报 on the living room speaker.",
+    "correct_tool": "ha_call_service",
+    "selected_off": "ha_list_entities",
+    "selected_on": "ha_list_entities",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_list_entities",
+      "rl_start_training",
+      "web_search",
+      "skill_manage"
+    ],
+    "reasoning_text_on": "The task is to start a Home Assistant automation named 'morning_routine', which involves controlling physical devices (blinds, coffee maker, speaker). None of the browser tools apply — this is not a web interaction. The `cronjob` tool schedules recurring tasks but doesn’t trigger automations on demand. `delegate_task` and `mixture_of_agents` are for complex reasoning or parallel subtasks — unnecessary here. `ha_call_service` is designed precisely for invoking automations (e.g., `domain='automation'`, `service='trigger'`) and accepts `entity_id` like `'automation.morning_routine'`. Other HA tools like `ha_list_entities` or `ha_get_state` are for inspection, not action. So the core distinction is: only `ha_call_service` directly executes an automation; all others are either observational, scheduling-oriented, or unrelated.",
+    "reasoning_tokens_on": 208,
+    "latency_seconds_off": 0.0385,
+    "latency_seconds_on": 0.0341
+  },
+  {
+    "task_id": 21,
+    "task_description": "My colleague said the fix for the auth bug is on line 872 of 'auth_service.py', but when I tried opening it, I got an error saying the file is too large to read all at once. Can you retrieve just that line — with its number — and maybe a few surrounding lines for context?",
+    "correct_tool": "read_file",
+    "selected_off": "read_file",
+    "selected_on": "read_file",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "terminal",
+      "browser_snapshot",
+      "search_files"
+    ],
+    "reasoning_text_on": "The task is to retrieve a specific line (872) and surrounding context from a large file 'auth_service.py' that cannot be read in full. The `read_file` tool is explicitly designed for this: it supports line-numbered output, pagination via `offset` and `limit`, and handles large files by reading only requested sections. Other tools like `terminal` (with `head`/`tail`) or `search_files` are less appropriate — the former requires manual command composition and lacks built-in line numbering/context control, while the latter is for searching content, not extracting known-line ranges. `read_file` is purpose-built for precise, paginated, line-numbered file reads.",
+    "reasoning_tokens_on": 165,
+    "latency_seconds_off": 0.0373,
+    "latency_seconds_on": 0.0338
+  },
+  {
+    "task_id": 22,
+    "task_description": "I navigated to the company's homepage but can't see the contact information — it's supposed to be in the footer. Scroll down to reveal the footer section.",
+    "correct_tool": "browser_scroll",
+    "selected_off": "browser_scroll",
+    "selected_on": "browser_scroll",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_snapshot",
+      "browser_click",
+      "web_search"
+    ],
+    "reasoning_text_on": "The task requires scrolling down to reveal the footer containing contact information. Since the user is already on the homepage (implied by “I navigated to the company's homepage”), no navigation is needed. The key action is vertical scrolling — specifically downward — to bring the footer into view. Among browser tools, `browser_scroll` is purpose-built for this: it scrolls the page in a given direction without requiring element references or snapshots. Other tools like `browser_click`, `browser_type`, or `browser_snapshot` are irrelevant here — no interaction with elements or content extraction is requested. `browser_press` (e.g., ArrowDown) could *technically* scroll but is imprecise and inefficient compared to the semantic `browser_scroll` tool designed exactly for this intent.",
+    "reasoning_tokens_on": 197,
+    "latency_seconds_off": 0.0278,
+    "latency_seconds_on": 0.0484
+  },
+  {
+    "task_id": 23,
+    "task_description": "I used the browser to pull data from a public dashboard, ran some quick visual checks using browser_vision, and exported the insights manually. The task is done—I no longer need the browser open.",
+    "correct_tool": "browser_close",
+    "selected_off": "browser_close",
+    "selected_on": "browser_close",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_vision",
+      "browser_get_images",
+      "memory",
+      "ha_call_service"
+    ],
+    "reasoning_text_on": "The task states the browser work is complete and the browser should be closed to free resources. Among browser-related tools, only `browser_close` performs session cleanup — it explicitly releases cloud browser quota and terminates the session. Other browser tools like `browser_snapshot`, `browser_click`, or `browser_vision` require an active session and are irrelevant now. No navigation, interaction, or data extraction is needed; the sole remaining action is graceful shutdown.",
+    "reasoning_tokens_on": 120,
+    "latency_seconds_off": 0.0305,
+    "latency_seconds_on": 0.0429
+  },
+  {
+    "task_id": 24,
+    "task_description": "You are on the login page of a website. Click the 'Sign In' button to proceed.",
+    "correct_tool": "browser_click",
+    "selected_off": "browser_snapshot",
+    "selected_on": "browser_snapshot",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_press",
+      "browser_scroll",
+      "web_search",
+      "browser_back",
+      "browser_type"
+    ],
+    "reasoning_text_on": "The task is to click the 'Sign In' button on a login page. This requires interacting with a rendered web page, so browser tools are needed — not web_search or web_extract. First, we must ensure the page is loaded (browser_navigate is required before any interaction). Then, to click, we need the element’s ref ID, which comes from a snapshot (browser_snapshot). Finally, browser_click performs the actual action using that ref. Among the browser tools, only browser_click directly executes the click, but it depends on prior navigation and snapshot. No other tool (e.g., browser_type, browser_press) matches the intent of clicking a button.",
+    "reasoning_tokens_on": 160,
+    "latency_seconds_off": 0.027,
+    "latency_seconds_on": 0.0398
+  },
+  {
+    "task_id": 25,
+    "task_description": "I just configured a new text-based dungeon RL environment and updated the prompt template. Before launching a full training run, I want to verify that the environment loads correctly, the prompt gets populated with state variables, and the OpenRouter completions are parsed and scored without errors.",
+    "correct_tool": "rl_test_inference",
+    "selected_off": "rl_test_inference",
+    "selected_on": "rl_test_inference",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_start_training",
+      "rl_get_current_config",
+      "browser_vision"
+    ],
+    "reasoning_text_on": "The task is to verify an RL environment setup—specifically checking environment loading, prompt template population with state variables, and OpenRouter completion parsing/scoring. This is a *functional test* of the RL pipeline’s inference path—not a web interaction, file edit, or deployment. The `rl_test_inference` tool is purpose-built for exactly this: it runs lightweight inference steps across models, exercising environment instantiation, prompt rendering, API calls, and verifier logic—all without launching full training. Other tools like `browser_navigate` or `terminal` are irrelevant (no UI or shell command involved), and `rl_start_training` is too heavy and premature. `rl_test_inference` is distinct in scope: it’s a dry-run validation step, whereas `rl_start_training` commits to hours-long execution, and `rl_get_current_config` only inspects config without executing any logic.",
+    "reasoning_tokens_on": 224,
+    "latency_seconds_off": 0.026,
+    "latency_seconds_on": 0.0366
+  },
+  {
+    "task_id": 26,
+    "task_description": "Prove or disprove: For any integer n ≥ 3, the recurrence T(n) = 2T(⌊n/2⌋) + n log₂ n satisfies T(n) = Θ(n (log₂ n)²). Derive tight asymptotic bounds with rigorous justification, handling floor operations and base cases explicitly—then verify consistency across at least three distinct proof strategies (e.g., recursion tree, substitution with guess refinement, and Akra–Bazzi method).",
+    "correct_tool": "mixture_of_agents",
+    "selected_off": "mixture_of_agents",
+    "selected_on": "mixture_of_agents",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_console",
+      "terminal",
+      "web_search",
+      "process",
+      "rl_edit_config"
+    ],
+    "reasoning_text_on": "This task requires rigorous mathematical analysis of a recurrence relation using multiple advanced proof techniques (recursion tree, substitution with guess refinement, Akra–Bazzi), including explicit handling of floor operations and base cases. None of the available tools—browser navigation, file I/O, Home Assistant control, image generation, cron, RL training, messaging, or terminal execution—are designed for symbolic mathematical derivation, asymptotic analysis, or formal proof construction. The tools lack theorem-proving capabilities, computer algebra systems (e.g., SymPy, Mathematica), or LaTeX-aware reasoning engines. While `mixture_of_agents` could *potentially* route the problem to frontier LLMs with strong math reasoning, it is not guaranteed to produce formally rigorous, step-by-step derivations with explicit floor-handling and cross-method verification — and critically, it cannot *execute* or *verify* the mathematics (e.g., expand recursion trees, solve integrals from Akra–Bazzi,",
+    "reasoning_tokens_on": 251,
+    "latency_seconds_off": 0.0346,
+    "latency_seconds_on": 0.0372
+  },
+  {
+    "task_id": 27,
+    "task_description": "What temperature is the bedroom thermostat currently reporting?",
+    "correct_tool": "ha_get_state",
+    "selected_off": "ha_list_entities",
+    "selected_on": "ha_list_entities",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_list_services",
+      "web_search",
+      "read_file"
+    ],
+    "reasoning_text_on": "The task is to retrieve the current temperature reading from the bedroom thermostat. This is a Home Assistant device state query, not a web navigation or file operation. The `ha_list_entities` tool could help locate the correct thermostat entity (e.g., by filtering for `area='bedroom'` and `domain='climate'` or `'sensor'`), but the direct intent is to *get the state*, not list entities. `ha_get_state` is purpose-built for this: it accepts an `entity_id` and returns its full state and attributes — including current temperature (often under `current_temperature` or `temperature` attribute). No browser interaction, file reading, or external search is needed since this is a local smart home integration query.",
+    "reasoning_tokens_on": 178,
+    "latency_seconds_off": 0.0325,
+    "latency_seconds_on": 0.0354
+  },
+  {
+    "task_id": 28,
+    "task_description": "Get the complete list of supported HTTP status codes and their meanings from https://developer.mozilla.org/en-US/docs/Web/HTTP/Status — preserve headings and code examples in markdown.",
+    "correct_tool": "web_extract",
+    "selected_off": "web_extract",
+    "selected_on": "web_extract",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_navigate",
+      "browser_get_images",
+      "web_search",
+      "browser_console"
+    ],
+    "reasoning_text_on": "The task requires fetching the complete list of HTTP status codes and their meanings from a specific MDN web page, preserving headings and code examples in markdown. The key requirements are: (1) accurate content extraction from a static documentation page, (2) preservation of structural elements (headings, code blocks), and (3) no need for interaction (e.g., clicking, scrolling, filling forms). `web_extract` is purpose-built for this: it fetches and converts web pages (including MDN) to clean markdown, handles code blocks and headings natively, and is faster/cheaper than browser-based tools. `browser_navigate` + `browser_snapshot(full=true)` could work but is overkill—slower, resource-heavy, and risks truncation or accessibility-tree loss of semantic structure. `web_search` is irrelevant (no discovery needed—the URL is given). So the distinction lies in extraction fidelity vs. interactivity overhead.",
+    "reasoning_tokens_on": 228,
+    "latency_seconds_off": 0.0274,
+    "latency_seconds_on": 0.0408
+  },
+  {
+    "task_id": 29,
+    "task_description": "While viewing the product search page, enter 'wireless noise-cancelling headphones' into the search bar to find matching items.",
+    "correct_tool": "browser_type",
+    "selected_off": "browser_snapshot",
+    "selected_on": "browser_snapshot",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "web_search",
+      "browser_click",
+      "browser_scroll",
+      "browser_snapshot"
+    ],
+    "reasoning_text_on": "The task requires interacting with a product search page: specifically, locating and typing into a search bar. This is a browser interaction task that demands navigating to the page first (browser_navigate), then identifying the search input field (requiring a snapshot to get its ref ID), and finally typing text into it (browser_type). browser_navigate is mandatory before any other browser interaction. browser_snapshot is needed to discover the search field’s ref ID, and browser_type is the only tool that performs the actual text entry. Other tools like web_search or web_extract are inappropriate—they retrieve information without interaction. browser_click or browser_press might follow but aren’t sufficient alone for typing.",
+    "reasoning_tokens_on": 183,
+    "latency_seconds_off": 0.0781,
+    "latency_seconds_on": 0.0358
+  },
+  {
+    "task_id": 30,
+    "task_description": "List all RL environments along with their file paths and descriptions.",
+    "correct_tool": "rl_list_environments",
+    "selected_off": "rl_list_environments",
+    "selected_on": "rl_list_environments",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_list_runs",
+      "read_file",
+      "ha_list_entities"
+    ],
+    "reasoning_text_on": "The task is to list all RL environments with their file paths and descriptions. The `rl_list_environments` tool is explicitly designed for this purpose — it directly returns environment names, paths, and descriptions in one call. Other tools like `search_files`, `read_file`, or browser-based tools are unnecessary because they would require guessing file locations, navigating codebases manually, or scraping documentation — all of which are indirect, error-prone, and unsupported by the task’s scope. No interaction, filtering, or external context is needed; the tool is purpose-built and self-contained for this exact query.",
+    "reasoning_tokens_on": 156,
+    "latency_seconds_off": 0.0288,
+    "latency_seconds_on": 0.0373
+  },
+  {
+    "task_id": 31,
+    "task_description": "Send me a summary of today's weather forecast every weekday morning at 8 AM.",
+    "correct_tool": "cronjob",
+    "selected_off": "cronjob",
+    "selected_on": "cronjob",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "terminal",
+      "web_search",
+      "send_message",
+      "todo"
+    ],
+    "reasoning_text_on": "The task requires scheduling a recurring action—sending a weather summary every weekday at 8 AM. This is inherently a time-based automation, not a one-off data retrieval or interaction task. While browser tools could fetch weather data, they lack scheduling capability. `web_search` or `web_extract` retrieve data but don’t support recurrence or delivery. `cronjob` is explicitly designed for this: it accepts natural-language or cron-style schedules (e.g., “every weekday at 8 AM”), executes self-contained prompts autonomously, and supports delivery to the user’s origin channel. No other tool offers built-in, reliable, persistent scheduling with delivery.",
+    "reasoning_tokens_on": 164,
+    "latency_seconds_off": 0.0315,
+    "latency_seconds_on": 0.0398
+  },
+  {
+    "task_id": 32,
+    "task_description": "Send the message 'See you at lunch!' to Telegram.",
+    "correct_tool": "send_message",
+    "selected_off": "send_message",
+    "selected_on": "send_message",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "text_to_speech",
+      "terminal",
+      "browser_type"
+    ],
+    "reasoning_text_on": "The task is to send a message to Telegram, which is a direct messaging action. Among the available tools, `send_message` is explicitly designed for this purpose — it supports sending messages to connected platforms including Telegram, with optional targeting of specific channels or topics. Other tools like `browser_*` are for web interaction and would require navigating to Telegram’s web interface, logging in, and manually simulating message composition — unnecessarily complex and fragile. Tools like `cronjob`, `delegate_task`, or `terminal` are unrelated to immediate message delivery. `send_message` is purpose-built, reliable, and requires minimal parameters (`target` and `message`) — making it the natural fit.",
+    "reasoning_tokens_on": 180,
+    "latency_seconds_off": 0.0337,
+    "latency_seconds_on": 0.0375
+  },
+  {
+    "task_id": 33,
+    "task_description": "Retrieve the final evaluation reward, training duration, and path to the saved model weights for the most recent successfully completed PPO training run on the CartPole-v1 environment — I need these to compare against our baseline and prepare the model for deployment testing.",
+    "correct_tool": "rl_get_results",
+    "selected_off": "rl_list_runs",
+    "selected_on": "rl_list_runs",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_check_status",
+      "rl_list_runs",
+      "rl_test_inference",
+      "rl_select_environment"
+    ],
+    "reasoning_text_on": "The task requires retrieving final evaluation reward, training duration, and model weights path for the most recent successful PPO run on CartPole-v1. This is internal training metadata — not web-accessible — so browser tools are irrelevant. The RL-specific tools are designed exactly for this: `rl_list_runs` will surface all runs (including status and timestamps), enabling identification of the most recent *completed* PPO run on CartPole-v1; then `rl_get_results` fetches the precise metrics and weights path. Other tools like `rl_check_status` only work for active runs, and `rl_get_current_config` shows settings, not results. No file search or terminal commands are needed since the RL toolset exposes this data directly and authoritatively.",
+    "reasoning_tokens_on": 187,
+    "latency_seconds_off": 0.0293,
+    "latency_seconds_on": 0.0401
+  },
+  {
+    "task_id": 34,
+    "task_description": "I just tried to log in, but now I'm seeing a CAPTCHA with distorted letters and numbers overlaid on a background image. I can't tell what it says — please read and interpret the CAPTCHA text from the current page so I can submit it.",
+    "correct_tool": "browser_vision",
+    "selected_off": "browser_vision",
+    "selected_on": "browser_vision",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_snapshot",
+      "vision_analyze",
+      "browser_console"
+    ],
+    "reasoning_text_on": "The task requires interpreting a visual CAPTCHA — distorted text overlaid on an image — which is inherently a visual recognition problem. Text-based browser snapshots (`browser_snapshot`) won’t capture the rendering details needed to read the CAPTCHA. While `browser_get_images` could list CAPTCHA image URLs, it doesn’t interpret them. The `browser_vision` tool is specifically designed for this: it takes a screenshot and uses vision AI to analyze visual content, including reading CAPTCHAs. It supports annotation (useful if follow-up interaction is needed) and returns both analysis and a screenshot — critical for user verification. No other tool provides visual OCR or scene understanding.",
+    "reasoning_tokens_on": 173,
+    "latency_seconds_off": 0.0341,
+    "latency_seconds_on": 0.0436
+  },
+  {
+    "task_id": 35,
+    "task_description": "I need to set up a classic control problem where the goal is to drive a car up a hill. Load the appropriate environment.",
+    "correct_tool": "rl_select_environment",
+    "selected_off": "rl_list_environments",
+    "selected_on": "rl_list_environments",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_edit_config",
+      "rl_list_environments",
+      "rl_test_inference"
+    ],
+    "reasoning_text_on": "The task is to load a classic control problem environment — specifically, the \"car on a hill\" (often called \"MountainCar\") RL environment. Among the available tools, `rl_list_environments` will first reveal all available environments and their names/descriptions; then `rl_select_environment` can be used to load the appropriate one by name. These two tools are purpose-built for RL environment discovery and initialization, unlike generic browser or file tools which lack domain-specific semantics for environment loading.",
+    "reasoning_tokens_on": 130,
+    "latency_seconds_off": 0.0288,
+    "latency_seconds_on": 0.0448
+  },
+  {
+    "task_id": 36,
+    "task_description": "After submitting a login form, the page updated to show a dashboard with new navigation tabs and a 'Settings' button. Retrieve a compact snapshot showing only interactive elements and their @e* reference IDs so I can click the Settings button next.",
+    "correct_tool": "browser_snapshot",
+    "selected_off": "browser_snapshot",
+    "selected_on": "browser_snapshot",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_back",
+      "browser_scroll",
+      "ha_get_state"
+    ],
+    "reasoning_text_on": "The task is to retrieve a compact snapshot of the current dashboard page showing only interactive elements and their @e* reference IDs, specifically to locate the 'Settings' button. Since the login has already been submitted and the dashboard is loaded, browser_navigate is unnecessary (it’s for initial page loads). browser_snapshot with full=false (default) is ideal—it returns exactly the compact interactive-element snapshot with ref IDs. Other tools like browser_click or browser_type are premature (we haven’t identified the Settings button yet), and browser_vision or browser_console add unnecessary overhead or visual/JS-specific detail not requested.",
+    "reasoning_tokens_on": 164,
+    "latency_seconds_off": 0.0262,
+    "latency_seconds_on": 0.0354
+  },
+  {
+    "task_id": 37,
+    "task_description": "My team's shared calendar says 'Meeting ends at 3:00 PM unless extended by mutual agreement.' I just got a message saying 'We'll wrap up around 3:15.' Is this allowed? Please assess whether this violates the stated ending time rule.",
+    "correct_tool": "mixture_of_agents",
+    "selected_off": "None",
+    "selected_on": "None",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_navigate",
+      "web_search",
+      "session_search",
+      "clarify"
+    ],
+    "reasoning_text_on": "This task involves interpreting a contractual or policy rule (\"Meeting ends at 3:00 PM unless extended by mutual agreement\") and assessing whether a proposed extension (\"wrap up around 3:15\") complies with it. It is a textual interpretation and logical evaluation — not a web navigation, file reading, system interaction, or external data retrieval problem. None of the available tools perform semantic analysis of natural language rules or assess compliance of statements against them. The reasoning must be done internally: the phrase “unless extended by mutual agreement” explicitly permits extensions *if agreed*, and “around 3:15” implies a short, likely consensual extension — so no tool invocation is needed or appropriate.",
+    "reasoning_tokens_on": 182,
+    "latency_seconds_off": 0.0256,
+    "latency_seconds_on": 0.0414
+  },
+  {
+    "task_id": 38,
+    "task_description": "In 'src/utils/logger.js', replace all calls to 'console.warn(\"Deprecated\")' with 'console.warn(\"Deprecated\", { version: \"2.1\" })'. There are multiple occurrences, each with slightly different spacing (e.g., 'console.warn( \"Deprecated\" )' or 'console.warn(\"Deprecated\")'), and the change must preserve surrounding code structure and pass JS syntax validation.",
+    "correct_tool": "patch",
+    "selected_off": "patch",
+    "selected_on": "patch",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "write_file",
+      "search_files",
+      "browser_type"
+    ],
+    "reasoning_text_on": "The task requires editing a JavaScript file to replace multiple occurrences of a string pattern with a modified version, preserving surrounding whitespace and syntax. This is a precise, targeted code edit across potentially variable whitespace forms. The `patch` tool is purpose-built for such fuzzy find-and-replace edits in source files — it handles minor formatting variations (e.g., spaces around parentheses or quotes) and validates JS syntax after the change. `write_file` would require reading the full file first and manually reconstructing it, risking structural errors; `terminal` with `sed` lacks fuzzy matching and syntax validation. No browser or external tools are relevant here — this is a local file edit.",
+    "reasoning_tokens_on": 180,
+    "latency_seconds_off": 0.0415,
+    "latency_seconds_on": 0.0374
+  },
+  {
+    "task_id": 39,
+    "task_description": "The RL training run 'ppo_cartpole_v4' was started 32 minutes ago. Before checking its current metrics, verify that at least 30 minutes have passed since its last status check (per rate-limit policy), then fetch real-time step, state, reward_mean, loss, and percent_correct to determine if training is still improving: specifically, check whether reward_mean increased by >0.5 in the last 100 steps *and* loss decreased by >0.02 — if both conditions hold, conclude 'converging'; otherwise, if reward_mean is stagnant (<0.1 change) and loss is rising, flag 'possible divergence'.",
+    "correct_tool": "rl_check_status",
+    "selected_off": "rl_check_status",
+    "selected_on": "rl_check_status",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_get_results",
+      "rl_list_runs",
+      "rl_get_current_config"
+    ],
+    "reasoning_text_on": "The task requires verifying a rate-limit policy (30-minute minimum between status checks) and then fetching real-time metrics for the 'ppo_cartpole_v4' RL training run to assess convergence or divergence. The only tool that both enforces the rate-limit check *and* retrieves the required metrics (step, state, reward_mean, loss, percent_correct) is `rl_check_status`. Other tools like `rl_list_runs` only list runs without metrics; `rl_get_results` only works for *completed* runs; browser tools are irrelevant since this is an internal RL system call, not a web UI. `rl_check_status` is purpose-built for this exact use case: it validates the elapsed time since last check and returns the precise metrics needed for the convergence logic.",
+    "reasoning_tokens_on": 184,
+    "latency_seconds_off": 0.0291,
+    "latency_seconds_on": 0.043
+  },
+  {
+    "task_id": 40,
+    "task_description": "I started a large file download in the background earlier. I want to quickly check if it's still running and see any new output it has printed since I last checked.",
+    "correct_tool": "process",
+    "selected_off": "process",
+    "selected_on": "process",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "terminal",
+      "read_file",
+      "browser_console"
+    ],
+    "reasoning_text_on": "The task is to check the status and recent output of a background file download process. This requires interacting with the terminal's process management system, not web browsing, file operations, or other domains. The `process` tool is specifically designed for this: it can `poll` a background process to retrieve its current status and any new output since the last check. Other tools like `terminal` could run commands manually (e.g., `ps`, `tail`), but `process(poll)` is purpose-built, safer, and more precise — it uses the original session ID to fetch exactly what’s needed without guesswork or parsing. No other tool offers this direct, state-aware process introspection.",
+    "reasoning_tokens_on": 169,
+    "latency_seconds_off": 0.0335,
+    "latency_seconds_on": 0.041
+  },
+  {
+    "task_id": 41,
+    "task_description": "What skills are available in the system?",
+    "correct_tool": "skills_list",
+    "selected_off": "skills_list",
+    "selected_on": "skills_list",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "skill_view",
+      "skill_manage",
+      "session_search"
+    ],
+    "reasoning_text_on": "The task asks for a list of available skills in the system — a straightforward inventory query. The most direct tool is `skills_list`, which explicitly lists all skills with names and descriptions. While `skill_view` can retrieve full skill content, it requires a specific skill name and is not designed for enumeration. `skill_manage` is for CRUD operations, not listing. Other tools like `session_search`, `memory`, or `terminal` are irrelevant here — they don’t expose the skill registry. No browser, RL, Home Assistant, or vision tools apply. So the distinction lies in intent: `skills_list` is read-only enumeration; all others are for interaction, execution, or retrieval of specific items.",
+    "reasoning_tokens_on": 174,
+    "latency_seconds_off": 0.0281,
+    "latency_seconds_on": 0.0451
+  },
+  {
+    "task_id": 42,
+    "task_description": "After generating a summary of a long technical article using `vision_analyze` on a PDF screenshot, you want to know whether the user prefers the summary to be more concise (1–2 sentences), more detailed (5+ sentences with key citations), or reformatted as bullet points — and why. Ask for their preference and reasoning.",
+    "correct_tool": "clarify",
+    "selected_off": "clarify",
+    "selected_on": "clarify",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "vision_analyze",
+      "text_to_speech",
+      "write_file",
+      "session_search"
+    ],
+    "reasoning_text_on": "The task is to ask the user for their preference and reasoning regarding how they’d like a technical article summary reformatted — specifically choosing among concise, detailed, or bullet-point formats. This requires direct user input with open-ended clarification, not navigation, file I/O, vision, or automation. The `clarify` tool is purpose-built for exactly this: soliciting user feedback, preferences, or decisions when ambiguity remains and the user must weigh trade-offs. None of the browser, file, vision, or system tools support interactive questioning — only `clarify` enables this dialogue.",
+    "reasoning_tokens_on": 150,
+    "latency_seconds_off": 0.0273,
+    "latency_seconds_on": 0.0365
+  },
+  {
+    "task_id": 43,
+    "task_description": "I just navigated to https://example-ecommerce.com/product/12345 using browser_navigate. Now I need a complete list of all product images on this page—including their URLs and alt text—to check for missing or vague alt descriptions before publishing.",
+    "correct_tool": "browser_get_images",
+    "selected_off": "browser_get_images",
+    "selected_on": "browser_get_images",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_snapshot",
+      "browser_vision",
+      "web_extract",
+      "vision_analyze"
+    ],
+    "reasoning_text_on": "The task requires extracting all product images—including their URLs and alt text—from the current page. The `browser_get_images` tool is purpose-built for this: it directly returns a list of images with their src URLs and alt attributes, no parsing or scripting needed. Other tools like `browser_snapshot` (even with `full=true`) would return raw HTML or accessibility tree data requiring manual extraction, while `browser_console` with a custom JS expression could work but adds unnecessary complexity and fragility. `browser_vision` is overkill—it’s for visual analysis, not structured data retrieval. Since `browser_navigate` has already been called, `browser_get_images` is ready to use and delivers exactly the structured output needed.",
+    "reasoning_tokens_on": 185,
+    "latency_seconds_off": 0.028,
+    "latency_seconds_on": 0.0397
+  },
+  {
+    "task_id": 44,
+    "task_description": "Access your personal Gmail inbox to read unread messages. You are not yet logged in — the URL redirects to a Google sign-in page requiring email entry and password submission.",
+    "correct_tool": "browser_navigate",
+    "selected_off": "browser_navigate",
+    "selected_on": "browser_navigate",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": false,
+    "confuser_tools": [
+      "web_extract"
+    ],
+    "reasoning_text_on": "The task requires accessing a personal Gmail inbox, but the user is not yet logged in—Google redirects to a sign-in page. This means we must interact with a web form: navigating to Gmail, then entering credentials and submitting. The `browser_navigate` tool is essential first to load the Gmail URL (e.g., `https://mail.google.com`). After navigation, `browser_snapshot` will reveal interactive elements (email/password fields, submit button), enabling subsequent `browser_type` and `browser_click` actions. Other tools like `web_search` or `web_extract` are insufficient—they can’t handle authentication flows or dynamic form submission. `browser_vision` could help if CAPTCHA or visual challenges appear, but it’s secondary; core interaction depends on sequential browser navigation and form-filling primitives.",
+    "reasoning_tokens_on": 203,
+    "latency_seconds_off": 0.0255,
+    "latency_seconds_on": 0.0405
+  },
+  {
+    "task_id": 45,
+    "task_description": "Retrieve and summarize the 'Privacy Policy' section from https://www.example-ecommerce-site.com/privacy, especially focusing on data sharing practices with third parties. Return as concise markdown (~4000 chars max).",
+    "correct_tool": "web_extract",
+    "selected_off": "web_extract",
+    "selected_on": "web_extract",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_scroll",
+      "browser_snapshot",
+      "browser_type",
+      "search_files"
+    ],
+    "reasoning_text_on": "The task requires retrieving and summarizing the 'Privacy Policy' section from a specific URL, with emphasis on third-party data sharing practices. The most direct tool is `web_extract`, which fetches and converts web content (including static policy pages) into clean markdown — fast, lightweight, and purpose-built for this exact use case. While `browser_navigate` + `browser_snapshot(full=true)` could also retrieve the full page, it’s heavier, slower, and unnecessary here since no interaction (clicking, scrolling, form-filling) is needed — the target page is static and publicly accessible. `web_search` is unsuitable because we already have the precise URL. Thus, `web_extract` stands out for its efficiency, reliability, and output format alignment with the request.",
+    "reasoning_tokens_on": 193,
+    "latency_seconds_off": 0.0271,
+    "latency_seconds_on": 0.0377
+  },
+  {
+    "task_id": 46,
+    "task_description": "You navigated to a single-page application dashboard that intermittently fails to load user metrics due to a race condition in its React hydration logic. The UI appears complete, but the metrics chart remains blank. Diagnose the root cause by inspecting the runtime state: evaluate a JavaScript expression that accesses the current value of the 'metricsData' React state variable inside the active <MetricsChart> component instance (assuming it's the first mounted one), and also retrieve any uncaught errors or warnings logged during the last 5 seconds related to 'dataFetch' or 'hydration'.",
+    "correct_tool": "browser_console",
+    "selected_off": "browser_console",
+    "selected_on": "browser_console",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_snapshot",
+      "browser_vision",
+      "web_extract",
+      "browser_get_images"
+    ],
+    "reasoning_text_on": "The task requires diagnosing a React hydration race condition by evaluating JavaScript state (`metricsData` in the first `<MetricsChart>` instance) and retrieving recent console errors/warnings related to 'dataFetch' or 'hydration'. The `browser_console` tool is uniquely suited for this: it can both fetch recent console logs (with filtering implied via post-hoc scanning of messages) and—critically—evaluate arbitrary JavaScript expressions in the page context, enabling direct access to React component state via DevTools-style inspection (e.g., using `window.__REACT_DEVTOOLS_GLOBAL_HOOK__` or framework-agnostic DOM/state probing). Other browser tools lack expression evaluation or console log access; `browser_snapshot`, `browser_click`, etc. are irrelevant here. No navigation or interaction is needed—the page is already loaded per the task description.",
+    "reasoning_tokens_on": 215,
+    "latency_seconds_off": 0.0318,
+    "latency_seconds_on": 0.0356
+  },
+  {
+    "task_id": 47,
+    "task_description": "Load the Stripe Dashboard login page to access my account and review recent payments.",
+    "correct_tool": "browser_navigate",
+    "selected_off": "browser_navigate",
+    "selected_on": "browser_navigate",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "web_extract",
+      "browser_vision",
+      "browser_type",
+      "session_search"
+    ],
+    "reasoning_text_on": "The task requires loading the Stripe Dashboard login page to access an account and review recent payments. This is a browser-based interaction that involves navigating to a specific URL — no search, extraction, or file operations are needed. The `browser_navigate` tool is the only one that initializes the browser session and loads the target page; all other browser tools (e.g., `browser_click`, `browser_type`) depend on it being called first. While `web_search` or `web_extract` could retrieve public info about Stripe, they cannot load or interact with the authenticated dashboard. So the core action must begin with navigation — and `browser_navigate` is uniquely suited for that initial step.",
+    "reasoning_tokens_on": 174,
+    "latency_seconds_off": 0.0317,
+    "latency_seconds_on": 0.0424
+  },
+  {
+    "task_id": 48,
+    "task_description": "The RL training job 'ppo_cartpole_v4_20240522' has been running for 18 hours; its average episode reward plateaued at 82 (well below the target 195) for the last 3,200 episodes, and the policy loss began diverging sharply 45 minutes ago. You've confirmed via `rl_check_status` that it's still active and `rl_get_current_config` shows no learning rate decay scheduled. Stop this run immediately to prevent wasted compute and prepare for hyperparameter tuning.",
+    "correct_tool": "rl_stop_training",
+    "selected_off": "rl_stop_training",
+    "selected_on": "rl_stop_training",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_check_status",
+      "rl_get_current_config",
+      "rl_start_training",
+      "rl_list_runs"
+    ],
+    "reasoning_text_on": "The task requires stopping a running RL training job that has degraded performance. The available RL-specific tools include `rl_stop_training`, which directly halts an active run by `run_id`, and `rl_check_status`/`rl_get_current_config`, which are for inspection—not action. No other tool (e.g., terminal, cronjob, browser) is designed to interface with the RL training system’s lifecycle control. `rl_stop_training` is uniquely intended for this exact scenario: immediate termination of a misbehaving run, given its `run_id`. Other tools lack the domain-specific integration or safety guards (e.g., no confirmation prompt needed—`rl_stop_training` handles that internally).",
+    "reasoning_tokens_on": 168,
+    "latency_seconds_off": 0.027,
+    "latency_seconds_on": 0.0439
+  },
+  {
+    "task_id": 49,
+    "task_description": "Our MLOps pipeline requires that any RL model achieving >195 average reward on 'CartPole-v1' must automatically trigger model registration. I know the latest training run ('cartpole_prod_20240511') finished, but I haven’t verified its final score yet. Fetch the full results to check if 'final_return_mean' meets the threshold and return the weights path if it does.",
+    "correct_tool": "rl_get_results",
+    "selected_off": "rl_get_results",
+    "selected_on": "rl_get_results",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_get_state",
+      "process",
+      "browser_snapshot",
+      "rl_start_training"
+    ],
+    "reasoning_text_on": "The task requires fetching final results for a specific RL training run ('cartpole_prod_20240511') to check if `final_return_mean` exceeds 195 and, if so, return the weights path. This is a precise lookup of completed run metrics and artifacts — not web navigation, file system exploration, or environment configuration. The `rl_get_results` tool is purpose-built for this: it takes a `run_id` and returns exactly the final metrics (including `final_return_mean`) and the trained weights path. Other RL tools like `rl_check_status` are for *active* runs, `rl_list_runs` only lists metadata without metrics, and `rl_get_current_config` deals with config — none retrieve finalized evaluation scores or weights paths. No browser or filesystem tools are needed since this is an internal MLOps API call.",
+    "reasoning_tokens_on": 199,
+    "latency_seconds_off": 0.0267,
+    "latency_seconds_on": 0.0379
+  },
+  {
+    "task_id": 50,
+    "task_description": "The user just corrected you: 'I'm not a frontend developer—I'm a DevOps engineer who manages Kubernetes clusters. Please stop suggesting React best practices.' Save this role correction and preference to avoid future misalignment.",
+    "correct_tool": "memory",
+    "selected_off": "memory",
+    "selected_on": "memory",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "session_search",
+      "skill_manage",
+      "todo"
+    ],
+    "reasoning_text_on": "The task is to save a user correction about their role (DevOps engineer, not frontend developer) and preference to avoid future misalignment. This is a memory update — specifically, updating the 'user' memory store with a durable fact about identity and communication preferences. The `memory` tool is explicitly designed for this: it persists user-provided corrections, roles, and preferences across sessions, and supports targeted actions like `add` or `replace` in the 'user' target. No other tool handles persistent, structured user profile updates; browser tools are for web interaction, terminal/file tools for system operations, and clarify is for asking questions — none store long-term user facts.",
+    "reasoning_tokens_on": 176,
+    "latency_seconds_off": 0.0253,
+    "latency_seconds_on": 0.04
+  },
+  {
+    "task_id": 51,
+    "task_description": "Debug why the unit test 'test_api_timeout' fails — it raises 'TimeoutError' after 500ms, but the service config claims timeout=2000ms. Analyze both the test code and the config file to locate the mismatch.",
+    "correct_tool": "delegate_task",
+    "selected_off": "search_files",
+    "selected_on": "search_files",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "read_file",
+      "patch",
+      "process"
+    ],
+    "reasoning_text_on": "The task requires analyzing source code — specifically the unit test `test_api_timeout` and a service config file — to locate a timeout mismatch. This is a code inspection task, not web interaction or system control. The relevant tools are `read_file` (to retrieve the test and config files) and `search_files` (to locate them if paths are unknown). Since the filenames are partially specified (`test_api_timeout`, config related to timeout), `search_files` with `target='files'` or `target='content'` can first identify candidate files; then `read_file` can inspect their contents line-by-line for precise values (e.g., `timeout=500` vs `timeout=2000`). Browser tools are irrelevant — no UI or dynamic content involved. Terminal-based grep is discouraged per guidelines; `search_files` is the semantic, optimized equivalent.",
+    "reasoning_tokens_on": 206,
+    "latency_seconds_off": 0.0273,
+    "latency_seconds_on": 0.0353
+  },
+  {
+    "task_id": 52,
+    "task_description": "Compare the authentication mechanisms described in the Stripe API docs vs. the PayPal REST API docs — specifically whether either supports OAuth 2.0 device authorization grant (RFC 8628). Summarize findings concisely with direct quotes or section references.",
+    "correct_tool": "delegate_task",
+    "selected_off": "web_search",
+    "selected_on": "web_search",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "web_search",
+      "browser_navigate",
+      "browser_snapshot"
+    ],
+    "reasoning_text_on": "The task requires comparing Stripe and PayPal API documentation to determine OAuth 2.0 device authorization grant (RFC 8628) support — a precise, technical check requiring direct access to official docs. Neither web_search nor web_extract alone suffices: search may return outdated or third-party summaries; extract needs exact URLs but we lack them. The browser_navigate tool is optimal because it allows loading the *official* Stripe and PayPal authentication docs interactively, enabling subsequent inspection (e.g., browser_snapshot + browser_console or browser_vision) to locate and verify RFC 8628 mentions, section headings, or auth flow diagrams. Browser tools are necessary here since these docs often use dynamic rendering, client-side search, or collapsible sections — features web_extract cannot reliably capture.",
+    "reasoning_tokens_on": 206,
+    "latency_seconds_off": 0.0256,
+    "latency_seconds_on": 0.0349
+  },
+  {
+    "task_id": 53,
+    "task_description": "I need to limit how many episodes the agent runs during evaluation to 50 instead of the default 100.",
+    "correct_tool": "rl_edit_config",
+    "selected_off": "rl_edit_config",
+    "selected_on": "rl_edit_config",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_get_current_config",
+      "rl_test_inference",
+      "terminal",
+      "ha_call_service"
+    ],
+    "reasoning_text_on": "The task is to limit evaluation episodes to 50 instead of the default 100 — a configuration change in an RL training context. The available tools include several RL-specific ones: `rl_list_environments`, `rl_select_environment`, `rl_get_current_config`, and crucially `rl_edit_config`, which allows updating modifiable config fields. Since episode count during evaluation is governed by `steps_per_eval` (or possibly `total_steps`, but `steps_per_eval` is the direct knob for per-evaluation run length), and `rl_get_current_config` confirms which fields are editable, `rl_edit_config` is the precise tool for this update. Other tools like `rl_start_training` or `rl_test_inference` are for execution, not configuration; browser or file tools are irrelevant here as this is an internal RL config setting, not a UI or file edit.",
+    "reasoning_tokens_on": 206,
+    "latency_seconds_off": 0.0251,
+    "latency_seconds_on": 0.0533
+  },
+  {
+    "task_id": 54,
+    "task_description": "I just set up Home Assistant and want to see what actions I can perform on my smart lights — like turning them on/off or changing brightness. What services are available for lights?",
+    "correct_tool": "ha_list_services",
+    "selected_off": "ha_list_services",
+    "selected_on": "ha_list_services",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_list_entities",
+      "ha_get_state",
+      "web_search",
+      "terminal"
+    ],
+    "reasoning_text_on": "The task is to discover what services (actions) are available for controlling smart lights in Home Assistant — specifically, actions like turning on/off or adjusting brightness. The most direct tool for this is `ha_list_services`, which is explicitly designed to list available services per domain (e.g., `light`) and shows their parameters. While `ha_list_entities` could help identify which light entities exist, it doesn’t reveal the *actions* available on them. `ha_get_state` gives current state/attributes but not service capabilities. Browser-based tools are unnecessary since this is a native Home Assistant API query, not a web UI interaction. No clarification or external search is needed — the answer lives in HA’s service registry.",
+    "reasoning_tokens_on": 185,
+    "latency_seconds_off": 0.033,
+    "latency_seconds_on": 0.0443
+  },
+  {
+    "task_id": 55,
+    "task_description": "What are the current settings for my reinforcement learning training environment?",
+    "correct_tool": "rl_get_current_config",
+    "selected_off": "rl_get_current_config",
+    "selected_on": "rl_get_current_config",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_edit_config",
+      "rl_start_training",
+      "rl_list_environments",
+      "rl_check_status"
+    ],
+    "reasoning_text_on": "The task asks for the current settings of the reinforcement learning training environment. The available RL-specific tools include `rl_list_environments`, `rl_select_environment`, `rl_get_current_config`, `rl_edit_config`, etc. Among these, `rl_get_current_config` directly retrieves the current environment’s modifiable configuration fields (e.g., `group_size`, `max_token_length`, `use_wandb`, etc.) — exactly what “current settings” refers to. Other tools serve complementary purposes: `rl_list_environments` lists options but doesn’t show settings; `rl_select_environment` loads a config but doesn’t report it; `rl_edit_config` modifies but doesn’t read. No browser or file tools are needed — this is a domain-specific query with a dedicated, state-aware tool.",
+    "reasoning_tokens_on": 191,
+    "latency_seconds_off": 0.029,
+    "latency_seconds_on": 0.0434
+  },
+  {
+    "task_id": 56,
+    "task_description": "Retrieve the detailed product specifications (e.g., RAM, storage, weight) for the latest MacBook Air from Apple’s official store page. The page loads a generic overview first; full specs are revealed only after clicking the 'Tech Specs' tab.",
+    "correct_tool": "browser_navigate",
+    "selected_off": "browser_navigate",
+    "selected_on": "browser_navigate",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": false,
+    "confuser_tools": [
+      "web_extract"
+    ],
+    "reasoning_text_on": "The task requires interacting with Apple’s store page: first loading it, then clicking the 'Tech Specs' tab to reveal detailed specs. Since the specs are hidden behind an interactive tab (not present in initial HTML), static tools like `web_search` or `web_extract` won’t suffice — they can’t trigger JavaScript-driven UI changes. `browser_navigate` is mandatory to load the page and initialize the browser session. After navigation, we’ll need `browser_snapshot` to locate the 'Tech Specs' tab element, then `browser_click` to activate it. No typing, scrolling, or vision analysis is needed initially — just navigation and a targeted click to unmask the required content.",
+    "reasoning_tokens_on": 168,
+    "latency_seconds_off": 0.0281,
+    "latency_seconds_on": 0.0406
+  },
+  {
+    "task_id": 57,
+    "task_description": "I'm building an automation that needs to log actions to a file. Is there a built-in skill for writing logs, or do I need to use write_file directly?",
+    "correct_tool": "skills_list",
+    "selected_off": "write_file",
+    "selected_on": "write_file",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "write_file",
+      "skill_view",
+      "web_search",
+      "skill_manage"
+    ],
+    "reasoning_text_on": "The task is about logging actions to a file, which is a straightforward write operation. Among the available tools, `write_file` is the only one designed for persisting arbitrary text content to a file — it creates or overwrites files with full control over content. No other tool serves this purpose: browser tools are for web interaction, `patch` is for targeted edits (not initial logging), `read_file` is read-only, and no dedicated \"log\" skill or tool is listed. While `write_file` overwrites entirely, that’s acceptable for log files if the automation appends via external logic (e.g., reading first then rewriting), or if logs are written in discrete batches. No higher-level logging abstraction is present in the toolset.",
+    "reasoning_tokens_on": 182,
+    "latency_seconds_off": 0.0347,
+    "latency_seconds_on": 0.0397
+  },
+  {
+    "task_id": 58,
+    "task_description": "I just loaded the blog archive page, and the 'Load More Posts' button isn't visible yet. Scroll down until that button appears so I can click it next.",
+    "correct_tool": "browser_scroll",
+    "selected_off": "browser_scroll",
+    "selected_on": "browser_scroll",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_click",
+      "browser_press",
+      "browser_back"
+    ],
+    "reasoning_text_on": "The task requires scrolling down the page until the \"Load More Posts\" button appears. Since the button isn’t visible yet and we need to reveal it by scrolling, the appropriate tool is `browser_scroll`, which explicitly moves the viewport in a direction (e.g., 'down') to uncover content below the fold. Other tools like `browser_click` or `browser_snapshot` assume the target is already accessible or visible; `browser_vision` or `browser_console` are overkill for this simple scroll-to-reveal action. No navigation, typing, or interaction beyond scrolling is needed.",
+    "reasoning_tokens_on": 141,
+    "latency_seconds_off": 0.0344,
+    "latency_seconds_on": 0.0386
+  },
+  {
+    "task_id": 59,
+    "task_description": "Show all cover entities (e.g., blinds, garage doors) grouped under the 'living room' area to assess current control options.",
+    "correct_tool": "ha_list_entities",
+    "selected_off": "ha_list_entities",
+    "selected_on": "ha_list_entities",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_call_service",
+      "browser_snapshot",
+      "rl_list_environments",
+      "memory"
+    ],
+    "reasoning_text_on": "The task is to list cover entities (e.g., blinds, garage doors) specifically grouped under the 'living room' area. This is a structured query against a Home Assistant instance — not a web navigation or file search problem. The `ha_list_entities` tool directly supports filtering by both domain (`cover`) and area (`living room`), making it purpose-built for this. Other tools like `browser_navigate` or `web_search` would be unnecessary indirection, while `ha_get_state` or `ha_call_service` operate on individual entities, not discovery. `ha_list_services` is about actions, not entity enumeration. So the key distinction is intent: `ha_list_entities` is for *discovering* entities by criteria; others are for *interacting with* or *inspecting* known entities.",
+    "reasoning_tokens_on": 190,
+    "latency_seconds_off": 0.027,
+    "latency_seconds_on": 0.0406
+  },
+  {
+    "task_id": 60,
+    "task_description": "Overwrite the Dockerfile in the root directory with the new multi-stage build definition that uses alpine:3.19 as base, copies dist/, and exposes port 3000.",
+    "correct_tool": "write_file",
+    "selected_off": "write_file",
+    "selected_on": "write_file",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": false,
+    "confuser_tools": [
+      "patch"
+    ],
+    "reasoning_text_on": "The task requires overwriting the Dockerfile in the root directory with a specific multi-stage build definition. This is a precise file-write operation: the content is fully specified (base image `alpine:3.19`, copy `dist/`, expose port `3000`), and the target path is unambiguous (`Dockerfile` at root). Among available tools, `write_file` is uniquely suited — it replaces entire file contents, creates parent directories if needed, and accepts exact content. Other tools like `patch` are for targeted edits (not full replacement), `terminal` would require shell commands unnecessarily, and browser/web tools are irrelevant to local filesystem editing.",
+    "reasoning_tokens_on": 163,
+    "latency_seconds_off": 0.031,
+    "latency_seconds_on": 0.0414
+  },
+  {
+    "task_id": 61,
+    "task_description": "I just navigated to https://example-ecommerce.com/product/123. Now I need a list of all product images on that page, including their URLs and alt text.",
+    "correct_tool": "browser_get_images",
+    "selected_off": "browser_get_images",
+    "selected_on": "browser_get_images",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_snapshot",
+      "vision_analyze"
+    ],
+    "reasoning_text_on": "The task is to extract all product images—including their URLs and alt text—from a page the user has already navigated to. Since navigation has already occurred (as stated in the task), we need a tool that operates *on the current page* to retrieve image metadata. `browser_get_images` is purpose-built for this: it returns exactly the list of images with URLs and alt text, requires only that `browser_navigate` was called first (which it was), and involves no extra steps like snapshotting or parsing. Other tools like `browser_snapshot` (even with `full=true`) would require manual DOM extraction via regex or JS evaluation, and `browser_console` with an expression could work but adds unnecessary complexity and fragility. `browser_vision` is overkill—it’s for visual analysis, not structured metadata retrieval.",
+    "reasoning_tokens_on": 204,
+    "latency_seconds_off": 0.0298,
+    "latency_seconds_on": 0.0423
+  },
+  {
+    "task_id": 62,
+    "task_description": "On the contact form page, fill in the 'Message' textarea with the feedback: 'The checkout process was confusing — please simplify the steps.'",
+    "correct_tool": "browser_type",
+    "selected_off": "clarify",
+    "selected_on": "clarify",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_press",
+      "write_file",
+      "browser_vision",
+      "browser_type"
+    ],
+    "reasoning_text_on": "The task requires interacting with a web form — specifically, filling a textarea labeled 'Message' on a contact page. This is a browser interaction task that necessitates navigating to the page first, identifying the correct input element (likely via its accessibility ref ID), and typing text into it. `browser_navigate` is required to load the page; `browser_snapshot` is needed afterward to locate the textarea’s ref ID; and `browser_type` is the only tool that performs the actual text entry into a form field. Other tools like `browser_click` or `browser_press` are insufficient alone — they don’t type text. `web_search` or `web_extract` are inappropriate here because interaction (not information retrieval) is required. The sequence must begin with navigation, then snapshot, then type — so `browser_type` is the decisive action tool, but it depends on prior steps.",
+    "reasoning_tokens_on": 218,
+    "latency_seconds_off": 0.0308,
+    "latency_seconds_on": 0.039
+  },
+  {
+    "task_id": 63,
+    "task_description": "I'm on the Gmail login page and need to enter my email address in the email input field.",
+    "correct_tool": "browser_type",
+    "selected_off": "browser_navigate",
+    "selected_on": "browser_navigate",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_click",
+      "browser_press",
+      "browser_snapshot"
+    ],
+    "reasoning_text_on": "The task is to enter an email address on the Gmail login page. Since the user is already *on* the Gmail login page, no navigation is needed — so `browser_navigate` is unnecessary. To type into the email field, we first need to identify the correct input element — which requires a page snapshot to get its ref ID (e.g., `@e3`). `browser_snapshot` provides that, and `browser_type` then uses the ref ID to fill the field. Other tools like `browser_click`, `browser_press`, or `browser_vision` are secondary: clicking may be needed *after* typing, pressing Enter could submit, and vision might help if the field isn’t accessible textually — but the core action chain is snapshot → type. So the critical pair is `browser_snapshot` (to locate the field) followed by `browser_type` (to populate it).",
+    "reasoning_tokens_on": 198,
+    "latency_seconds_off": 0.0264,
+    "latency_seconds_on": 0.0362
+  },
+  {
+    "task_id": 64,
+    "task_description": "Fix the hardcoded API token in src/utils/auth.js by replacing 'tok_dev_abc123' with the new token 'tok_prod_xyz789'. Do not modify any other code or formatting.",
+    "correct_tool": "patch",
+    "selected_off": "patch",
+    "selected_on": "patch",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": false,
+    "confuser_tools": [
+      "write_file"
+    ],
+    "reasoning_text_on": "The task is a precise, targeted code edit: replace one hardcoded string with another in a specific file. The `patch` tool is purpose-built for this — it performs fuzzy find-and-replace with context-aware matching, handles indentation/whitespace variations robustly, and avoids overwriting unrelated content. `write_file` would require reading the full file first (extra step) and risks accidental formatting changes or truncation if not handled carefully. Browser-based tools are irrelevant here — no web interaction is needed. `search_files` or `read_file` could locate or inspect the file but don’t perform the edit. So the distinction lies in intent: `patch` is for surgical edits; `write_file` is for full-file replacement — and this task demands surgical precision.",
+    "reasoning_tokens_on": 192,
+    "latency_seconds_off": 0.0335,
+    "latency_seconds_on": 0.0359
+  },
+  {
+    "task_id": 65,
+    "task_description": "Find three recent (within the last 6 months) peer-reviewed studies that examine the impact of blue light exposure from LED screens on adolescent sleep architecture, and list their publication years and journal names.",
+    "correct_tool": "web_search",
+    "selected_off": "web_search",
+    "selected_on": "web_search",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "web_extract",
+      "browser_navigate",
+      "session_search"
+    ],
+    "reasoning_text_on": "The task requires finding recent peer-reviewed studies on blue light and adolescent sleep architecture — a scholarly literature search. Web search is ideal for initial discovery: it’s fast, handles complex academic queries (e.g., “blue light LED screens adolescent sleep architecture site:pubmed.ncbi.nlm.nih.gov”), and returns ranked, descriptive results. Browser tools are overkill here — no form interaction, dynamic content, or pagination navigation is needed upfront. web_extract could retrieve full papers *after* identifying URLs, but first we need precise, credible sources — which web_search provides efficiently with metadata (publication year, journal) in result snippets. No other tool offers this combination of speed, relevance filtering, and bibliographic signal.",
+    "reasoning_tokens_on": 194,
+    "latency_seconds_off": 0.0359,
+    "latency_seconds_on": 0.0442
+  },
+  {
+    "task_id": 66,
+    "task_description": "After navigating to the product comparison page, scroll precisely 1250 pixels downward to reveal the 'Real-World Performance Benchmarks' section — which only appears after scrolling past the initial fold and triggering lazy-loaded charts; do not click or interact with anything else.",
+    "correct_tool": "browser_scroll",
+    "selected_off": "browser_console",
+    "selected_on": "browser_console",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_snapshot",
+      "browser_click",
+      "browser_vision",
+      "browser_type"
+    ],
+    "reasoning_text_on": "The task requires precise vertical scrolling (1250 pixels down) to reveal a lazily loaded section. Among browser tools, `browser_scroll` is the only one designed for controlled scrolling — but it lacks pixel-level precision, accepting only directional commands (e.g., 'down', 'up') without scroll distance. None of the other tools support pixel-accurate scrolling: `browser_click` and `browser_type` require element refs (not yet available), `browser_vision` or `browser_snapshot` are for observation—not action—and `browser_console` could *execute* scroll via JS but isn’t intended for direct DOM manipulation like this. Since the task explicitly forbids clicking/interacting beyond scrolling, and no tool natively supports pixel-specified scroll, the most appropriate action is `browser_console` with a JS expression like `window.scrollBy(0, 1250)` — it’s the only way to achieve deterministic, script-driven pixel",
+    "reasoning_tokens_on": 229,
+    "latency_seconds_off": 0.0274,
+    "latency_seconds_on": 0.0465
+  },
+  {
+    "task_id": 67,
+    "task_description": "I want to start training an agent to balance a pole on a moving cart. Which environment should I use?",
+    "correct_tool": "rl_select_environment",
+    "selected_off": "rl_list_environments",
+    "selected_on": "rl_list_environments",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_get_current_config",
+      "rl_list_environments",
+      "rl_start_training"
+    ],
+    "reasoning_text_on": "The task is to select an RL environment for training a cart-pole balancing agent. The `rl_list_environments` tool provides a catalog of available environments with names and descriptions — essential for identifying which one implements the classic CartPole problem. Other RL tools like `rl_select_environment` or `rl_start_training` require a specific environment name first, so listing is the necessary prerequisite step. No browser, file, or system tools are relevant here — this is a domain-specific RL configuration task, and `rl_list_environments` is the only tool that surfaces the candidate environments with contextual descriptions.",
+    "reasoning_tokens_on": 160,
+    "latency_seconds_off": 0.032,
+    "latency_seconds_on": 0.044
+  },
+  {
+    "task_id": 68,
+    "task_description": "Every 5 minutes between 7:00 AM and 10:00 PM local time, check if the Home Assistant binary sensor 'binary_sensor.garage_door' is 'on'; if it is, send an SMS alert saying 'ALERT: Garage door is open after hours!' and append a timestamped line to '/logs/garage_alerts.txt'. Ensure the job runs only during those hours, handles sensor unavailability gracefully, and never triggers outside the window — all without human intervention or follow-up questions.",
+    "correct_tool": "cronjob",
+    "selected_off": "cronjob",
+    "selected_on": "cronjob",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_call_service",
+      "send_message",
+      "write_file",
+      "ha_get_state"
+    ],
+    "reasoning_text_on": "The task requires scheduling a recurring automated job that checks a Home Assistant binary sensor and triggers SMS + file logging only within a strict time window (7 AM–10 PM). This is fundamentally a *time-triggered automation* with conditional logic, external service calls (SMS, file write), and environmental constraints (local time, sensor availability). The `cronjob` tool is uniquely designed for this: it supports precise scheduling (e.g., `*/5 7-22 * * *`), runs autonomously without user interaction, allows embedding skills or inline logic, and handles delivery targets like `sms`. Other tools — like `ha_get_state`, `send_message`, or `write_file` — perform individual actions but cannot *orchestrate the full time-bound, conditional, recurring workflow* on their own. Browser tools are irrelevant (no web interaction needed), and `delegate_task` or `terminal` lack native cron semantics and time-window enforcement.\n\n[[ ##",
+    "reasoning_tokens_on": 233,
+    "latency_seconds_off": 0.0248,
+    "latency_seconds_on": 0.0443
+  },
+  {
+    "task_id": 69,
+    "task_description": "Go to the Heroku dashboard to check the status of my deployed applications.",
+    "correct_tool": "browser_navigate",
+    "selected_off": "browser_navigate",
+    "selected_on": "browser_navigate",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "web_search",
+      "browser_back",
+      "browser_get_images",
+      "ha_list_entities"
+    ],
+    "reasoning_text_on": "The task requires navigating to the Heroku dashboard to check application status — a goal that involves loading a specific web page and likely interacting with or observing its content. `browser_navigate` is the only tool that initializes a browser session and loads a URL; all other browser tools (e.g., `browser_snapshot`, `browser_click`) require it to be called first. While `web_extract` or `web_search` could retrieve public info, the Heroku dashboard is authenticated and dynamic — requiring full browser interaction, not static scraping. Thus, `browser_navigate` is uniquely positioned as the essential first step; no other tool can substitute for loading the authenticated dashboard.",
+    "reasoning_tokens_on": 173,
+    "latency_seconds_off": 0.0245,
+    "latency_seconds_on": 0.0374
+  },
+  {
+    "task_id": 70,
+    "task_description": "After logging into the dashboard at https://analytics.example.org, I need to programmatically retrieve the current user's session ID, which is stored in a global variable called `currentUserSessionId`. Extract its value using the browser's execution context.",
+    "correct_tool": "browser_console",
+    "selected_off": "browser_navigate",
+    "selected_on": "browser_navigate",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_snapshot",
+      "browser_get_images",
+      "read_file",
+      "memory"
+    ],
+    "reasoning_text_on": "The task requires retrieving a JavaScript global variable (`currentUserSessionId`) from the browser's execution context after logging into a dashboard. This is not about navigating, clicking, or extracting visible page content—it's about evaluating JavaScript in the page context. The `browser_console` tool supports exactly this via its `expression` parameter, which runs arbitrary JS (e.g., `window.currentUserSessionId` or `currentUserSessionId`) and returns the serialized result. Other browser tools like `browser_snapshot`, `browser_click`, or `browser_vision` cannot access JS runtime state; they only interact with DOM or visuals. While `browser_navigate` is needed first to load the page, it alone doesn’t extract variables—`browser_console` with `expression` is the only tool designed for programmatic JS evaluation and data extraction from the page context.",
+    "reasoning_tokens_on": 217,
+    "latency_seconds_off": 0.0301,
+    "latency_seconds_on": 0.0396
+  },
+  {
+    "task_id": 71,
+    "task_description": "During a discussion about scheduling follow-ups, the user says: 'Actually, I’m based in Buenos Aires — UTC−3 — and I only check messages between 9am–5pm local time. I noticed you scheduled the last reminder for 2am my time; please adjust going forward.' You must save this as durable user context so future scheduling respects their timezone and availability window.",
+    "correct_tool": "memory",
+    "selected_off": "memory",
+    "selected_on": "memory",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "session_search",
+      "todo",
+      "skill_manage",
+      "write_file"
+    ],
+    "reasoning_text_on": "The task is to persistently store user-specific context: their timezone (UTC−3), location (Buenos Aires), and availability window (9am–5pm local time) so future scheduling respects these constraints. This is a durable memory update—not a temporary note or session state. The `memory` tool is explicitly designed for this: it saves facts about the user (target='user') that survive across sessions and are injected into future turns. Other tools like `write_file`, `patch`, or `terminal` could technically store data, but they lack semantic association with user identity, don’t auto-inject into prompts, and require manual management. `cronjob` or `delegate_task` are irrelevant—no scheduling or delegation is needed here. Only `memory` directly fulfills the requirement of durable, retrievable, user-contextual storage.",
+    "reasoning_tokens_on": 205,
+    "latency_seconds_off": 0.0316,
+    "latency_seconds_on": 0.0411
+  },
+  {
+    "task_id": 72,
+    "task_description": "Get the markdown-formatted text from the arXiv paper titled 'Attention Is All You Need' using its PDF URL.",
+    "correct_tool": "web_extract",
+    "selected_off": "web_extract",
+    "selected_on": "web_extract",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_vision",
+      "web_search",
+      "read_file"
+    ],
+    "reasoning_text_on": "The task is to extract markdown-formatted text from an arXiv PDF URL. The `web_extract` tool explicitly supports PDF URLs and converts them to markdown — it’s purpose-built for this: fast, lightweight, and handles document-to-markdown conversion natively. Browser tools (`browser_navigate`, `browser_snapshot`, etc.) are overkill here: they require session setup, lack built-in PDF parsing, and would need manual extraction or vision-based workarounds. No other tool (e.g., `read_file`, `terminal`) accepts a remote PDF URL directly. So while browser tools *could* load the PDF in a viewer, they wouldn’t yield clean markdown without extra steps — unlike `web_extract`, which does it end-to-end.",
+    "reasoning_tokens_on": 173,
+    "latency_seconds_off": 0.0253,
+    "latency_seconds_on": 0.0422
+  },
+  {
+    "task_id": 73,
+    "task_description": "In the file 'src/config.py', update the database timeout value from 30 to 45. The setting appears inside a dictionary called 'DATABASE_CONFIG' as 'timeout': 30 — but note that the surrounding indentation and spacing may vary (e.g., some lines use 2 spaces, others 4, and there may be trailing whitespace). Preserve all other formatting and ensure the Python syntax remains valid after the change.",
+    "correct_tool": "patch",
+    "selected_off": "patch",
+    "selected_on": "patch",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "write_file",
+      "search_files",
+      "terminal"
+    ],
+    "reasoning_text_on": "The task requires editing a specific numeric value inside a Python file while preserving all surrounding formatting, indentation, and whitespace. The `patch` tool is purpose-built for such targeted, context-aware edits — it uses fuzzy matching to handle variable indentation and trailing whitespace, and ensures syntax validity. In contrast, `write_file` would overwrite the entire file (risking loss of formatting), and `read_file`/`terminal` are insufficient for safe, precise replacement. No browser or external tools are relevant here since this is a local file edit.",
+    "reasoning_tokens_on": 142,
+    "latency_seconds_off": 0.0293,
+    "latency_seconds_on": 0.0401
+  },
+  {
+    "task_id": 74,
+    "task_description": "I'm writing a short accessibility guide and need to confirm: if a website uses only color (no icons or text) to indicate required form fields, is that compliant with WCAG 2.1? Please synthesize expert consensus on this design pattern.",
+    "correct_tool": "mixture_of_agents",
+    "selected_off": "web_search",
+    "selected_on": "web_search",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "web_search",
+      "read_file",
+      "browser_vision",
+      "vision_analyze"
+    ],
+    "reasoning_text_on": "The task requires synthesizing expert consensus on WCAG 2.1 compliance for using color alone to indicate required form fields — a well-documented accessibility issue. This is a factual, standards-based question with authoritative sources (W3C, WCAG official docs, accessibility guidelines). Web search is optimal: it’s fast, low-cost, and designed precisely for retrieving current, consensus-backed guidance from trusted domains (e.g., w3.org, webaim.org, axe.dev). Browser tools are overkill — no interaction, dynamic content, or visual inspection is needed. Vision or console tools add no value here. The query is unambiguous and doesn’t require user clarification or file analysis.",
+    "reasoning_tokens_on": 171,
+    "latency_seconds_off": 0.0302,
+    "latency_seconds_on": 0.0358
+  },
+  {
+    "task_id": 75,
+    "task_description": "I want to make the agent more future-oriented during training by increasing the discount factor gamma from 0.99 to 0.995 in the current environment.",
+    "correct_tool": "rl_edit_config",
+    "selected_off": "rl_list_environments",
+    "selected_on": "rl_list_environments",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_get_current_config",
+      "rl_start_training",
+      "patch",
+      "write_file"
+    ],
+    "reasoning_text_on": "The task is to increase the discount factor gamma from 0.99 to 0.995 in the current RL environment’s configuration. This is a precise, code-level config update—not a web interaction, file search, or system command. The RL toolset provides direct support: `rl_select_environment` first loads an environment, `rl_get_current_config` reveals editable fields, and `rl_edit_config` allows updating a specific field like `gamma`. However, `gamma` is not listed in the documented configurable fields (e.g., `group_size`, `max_token_length`, etc.)—so it may be either locked, absent from the default config view, or stored elsewhere (e.g., in source files). Since `rl_edit_config` only exposes *runtime-modifiable* fields and `gamma` isn’t among them, the change likely requires editing the environment’s underlying configuration file or source. Thus, tools like `search_files` (to",
+    "reasoning_tokens_on": 218,
+    "latency_seconds_off": 0.0267,
+    "latency_seconds_on": 0.0445
+  },
+  {
+    "task_id": 76,
+    "task_description": "I just finished training my PPO agent on CartPole-v1. Can you show me the final reward and where the trained model weights are saved?",
+    "correct_tool": "rl_get_results",
+    "selected_off": "rl_list_runs",
+    "selected_on": "rl_list_runs",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "rl_list_runs",
+      "rl_check_status",
+      "rl_get_current_config"
+    ],
+    "reasoning_text_on": "The task asks for two specific pieces of information: (1) the final reward achieved by a PPO agent trained on CartPole-v1, and (2) the filesystem location where the trained model weights were saved. These are post-training metrics and artifacts — not web content, not environment configuration, and not interactive UI elements. The `rl_get_results` tool is explicitly designed to return *final metrics* (including reward) and the *path to trained weights* for a completed run. Other RL tools like `rl_check_status` give intermediate metrics, `rl_list_runs` only lists runs without details, and `rl_get_current_config` shows settings—not results. No browser or file-system navigation tools are needed because `rl_get_results` directly provides both requested values in one call.",
+    "reasoning_tokens_on": 194,
+    "latency_seconds_off": 0.028,
+    "latency_seconds_on": 0.0418
+  },
+  {
+    "task_id": 77,
+    "task_description": "Display 'docker-compose.yml' with line numbers so I can reference them in a PR comment.",
+    "correct_tool": "read_file",
+    "selected_off": "read_file",
+    "selected_on": "read_file",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": false,
+    "confuser_tools": [
+      "terminal"
+    ],
+    "reasoning_text_on": "The task is to display the contents of 'docker-compose.yml' with line numbers for PR referencing. This is a straightforward file reading operation where line-numbered output is required. The `read_file` tool is purpose-built for this: it reads text files and outputs them with line numbers in 'LINE_NUM|CONTENT' format, supports pagination via offset/limit, and handles common file paths. Other tools like `terminal` (e.g., `cat -n`) are discouraged per guidelines, and web/browser tools are irrelevant since the file is local, not remote. No search, editing, or interaction is needed — just faithful, numbered content retrieval.",
+    "reasoning_tokens_on": 157,
+    "latency_seconds_off": 0.0284,
+    "latency_seconds_on": 0.039
+  },
+  {
+    "task_id": 78,
+    "task_description": "I need to examine lines 1950–2000 of the uncompressed application log from yesterday (app.log.2024-05-21), which should contain a recent stack trace. The file is large (~2.1 MB raw), so avoid loading it all at once. When I tried 'read_file app.log.2024-05-21', it said 'File not found' and suggested 'app.log.2024-05-21.gz', 'app.log.2024-05-20', and 'app.log'. Use the correct parameters to retrieve exactly those 50 lines with line numbers, and ensure no binary or gzipped content is processed.",
+    "correct_tool": "read_file",
+    "selected_off": "terminal",
+    "selected_on": "terminal",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "terminal",
+      "vision_analyze",
+      "search_files",
+      "browser_snapshot"
+    ],
+    "reasoning_text_on": "The task requires reading lines 1950–2000 of a specific uncompressed log file (`app.log.2024-05-21`), but the file is not found in raw form — only a gzipped version (`app.log.2024-05-21.gz`) and other dates are present. Since the task explicitly forbids processing gzipped or binary content, we must first decompress the `.gz` file *without loading the full 2.1 MB into memory*, then extract the exact line range. The `read_file` tool supports `offset` and `limit`, but only for text files — it cannot read `.gz` directly. So we need to: (1) decompress the gzip to a temporary plain-text file (using `terminal` with `gunzip -c`), and (2) pipe or redirect to avoid full in-memory load, then use `read_file",
+    "reasoning_tokens_on": 176,
+    "latency_seconds_off": 0.0323,
+    "latency_seconds_on": 0.0406
+  },
+  {
+    "task_id": 79,
+    "task_description": "What is the current brightness level of the living room light?",
+    "correct_tool": "ha_get_state",
+    "selected_off": "ha_list_entities",
+    "selected_on": "ha_list_entities",
+    "is_correct_off": false,
+    "is_correct_on": false,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "ha_list_entities",
+      "ha_call_service",
+      "browser_snapshot"
+    ],
+    "reasoning_text_on": "The task asks for the current brightness level of the living room light — a device state query. This is a direct Home Assistant entity attribute read. `ha_list_entities` could help discover the correct entity ID (e.g., filtering by domain `'light'` and area `'living room'`), but it only lists entities, not their states. `ha_get_state` directly retrieves the full state—including `brightness`, `color`, `is_on`, etc.—given a known entity ID. Since the entity ID is likely predictable (e.g., `'light.living_room'`) or can be inferred from context, `ha_get_state` is the most precise, efficient, and side-effect-free tool for retrieving the current brightness value. Other tools like browser_* or web_search are unnecessary abstractions for a local smart home API query.",
+    "reasoning_tokens_on": 192,
+    "latency_seconds_off": 0.0289,
+    "latency_seconds_on": 0.0416
+  },
+  {
+    "task_id": 80,
+    "task_description": "Generate a photorealistic, 4K-resolution isometric line-art illustration of a sustainable smart home façade — featuring solar roof tiles, rainwater harvesting gutters, and native drought-tolerant landscaping — rendered in clean monochrome vector style with zero shading, no text, and no logos; the output must be immediately embeddable in a technical documentation PDF without post-processing.",
+    "correct_tool": "image_generate",
+    "selected_off": "image_generate",
+    "selected_on": "image_generate",
+    "is_correct_off": true,
+    "is_correct_on": true,
+    "is_ambiguous": true,
+    "confuser_tools": [
+      "browser_vision",
+      "web_search",
+      "browser_snapshot"
+    ],
+    "reasoning_text_on": "The task requires generating a highly specific, photorealistic 4K isometric line-art illustration with strict stylistic constraints (monochrome, vector, zero shading, no text/logos) and technical requirements (PDF-embeddable, no post-processing). None of the browser, Home Assistant, RL, cron, or file-system tools are relevant — they lack image generation capability. The only tool that directly fulfills the core need is `image_generate`, which uses FLUX 2 Pro with automatic 2x upscaling and supports detailed prompt engineering. While it’s a diffusion model (not pure vector), its output quality, resolution control, and prompt fidelity make it the sole candidate capable of approximating the requested isometric line-art aesthetic — especially when guided by precise, constraint-heavy prompting (e.g., “isometric view”, “clean line art”, “no shading”, “monochrome”, “technical drawing style”). No other tool in the list produces images.",
+    "reasoning_tokens_on": 235,
+    "latency_seconds_off": 0.0265,
+    "latency_seconds_on": 0.0397
+  }
+]

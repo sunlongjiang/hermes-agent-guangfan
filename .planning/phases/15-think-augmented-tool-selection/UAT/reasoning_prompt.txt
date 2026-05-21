@@ -1,0 +1,6 @@
+Briefly reason about which tool best fits this task.
+
+Be concise (≤200 tokens). Mention what makes the candidate tools
+different in this context. Do NOT pre-select a tool — that is the
+selector's job. Focus on disambiguating overlapping tools by their
+intent, scope, or side-effects.

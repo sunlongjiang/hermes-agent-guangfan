@@ -89,7 +89,7 @@ Deferred to future release. Tracked but not in current roadmap.
 ### v2 New Capabilities
 
 - [x] **V2-CODE-01**: Darwinian code evolution — at least one hermes-agent code component evolvable
-- [ ] **V2-LOOP-01**: Continuous evolution loop — scheduled optimization with regression gates and PR creation
+- [x] **V2-LOOP-01**: Continuous evolution loop — scheduled optimization with regression gates and PR creation
 
 ## Out of Scope
 
@@ -146,7 +146,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | V2-STAB-01 | Phase 12 | Complete |
 | V2-STAB-02 | Phase 12 | Complete |
 | V2-CODE-01 | Phase 21 | Complete |
-| V2-LOOP-01 | Phase 22 | Pending |
+| V2-LOOP-01 | Phase 22 | Complete |
 
 **Coverage:**
 - v1 requirements: 23 total (all complete)

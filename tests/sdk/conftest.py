@@ -69,7 +69,7 @@ def fake_trace_factory():
         agent="test-bot",
         agent_version="0.1.0",
         input_data=None,
-        output="",
+        output=None,
         tool_calls=None,
         signals_dict=None,
         scores_dict=None,
@@ -81,7 +81,7 @@ def fake_trace_factory():
             "agent_version": agent_version,
             "run_id": f"uuid-{ts}",
             "input": input_data or {"query": "test"},
-            "output": output or "test output",
+            "output": output if output is not None else "test output",
             "artifacts": [
                 {"id": "system", "kind": "prompt", "text_hash": "sha256:abc"},
             ],

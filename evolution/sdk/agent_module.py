@@ -150,16 +150,20 @@ def _invoke_judge(cfg: JudgeConfig, trace: dict, output: str) -> float:
     Mocked tests bypass this via prediction._judge_score.
     """
     try:
-        lm = dspy.LM(cfg.model)
-        # Minimal judge prompt — full Phase 1 LLMJudge lives in core/fitness.py;
-        # we delegate to it where possible.
         from evolution.core.fitness import LLMJudge  # type: ignore
         from evolution.core.config import EvolutionConfig
-        ec = EvolutionConfig(eval_model=cfg.model)
+        # Load full config so api_base/api_key flow through to the judge LM.
+        ec = EvolutionConfig.load()
+        ec.eval_model = cfg.model
         judge = LLMJudge(ec)
-        # The hermes LLMJudge takes (input, output, skill_text); we adapt.
+        # The hermes LLMJudge expects (task_input, expected_behavior, agent_output, skill_text).
+        # For SDK runs we don't have an authoritative "expected_behavior" — the trace's recorded
+        # output IS the current behaviour. Passing the recorded output as the expected_behavior
+        # gives the judge a concrete reference; the optimizer's job is to find a prompt that
+        # makes a different policy produce something equally good or better.
         scored = judge.score(
             task_input=str(trace.get("input", "")),
+            expected_behavior=str(trace.get("output", "")),
             agent_output=output,
             skill_text=str(trace.get("artifacts", "")),
         )

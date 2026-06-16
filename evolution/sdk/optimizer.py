@@ -18,6 +18,7 @@ from typing import Callable, Optional
 
 from evolution.sdk.artifact import EvolvableArtifact
 from evolution.sdk.trace_sink import _evolution_home
+from evolution.sdk.agent_module import build_composite_metric
 
 log = logging.getLogger("evolution.sdk.optimizer")
 
@@ -69,6 +70,7 @@ class OptimizationOutcome:
     holdout_score: Optional[float] = None
     rejection_reason: Optional[str] = None
     cost_usd: float = 0.0
+    candidate_text: Optional[str] = None  # populated on status == "improved"
 
 
 # ── Three gates ─────────────────────────────────────────────────────────
@@ -289,6 +291,7 @@ def optimize_artifact(
         holdout_score=holdout_score,
         rejection_reason=None,
         cost_usd=budget.spent_usd - start_cost,
+        candidate_text=candidate_text,
     )
 
 
@@ -395,7 +398,7 @@ def main() -> int:
             write_optimized_file(
                 artifact=artifact,
                 agent_version=reg.version,
-                optimized_text=getattr(outcome, "_candidate_text", artifact.baseline_text),
+                optimized_text=outcome.candidate_text or artifact.baseline_text,
                 optimization_metadata={
                     "run_id": str(uuid.uuid4()),
                     "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -431,8 +434,12 @@ def _write_skipped(agent: str, count: int, required: int) -> None:
 
 
 def _run_one_artifact(artifact, traces, reg, budget, *, mock_llm: bool):
-    """Stub for P0 — Task 13 end-to-end test exercises the real path with mock_llm."""
-    # Minimal mock_llm path: return baseline_kept; no actual GEPA call.
+    """Wire one artifact through GEPA optimization (P1 + dogfood).
+
+    Build train/val/holdout from real traces, configure dspy.LM from
+    evolution.yaml, call optimize_artifact(). Mock mode returns baseline_kept
+    (no LLM calls) so Task 13 end-to-end keeps working.
+    """
     if mock_llm:
         return OptimizationOutcome(
             artifact_id=artifact.artifact_id,
@@ -440,10 +447,102 @@ def _run_one_artifact(artifact, traces, reg, budget, *, mock_llm: bool):
             baseline_score=0.5,
             cost_usd=0.0,
         )
-    raise NotImplementedError(
-        "P0 optimizer.main only supports --mock-llm and --dry-run modes; "
-        "real GEPA wiring per artifact is exercised via Task 13 end-to-end."
+
+    import dspy
+    from evolution.core.config import EvolutionConfig
+    from evolution.sdk.agent_module import JudgeConfig
+    from evolution.sdk.signals import compute_signal_score
+
+    # Configure LM from evolution.yaml (or env overrides).
+    cfg = EvolutionConfig.load()
+    lm_kwargs = cfg.get_lm_kwargs()
+    dspy.configure(lm=dspy.LM(cfg.optimizer_model, **lm_kwargs))
+
+    # Build dspy.Example dataset from traces.
+    examples = _traces_to_examples(traces, artifact.kind)
+    if len(examples) < 3:
+        return OptimizationOutcome(
+            artifact_id=artifact.artifact_id,
+            status="error",
+            rejection_reason=f"not enough usable examples: {len(examples)}",
+            cost_usd=0.0,
+        )
+
+    n = len(examples)
+    n_train = max(1, n // 2)
+    n_val = max(1, (n - n_train) // 2)
+    train = examples[:n_train]
+    val = examples[n_train:n_train + n_val]
+    holdout = examples[n_train + n_val:] or val
+
+    # Composite metric: judge + signal (no user metric for dogfood).
+    judge_cfg = JudgeConfig(model=cfg.eval_model, dimensions=tuple(reg_judge_dimensions(reg)))
+    metric = build_composite_metric(
+        user_metric=None,
+        judge_config=judge_cfg,
+        signals_provider=lambda trace: compute_signal_score(
+            error_in_run=bool(trace.get("signals", {}).get("errors", 0)),
+            retry_pattern=bool(trace.get("signals", {}).get("retries", 0)),
+            user_correction=bool(trace.get("signals", {}).get("user_correction")),
+            latency_outlier=False,
+        ),
     )
+
+    outcome = optimize_artifact(
+        artifact=artifact,
+        train_examples=train,
+        val_examples=val,
+        holdout_examples=holdout,
+        metric=metric,
+        optimizer_model=cfg.optimizer_model,
+        budget=budget,
+        judge_dimensions=judge_cfg.dimensions,
+    )
+    return outcome
+
+
+def reg_judge_dimensions(reg) -> tuple:
+    """Look up judge dimensions from the agent's _evolution_meta (class attribute).
+
+    Falls back to ('correctness',) when the meta dict isn't populated.
+    """
+    try:
+        module_path, cls_name = reg.module.split(":")
+        import importlib
+        cls = getattr(importlib.import_module(module_path), cls_name)
+        return getattr(cls, "_evolution_meta", {}).get("judge_dimensions", ("correctness",))
+    except Exception:  # noqa: BLE001
+        return ("correctness",)
+
+
+def _traces_to_examples(traces: list[dict], kind: str) -> list:
+    """Convert TraceRecord dicts to dspy.Example list.
+
+    For prompt kind: (user_input, expected_output) where user_input is the
+    serialised trace input and expected_output is the recorded agent output
+    (treats current behaviour as the target — what GEPA is optimizing AGAINST,
+    not toward; this gives the judge concrete pairs to score).
+
+    For tool kind: (user_intent, expected_output) similarly.
+    """
+    import dspy
+    examples = []
+    for t in traces:
+        inp = t.get("input")
+        if isinstance(inp, dict):
+            user_text = inp.get("q") or " ".join(f"{k}={v}" for k, v in inp.items())
+        else:
+            user_text = str(inp)
+        out = t.get("output")
+        if out is None:
+            continue
+        if kind == "tool":
+            ex = dspy.Example(user_intent=str(user_text), expected_output=str(out)).with_inputs("user_intent")
+        else:
+            ex = dspy.Example(user_input=str(user_text), expected_output=str(out)).with_inputs("user_input")
+        ex.trace = t
+        examples.append(ex)
+    return examples
 
 
 def emit_patch_for_outcome(

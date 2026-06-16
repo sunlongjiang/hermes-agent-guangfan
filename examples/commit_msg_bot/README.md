@@ -73,3 +73,53 @@ Pain points worth fixing in P1:
 
 These are real, reproducible UX bugs found in 5 minutes of dogfooding —
 exactly what this example was meant to surface.
+
+## Optimizer wiring findings (2026-06-16 real run)
+
+After patching `_run_one_artifact` to call the real `optimize_artifact` (P1
+wiring), a real optimization run against qwen-max + qwen-plus surfaced two
+deeper bugs that the mocked test suite cannot catch. Both are real P1 fixes.
+
+5. **`dspy.GEPA` is never reached — metric signature mismatch.**
+   `build_composite_metric` returns a 2-arg callable `(example, prediction)`
+   but `dspy.GEPA` requires a 5-arg metric `(gold, pred, trace, pred_name,
+   pred_trace)`. Every run falls through the `except` block silently to
+   MIPROv2. Confirmed by 3-of-3 artifacts logging `GEPA failed (GEPA metric
+   must accept five arguments...); falling back to MIPROv2`. Fix: wrap the
+   metric with a `*args`-tolerant adapter, or build a GEPA-shaped metric
+   alongside the existing one.
+
+6. **MIPROv2's instruction mutation is not propagated to `current_text`.**
+   `optimize_artifact` extracts the candidate via
+   `getattr(optimized_module, "current_text", artifact.baseline_text)`, but
+   MIPROv2 (and GEPA) modify the inner `dspy.Predict.signature.instructions`,
+   not `AgentModule.current_text`. As a result, all three artifacts in the
+   2026-06-16 run wrote `optimized_text == baseline_text` byte-for-byte
+   even when `status="improved"`. The score deltas (`baseline 0.316 →
+   holdout 0.363` etc.) are just val/holdout sample variance on the
+   baseline, not real improvement. Fix: extract the optimized text from
+   the predict's signature, e.g.
+   `optimized_module.predictor.signature.instructions` (exact path depends
+   on how `AgentModule` wires the underlying predictor), and call
+   `module.set_text(...)` before holdout evaluation.
+
+Gate behaviour was correct end-to-end:
+- Gate 1 (size/growth/secret/placeholder) never tripped (expected: candidate
+  was identical to baseline).
+- Gate 2 (holdout regression) **correctly rejected** `few_shot_header` when
+  the holdout sample variance dropped its score below the baseline-tolerance
+  threshold (`holdout 0.590 < 0.667`). This is the safety net working as
+  designed.
+- All three optimized files were written to `$EVOLUTION_HOME/optimized/`
+  with valid `baseline_hash` and metadata; runtime fallback would work on
+  drift.
+
+Additional smaller findings from the real run:
+7. **`OptimizationBudget.spent_usd` never increments.** All `cost_usd`
+   fields in `run_summary.json` are `0.0` regardless of actual LLM spend.
+   Real cost tracking needs to hook `dspy.LM.history` or instrument the
+   judge / optimizer call sites.
+8. **`evolution.yaml literal-key` warning fires per LM construction** —
+   ~60 emissions per artifact for a single optimize run. Should be
+   deduplicated after the first emit per process (e.g. a module-level
+   `_warned` flag in `EvolutionConfig.load()`).

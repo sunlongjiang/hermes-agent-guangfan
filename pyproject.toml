@@ -22,6 +22,9 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.scripts]
+evolution = "evolution.sdk.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",

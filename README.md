@@ -23,6 +23,56 @@ Read artifact ──► Generate eval dataset (synthetic / session history)
                   Best variant ──► output/ (human review before deploy)
 ```
 
+## SDK Quick Start — 任意 Python agent 接入
+
+把任意 Python agent 接入自进化循环：
+
+```python
+# myapp/bots/research.py
+from evolution.sdk import evolvable_agent, evolvable_prompt, evolvable_tool
+
+@evolvable_agent(
+    name="research-bot",
+    schedule="weekly",
+    min_samples=50,
+    apply="runtime",   # runtime | patch | pr
+    max_cost_usd=5.0,
+)
+class ResearchBot:
+    @evolvable_prompt(id="system", text="You are a research assistant.")
+    def system_prompt(self):
+        return ...
+
+    @evolvable_tool(id="search", max_chars=500)
+    def search(self, query: str):
+        """Search the public web and return the top 5 snippets."""
+        ...
+
+    def run(self, query: str) -> str:
+        ...
+```
+
+接入后：
+
+```bash
+# 1) 让 SDK 发现你的 agent (写入 ~/.evolution/registry.json)
+evolution discover myapp.bots.research
+
+# 2) 生成 GitHub Actions 调度配置
+evolution scaffold --backend gh-actions --output .github/workflows/
+
+# 3) 查看 agent 状态
+evolution status --agent research-bot
+
+# 4) 手动触发优化 (cron 之外)
+evolution optimize --agent research-bot
+
+# 5) 不喜欢就回滚
+evolution rollback --agent research-bot --artifact system
+```
+
+详见 `docs/superpowers/specs/2026-06-13-agent-evolve-sdk-design.md`。
+
 ## Quick Start
 
 ```bash

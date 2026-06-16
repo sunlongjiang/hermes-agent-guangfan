@@ -446,5 +446,29 @@ def _run_one_artifact(artifact, traces, reg, budget, *, mock_llm: bool):
     )
 
 
+def emit_patch_for_outcome(
+    *,
+    outcome: OptimizationOutcome,
+    artifact: EvolvableArtifact,
+    optimized_text: str,
+    agent_name: str,
+) -> Path:
+    """Generate output/<agent>/<ts>/changes.patch for apply='patch' mode."""
+    from evolution.sdk.ast_writer import rewrite_artifact_text, generate_unified_diff
+    from datetime import datetime, timezone
+
+    original = artifact.source_file.read_text()
+    new_src = rewrite_artifact_text(artifact, new_text=optimized_text)
+    diff = generate_unified_diff(
+        artifact.source_file, original_text=original, new_text=new_src,
+    )
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    out_dir = Path("output") / agent_name / ts
+    out_dir.mkdir(parents=True, exist_ok=True)
+    patch_path = out_dir / "changes.patch"
+    patch_path.write_text(diff)
+    return patch_path
+
+
 if __name__ == "__main__":
     raise SystemExit(main())

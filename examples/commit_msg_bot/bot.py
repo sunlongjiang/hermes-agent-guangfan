@@ -36,19 +36,19 @@ class CommitMsgBot:
     @evolvable_prompt(
         id="system",
         text="You are an expert engineer. Read the diff and produce ONE conventional commit message line. Format: <type>(<scope>): <subject>. Subject must be imperative mood and under 72 chars.",
-        max_chars=600,
-        max_growth=0.25,
+        max_chars=4000,
+        max_growth=20.0,
     )
     def system_prompt(self) -> str:
         return runtime.resolve_text("commit-msg-bot", "system")
 
     # Form 2: function return value (clean syntax for short prompts)
-    @evolvable_prompt(id="few_shot_header", max_chars=200)
+    @evolvable_prompt(id="few_shot_header", max_chars=4000)
     def few_shot_header(self) -> str:
         return "Here are example commits in this codebase. Match their style."
 
     # Form 3: docstring (zero ceremony for tool descriptions)
-    @evolvable_tool(id="diff_classifier", max_chars=400)
+    @evolvable_tool(id="diff_classifier", max_chars=4000)
     def classify_diff(self, diff: str) -> str:
         """Classify the diff into one of: feat, fix, docs, refactor, test, chore.
         Inspect the file paths and the nature of the changes."""

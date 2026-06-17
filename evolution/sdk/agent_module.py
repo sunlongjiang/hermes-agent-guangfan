@@ -28,53 +28,57 @@ class JudgeConfig:
 class AgentModule(dspy.Module):
     """DSPy module wrapping a single EvolvableArtifact for GEPA optimization.
 
-    The artifact's baseline_text becomes the initial value of the parameter
-    that GEPA mutates. forward() composes the parameter as instructions to a
-    ChainOfThought predictor over a kind-specific Signature.
+    The artifact's baseline_text becomes the initial *signature instructions*
+    of the inner Predict — that string is what GEPA/MIPROv2 actually mutate
+    when they search for better candidates.
+
+    `current_text` is a live property that reads back the predictor's
+    instructions, so after `compile()` the optimized text is reachable as
+    `optimized_module.current_text`.
     """
 
     def __init__(self, artifact: EvolvableArtifact, judge_dimensions: tuple[str, ...]):
         super().__init__()
         self.artifact = artifact
         self.judge_dimensions = judge_dimensions
-        self.current_text = artifact.baseline_text
 
         if artifact.kind == "prompt":
-            self._sig = self._build_prompt_signature()
+            sig = self._build_prompt_signature()
         elif artifact.kind == "tool":
-            self._sig = self._build_tool_signature()
+            sig = self._build_tool_signature()
         else:
             raise ValueError(f"unknown artifact kind: {artifact.kind!r}")
 
-        self.predictor = dspy.ChainOfThought(self._sig)
+        sig = sig.with_instructions(artifact.baseline_text)
+        self.predictor = dspy.ChainOfThought(sig)
 
     def _build_prompt_signature(self):
         class _PromptSig(dspy.Signature):
-            """Apply the prompt instructions to the user input."""
-            prompt_text: str = dspy.InputField(desc="The prompt instructions to follow")
             user_input: str = dspy.InputField(desc="The user-provided input")
             output: str = dspy.OutputField(desc="Response following the prompt")
         return _PromptSig
 
     def _build_tool_signature(self):
         class _ToolSig(dspy.Signature):
-            """Decide if this tool description matches the user's intent."""
-            tool_description: str = dspy.InputField(desc="The tool description to evaluate")
             user_intent: str = dspy.InputField(desc="What the user wants to do")
             output: str = dspy.OutputField(desc="Whether/how this tool applies")
         return _ToolSig
 
+    @property
+    def current_text(self) -> str:
+        # Live read — picks up GEPA/MIPROv2's mutations to the signature.
+        return self.predictor.predict.signature.instructions
+
     def set_text(self, new_text: str) -> None:
-        """Mutate the current artifact text. Called by GEPA between generations."""
-        self.current_text = new_text
+        # Replace the signature with one carrying the new instructions.
+        predict = self.predictor.predict
+        predict.signature = predict.signature.with_instructions(new_text)
 
     def forward(self, **kwargs) -> dspy.Prediction:
         if self.artifact.kind == "prompt":
-            result = self.predictor(prompt_text=self.current_text,
-                                    user_input=kwargs.get("user_input", ""))
+            result = self.predictor(user_input=kwargs.get("user_input", ""))
         else:
-            result = self.predictor(tool_description=self.current_text,
-                                    user_intent=kwargs.get("user_intent", ""))
+            result = self.predictor(user_intent=kwargs.get("user_intent", ""))
         return dspy.Prediction(output=result.output)
 
 
@@ -92,7 +96,14 @@ def build_composite_metric(
         signals_provider: (trace_dict) -> signal_score in [0,1]
 
     Returns:
-        metric(example, prediction) -> float — usable by dspy.GEPA(metric=...).
+        metric(example, prediction, *args, **kwargs) -> float in [0, 1].
+
+        The extra positional args make the metric satisfy both calling
+        conventions: dspy.MIPROv2 calls it as `(example, prediction)`, and
+        dspy.GEPA calls it as `(gold, pred, trace, pred_name, pred_trace)`.
+        GEPA also validates the metric via
+        `inspect.signature(metric).bind(None, None, None, None, None)` —
+        the `*args` makes that bind succeed without changing semantics.
 
     Weight redistribution:
         - all three: 0.5 * user + 0.3 * judge + 0.2 * signal
@@ -103,7 +114,7 @@ def build_composite_metric(
     has_user = user_metric is not None
     has_judge = judge_config is not None and len(judge_config.dimensions) > 0
 
-    def metric(example, prediction, trace=None):
+    def metric(example, prediction, *args, **kwargs):
         trace_dict = getattr(example, "trace", {}) or {}
         output = getattr(prediction, "output", "")
         # judge score may be precomputed and attached to prediction by the

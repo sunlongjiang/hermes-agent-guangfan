@@ -231,10 +231,15 @@ def optimize_artifact(
     # GEPA → MIPROv2 fallback.
     optimized_module = None
     try:
-        lm = dspy.LM(optimizer_model)
+        # Reuse the already-configured global LM so api_base/api_key reach
+        # GEPA's reflection LM. A bare `dspy.LM(optimizer_model)` would
+        # default to OpenAI's endpoint and 404 on non-OpenAI models.
+        lm = dspy.settings.lm
+        # dspy.GEPA asserts exactly one of (max_metric_calls, max_full_evals,
+        # auto). We pass max_metric_calls so the caller can bound API spend
+        # — leave `auto` unset.
         gepa = dspy.GEPA(
             metric=metric,
-            auto="light",
             max_metric_calls=max_metric_calls,
             reflection_lm=lm,
             track_stats=True,

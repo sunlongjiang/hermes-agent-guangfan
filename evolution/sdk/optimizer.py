@@ -502,6 +502,7 @@ def _run_one_artifact(artifact, traces, reg, budget, *, mock_llm: bool):
         optimizer_model=cfg.optimizer_model,
         budget=budget,
         judge_dimensions=judge_cfg.dimensions,
+        max_metric_calls=int(os.getenv("EVOLUTION_MAX_METRIC_CALLS", "200")),
     )
     return outcome
 

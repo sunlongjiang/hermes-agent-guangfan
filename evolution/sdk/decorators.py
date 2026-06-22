@@ -43,6 +43,7 @@ def _build_inner_decorator(kind: str):
         max_chars: Optional[int] = None,
         max_growth: Optional[float] = None,
         forbidden_patterns: Optional[Iterable[str]] = None,
+        required_patterns: Optional[Iterable[str]] = None,
     ):
         if not id:
             raise ArtifactExtractionError("id is required (non-empty string)")
@@ -56,6 +57,8 @@ def _build_inner_decorator(kind: str):
                 constraints["max_growth"] = max_growth
             if forbidden_patterns is not None:
                 constraints["forbidden_patterns"] = list(forbidden_patterns)
+            if required_patterns is not None:
+                constraints["required_patterns"] = list(required_patterns)
 
             try:
                 source_file = Path(inspect.getsourcefile(func) or "<unknown>")

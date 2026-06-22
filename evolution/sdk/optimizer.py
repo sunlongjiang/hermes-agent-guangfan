@@ -121,6 +121,12 @@ def apply_gates(
             return GateResult(False, "gate_1_forbidden",
                               f"candidate matched forbidden pattern: {pat!r}")
 
+    required = constraints.get("required_patterns") or []
+    for pat in required:
+        if not re.search(pat, candidate_text):
+            return GateResult(False, "gate_1_required_missing",
+                              f"candidate lost required pattern: {pat!r}")
+
     # ── Gate 2: holdout regression ──
     threshold = baseline_score * (1 - regression_tolerance)
     if candidate_holdout_score < threshold:
@@ -261,6 +267,24 @@ def optimize_artifact(
             )
 
     candidate_text = getattr(optimized_module, "current_text", artifact.baseline_text)
+
+    # Sanitize GEPA reflection metadata leakage. If the leak is trim-able
+    # we keep the cleaned candidate; if it's interleaved with the body we
+    # reject the candidate here rather than ship contaminated text to disk.
+    from evolution.sdk.sanitize import sanitize_candidate, find_leak_markers
+    sanitized_text, markers = sanitize_candidate(candidate_text)
+    if markers and sanitized_text == candidate_text:
+        return OptimizationOutcome(
+            artifact_id=artifact.artifact_id,
+            status="rejected",
+            baseline_score=baseline_score,
+            rejection_reason=f"sanitize_leak_unrecoverable: {markers!r}",
+            cost_usd=budget.spent_usd - start_cost,
+        )
+    if markers:
+        log.info("sanitized %d leak marker(s) from %s: %s",
+                 len(markers), artifact.artifact_id, markers)
+    candidate_text = sanitized_text
 
     # Evaluate candidate on holdout.
     optimized_module.set_text(candidate_text)
